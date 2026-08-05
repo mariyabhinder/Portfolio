@@ -1,0 +1,10 @@
+{
+  "description": "Explore personal qualities through an interactive dark mode starry sky that reveals unique traits with engaging overlays on hover or tap.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
