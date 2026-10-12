@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react'
+import DreamLanding from '@/components/DreamLanding'
 
 // Light mode hero assets (Desktop3)
 import imgFlowers from '@/imports/Desktop3/2182658c973ab1a52c76c51bb6d97abfd86a119b.png'
@@ -11,24 +12,6 @@ import imgNightFlowers from '@/imports/Desktop6/241774bfbf1980588ad71c0aeec74d98
 import imgNightSky from '@/imports/Desktop6/0353e4bc27890122cb60ed7cc7bd494df7c8c443.png'
 import svgPathsDark from '@/imports/Desktop6/svg-t3rm6mk35m'
 
-// Work section
-import imgStitchBg from '@/imports/Desktop3/d7cbdac2aa8cd7d0ed60b7f97058417646614d0e.png'
-import imgFabricCard from '@/imports/Desktop3/53a3956c50f7d4763ab516df51950ce335fe481b.png'
-import imgWorkCard1 from '@/imports/Desktop3/fd415b7cd72e32c9e7365d6337fed327eb4a7b91.png'
-import imgReadMore from '@/imports/Desktop3/65f721ab039a7546097ec07e93d8a395fa3b6bd6.png'
-import imgWorkCard2 from '@/imports/Desktop3/45b16cb03bdbbefe8a22e1bef039d32b0e71c1e7.png'
-
-// About section
-import imgAboutFrame from '@/imports/Desktop3/db1833e94ab1bb7d8ef6cf5b25f5dd781be6235e.png'
-import imgAboutOuter from '@/imports/Desktop3/2d46c0ce452d0e333860e7b992961e3bc45fa217.png'
-import imgAboutPhoto from '@/imports/Desktop3/f86e3aa9c5e2a97065eaa2412887654bf8ead6b0.png'
-import imgCoffeeCup from '@/imports/Desktop3/1710d0486056f098a8e293bc84868fbbbce2ffc5.png'
-import imgDecoration from '@/imports/Desktop3/d9e44ac49879b94a4c8fcb767f01b362a8ebf270.png'
-
-// Contact section
-import imgAwning from '@/imports/Desktop3/ca2947bd4eb1b46b947dab1aff5065e2c68de977.png'
-import imgGirlCoffee from '@/imports/Desktop3/de57bf02da79cf53b8b019004f18320e140e82c7.png'
-import imgLinkedIn from '@/imports/Desktop3/6617f91bcfc4d4533578cad32c29c8dca523e3d1.png'
 
 type QualityId = 'uiux' | 'stitching' | 'coffee' | 'stars' | 'mandala'
 
@@ -1010,227 +993,14 @@ function MobileDarkHero({ activeQuality, onHoverIn, onHoverOut, onTap, onToggle 
   )
 }
 
-// ======= NON-HERO SECTIONS (always light) =======
-
-function WorkSection() {
-  return (
-    <section className="relative w-full overflow-hidden bg-white">
-      {/* Stitching background texture */}
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="flex items-center justify-center h-full w-full" style={{ transform: 'rotate(-90deg)' }}>
-          <img alt="" className="object-cover w-full h-full max-w-none" src={imgStitchBg} />
-        </div>
-      </div>
-
-      <div className="relative z-10 max-w-[1440px] mx-auto px-6 py-16">
-        <h2 className="font-['Alan_Sans:Regular',sans-serif] font-normal text-[#541414] text-center mb-12"
-          style={{ fontSize: 'clamp(24px, 2.78vw, 40px)' }}>
-          My Work Stitched Together
-        </h2>
-
-        <div className="flex flex-col md:flex-row gap-8 justify-center items-center">
-          {/* Card 1 — Green */}
-          <WorkCard
-            color="#4a9a3c"
-            title="Website Hero Page"
-            screenshot={imgWorkCard1}
-            href="#"
-          />
-          {/* Card 2 — Pink */}
-          <WorkCard
-            color="#d44e7a"
-            title="Website Hero Image"
-            screenshot={imgWorkCard2}
-            href="#"
-          />
-          {/* Card 3 — Blue (empty placeholder) */}
-          <WorkCard
-            color="#4a7abf"
-            title=""
-            screenshot={null}
-            href="#"
-          />
-        </div>
-      </div>
-    </section>
-  )
-}
-
-function WorkCard({
-  color,
-  title,
-  screenshot,
-  href,
-}: {
-  color: string
-  title: string
-  screenshot: string | null
-  href: string
-}) {
-  return (
-    <div
-      className="relative overflow-hidden transition-transform duration-200 hover:-translate-y-1"
-      style={{ width: '100%', maxWidth: 454 }}
-    >
-      {/* Fabric card base */}
-      <div className="absolute inset-0 pointer-events-none">
-        <img alt="" className="w-full h-full object-cover" src={imgFabricCard} style={{ filter: `sepia(0.5) hue-rotate(${color === '#4a9a3c' ? '80deg' : color === '#d44e7a' ? '320deg' : '200deg'}) saturate(1.5)` }} />
-      </div>
-
-      {/* Stitching border */}
-      <div
-        className="relative m-3 border-[3px] border-dashed"
-        style={{ borderColor: color, minHeight: 460, padding: '16px' }}
-      >
-        {screenshot && (
-          <img alt={title} className="w-full object-cover mb-4 block" style={{ maxHeight: 209 }} src={screenshot} />
-        )}
-        {title && (
-          <p className="font-['Alan_Sans:Medium',sans-serif] font-medium text-black text-center text-2xl mb-3">
-            {title}
-          </p>
-        )}
-        <div className="flex justify-center mt-2">
-          <a
-            href={href}
-            className="inline-block transition-opacity hover:opacity-80"
-            onClick={(e) => e.preventDefault()}
-          >
-            <img alt="Read more" className="h-[95px] w-[190px] object-cover" src={imgReadMore} />
-          </a>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function AboutSection() {
-  return (
-    <section className="bg-white py-16">
-      <div className="max-w-[1440px] mx-auto px-6">
-        <div className="flex flex-col md:flex-row gap-12 items-center">
-          {/* Left: scrapbook photo frame */}
-          <div className="relative flex-shrink-0" style={{ width: 'min(448px, 100%)', height: 'min(711px, 80vw)' }}>
-            {/* Outer decorative frame */}
-            <img alt="" className="absolute inset-0 w-full h-full object-cover pointer-events-none" src={imgAboutOuter} />
-            {/* Inner yellow grid */}
-            <div className="absolute" style={{ left: '9.6%', top: '8.5%', width: '70%', height: '72.6%' }}>
-              <img alt="" className="w-full h-full object-cover" src={imgAboutPhoto} style={{ clipPath: 'inset(37.29% 0 0 29.48%)' }} />
-            </div>
-            {/* Decorative square top-right */}
-            <img alt="" className="absolute pointer-events-none" style={{ left: '81.2%', top: '2.5%', width: '32.6%' }} src={imgAboutFrame} />
-            {/* Coffee cup */}
-            <img alt="" className="absolute pointer-events-none" style={{ left: '0', top: '65.9%', width: '39.3%' }} src={imgCoffeeCup} />
-            {/* Small decoration */}
-            <img alt="" className="absolute pointer-events-none" style={{ left: '75.9%', top: '74.9%', width: '34.4%' }} src={imgDecoration} />
-            {/* Pink note */}
-            <div className="absolute" style={{ left: '28.9%', top: '68%' }}>
-              <div className="bg-[rgba(252,106,146,0.7)] p-[10px]" style={{ transform: 'rotate(-11.13deg)' }}>
-                <p className="font-['Alan_Sans:Regular',sans-serif] font-normal text-black" style={{ fontSize: 'clamp(9px, 1.04vw, 15px)', width: '18vw', maxWidth: 241 }}>
-                  Love creating beautiful designs either from stitching or drawing
-                </p>
-              </div>
-            </div>
-            {/* Coffee text */}
-            <p className="absolute font-['Indie_Flower:Regular',sans-serif] not-italic text-black whitespace-nowrap"
-              style={{ left: '19.6%', top: '89%', fontSize: 'clamp(10px, 1.67vw, 24px)' }}>
-              A cup of coffee is a must!
-            </p>
-          </div>
-
-          {/* Right: bio */}
-          <div className="flex-1 md:pl-8">
-            <h2 className="font-['Alan_Sans:Regular',sans-serif] font-normal text-black mb-4"
-              style={{ fontSize: 'clamp(28px, 3.33vw, 48px)' }}>
-              Hi! I am <span style={{ color: '#efb446' }}>Mariyah</span>
-            </h2>
-            <p className="font-['Alan_Sans:Regular',sans-serif] font-normal text-black mb-6"
-              style={{ fontSize: 'clamp(22px, 2.78vw, 40px)' }}>
-              UI/UX Designer
-            </p>
-            <p className="font-['Alan_Sans:Regular',sans-serif] font-normal text-[rgba(0,0,0,0.8)]"
-              style={{ fontSize: 'clamp(16px, 2.22vw, 32px)', maxWidth: 582 }}>
-              I&apos;ve always found a special kind of joy in the small, beautiful things around us.
-            </p>
-          </div>
-        </div>
-      </div>
-    </section>
-  )
-}
-
-function ContactSection() {
-  return (
-    <section className="relative bg-white overflow-hidden">
-      {/* Awning at top */}
-      <div className="w-full pointer-events-none" style={{ maxHeight: 200 }}>
-        <img alt="" className="w-full object-cover object-top" src={imgAwning} style={{ maxHeight: 200 }} />
-      </div>
-
-      <div className="relative max-w-[1440px] mx-auto px-6 py-12">
-        <div className="flex flex-col md:flex-row items-end justify-between">
-          {/* Left: CTA */}
-          <div className="flex-1 mb-8 md:mb-0">
-            <h2 className="font-['Alan_Sans:Regular',sans-serif] font-normal text-black mb-6"
-              style={{ fontSize: 'clamp(28px, 4.44vw, 64px)', maxWidth: 754 }}>
-              Lets Connect For a Cup Of Coffee
-            </h2>
-
-            <div className="flex items-center gap-3 mb-4">
-              <svg width="60" height="60" viewBox="0 0 60 60" fill="none" className="flex-shrink-0" style={{ maxWidth: 'clamp(24px, 4.17vw, 60px)' }}>
-                <g>
-                  <path d={svgPathsLight.p28680200} stroke="black" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-                </g>
-              </svg>
-              <a
-                href="mailto:bhinderwalamariyah@gmail.com"
-                className="font-['Alan_Sans:Regular',sans-serif] font-normal text-black underline decoration-solid"
-                style={{ fontSize: 'clamp(12px, 1.67vw, 24px)' }}
-              >
-                bhinderwalamariyah@gmail.com
-              </a>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <a href="#" aria-label="LinkedIn" className="inline-block hover:opacity-80 transition-opacity">
-                <img alt="LinkedIn" src={imgLinkedIn} style={{ width: 'clamp(24px, 3.54vw, 51px)', height: 'clamp(24px, 3.54vw, 51px)', objectFit: 'cover' }} />
-              </a>
-            </div>
-          </div>
-
-          {/* Right: girl with coffee */}
-          <div className="flex-shrink-0 pointer-events-none" style={{ width: 'min(538px, 45%)' }}>
-            <img alt="" className="w-full h-auto object-contain object-bottom" src={imgGirlCoffee} />
-          </div>
-        </div>
-      </div>
-    </section>
-  )
-}
 
 // ======= MAIN APP =======
 
 export default function App() {
-  const [darkMode, setDarkMode] = useState(false)
-
-  const toggle = useCallback(() => setDarkMode(d => !d), [])
-
   return (
     <div className="w-full min-h-screen bg-white">
-      {/* Desktop hero (hidden on mobile) */}
-      <div className="hidden md:block">
-        <HeroSection dark={darkMode} onToggle={toggle} />
-      </div>
-
-      {/* Mobile hero (hidden on desktop) */}
-      <div className="block md:hidden">
-        <MobileHeroSection dark={darkMode} onToggle={toggle} />
-      </div>
-
-      {/* Sections below hero — always light, never affected by dark mode */}
-      <WorkSection />
-      <AboutSection />
-      <ContactSection />
+      {/* Dream scroll landing */}
+      <DreamLanding />
     </div>
   )
 }
