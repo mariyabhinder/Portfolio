@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { createDreamDust, type DustState } from './dreamDust'
 import imgGarden from '@/assets/garden/garden.webp'
 import imgGirl from '@/assets/garden/girl.webp'
 import imgCloud1 from '@/assets/garden/cloud-1.webp'
@@ -51,6 +52,7 @@ export default function DreamLanding() {
   const girlRef = useRef<HTMLDivElement>(null)
   const displacementRef = useRef<SVGFEDisplacementMapElement>(null)
   const turbulenceRef = useRef<SVGFETurbulenceElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
 
   useEffect(() => {
     const section = sectionRef.current!
@@ -59,6 +61,7 @@ export default function DreamLanding() {
     const girl = girlRef.current!
     const displacement = displacementRef.current!
     const turbulence = turbulenceRef.current!
+    const canvas = canvasRef.current!
 
     girl.style.setProperty('--fx', FACE_X * 100 + '%')
     girl.style.setProperty('--fy', FACE_Y * 100 + '%')
@@ -87,7 +90,14 @@ export default function DreamLanding() {
 
       girl.style.setProperty('--fr', FACE_R * girlW + 'px')
       image.style.transformOrigin = `${faceX}px ${faceY}px`
+      dustState.originX = faceX
+      dustState.originY = faceY
+      dust?.measure()
     }
+
+    // The WebGL dust wave replaces the SVG displacement filter when WebGL2 is available
+    const dustState: DustState = { zoom: 1, moveX: 0, moveY: 0, originX: 0, originY: 0, t: 0 }
+    const dust = createDreamDust(canvas, camera, image, dustState)
 
     let dreaming = false
     let lastTransform = ''
@@ -103,12 +113,16 @@ export default function DreamLanding() {
       const moveX = (vw / 2 - faceX) * zoomProgress
       const moveY = (vh / 2 - faceY) * zoomProgress
       const transform = `translate3d(${moveX.toFixed(1)}px, ${moveY.toFixed(1)}px, 0) scale(${zoom.toFixed(4)})`
+      dustState.zoom = zoom
+      dustState.moveX = moveX
+      dustState.moveY = moveY
+      dustState.t = Math.max(0, Math.min(1, (progress - DREAM_START) / (1 - DREAM_START)))
       if (transform !== lastTransform) {
         image.style.transform = transform
         lastTransform = transform
       }
 
-      const isDreaming = progress >= DREAM_START
+      const isDreaming = !dust?.active && progress >= DREAM_START
       if (isDreaming !== dreaming) {
         camera.classList.toggle('dreaming', isDreaming)
         dreaming = isDreaming
@@ -143,6 +157,8 @@ export default function DreamLanding() {
     const resizeObserver = new ResizeObserver(onResize)
     resizeObserver.observe(section)
     resizeObserver.observe(girl)
+    const visibility = new IntersectionObserver(([entry]) => dust?.setVisible(entry.isIntersecting))
+    visibility.observe(section)
     window.addEventListener('scroll', schedule, { passive: true })
     window.addEventListener('resize', onResize)
     measure()
@@ -150,6 +166,8 @@ export default function DreamLanding() {
     return () => {
       cancelAnimationFrame(frame)
       resizeObserver.disconnect()
+      visibility.disconnect()
+      dust?.dispose()
       window.removeEventListener('scroll', schedule)
       window.removeEventListener('resize', onResize)
     }
@@ -172,6 +190,7 @@ export default function DreamLanding() {
             <CloudSet className="dg-shadow-layer dg-girl-shadows" shadow />
             <CloudSet className="dg-cloud-layer" />
           </div>
+          <canvas ref={canvasRef} className="dream-dust" aria-hidden="true" />
         </div>
       </section>
 
