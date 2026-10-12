@@ -23,3 +23,180 @@
   font-style: normal;
   font-display: swap;
 }
+
+/* ===== Dream landing ===== */
+
+.dream-section {
+  height: 350vh;
+  position: relative;
+}
+
+.dream-camera {
+  position: sticky;
+  top: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: #173719;
+}
+
+.sleeping-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  isolation: isolate;
+  will-change: transform;
+}
+
+/* Garden grass */
+.dg-garden {
+  position: absolute;
+  inset: -2%;
+  z-index: 0;
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  animation: dgGrassBreeze 12s ease-in-out infinite alternate;
+}
+
+/* The girl: sized from one variable so the face position can be derived in JS */
+.dg-girl {
+  --girl-w: min(34vw, 52vh);
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  top: 50%;
+  width: var(--girl-w);
+  height: calc(var(--girl-w) * 1.4987);
+  margin-left: calc(var(--girl-w) / -2);
+  margin-top: calc(var(--girl-w) * -0.7494);
+  animation: dgGirlBreeze 7s ease-in-out infinite;
+}
+
+.dg-girl img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+@media (max-width: 600px) {
+  .dg-girl {
+    --girl-w: min(72vw, 52vh);
+  }
+}
+
+.dream-filters {
+  position: absolute;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.dg-girl .face-layer {
+  opacity: 0;
+  -webkit-mask-image: radial-gradient(circle at var(--fx, 50%) var(--fy, 50%), #000 0, #000 var(--fr, 90px), transparent calc(var(--fr, 90px) * 2.2));
+  mask-image: radial-gradient(circle at var(--fx, 50%) var(--fy, 50%), #000 0, #000 var(--fr, 90px), transparent calc(var(--fr, 90px) * 2.2));
+}
+
+.dreaming .dg-girl .face-layer {
+  opacity: 1;
+  filter: url('#dreamDistortion');
+}
+
+/* Cloud shadows on the grass (z 1) and over the girl (z 3), then the clouds (z 4) */
+.dg-shadow-layer,
+.dg-cloud-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.dg-ground-shadows { z-index: 1; }
+/* Shadows are pure black, so normal blending looks identical to multiply */
+.dg-girl-shadows { z-index: 3; }
+.dg-cloud-layer { z-index: 4; }
+
+.dg-cloud,
+.dg-cloud-shadow {
+  position: absolute;
+  left: 0;
+  width: var(--cloud-width);
+  height: auto;
+  object-fit: contain;
+  opacity: 0;
+  will-change: transform;
+  animation: dgCloudDrift var(--duration) linear infinite;
+  animation-delay: var(--delay);
+}
+
+.dg-cloud { top: var(--cloud-top); }
+
+/* Shadow images include blur padding (--shadow-pad, a fraction of the cloud width) on every side */
+.dg-cloud-shadow {
+  top: var(--cloud-top);
+  width: calc(var(--cloud-width) * (1 + 2 * var(--shadow-pad)));
+  margin-top: calc(18px - var(--cloud-width) * var(--shadow-pad));
+  margin-left: calc(12px - var(--cloud-width) * var(--shadow-pad));
+  animation-name: dgCloudShadowDrift;
+}
+
+/* Each cloud has its own size, height, and speed */
+.dg-cloud-one {
+  --cloud-width: clamp(220px, 34vw, 490px);
+  --duration: 32s;
+  --delay: -22s;
+  --cloud-top: 5%;
+  --shadow-pad: 0.0812;
+}
+
+.dg-cloud-two {
+  --cloud-width: clamp(160px, 23vw, 330px);
+  --duration: 25s;
+  --delay: -8s;
+  --cloud-top: 42%;
+  --shadow-pad: 0.1188;
+}
+
+.dg-cloud-three {
+  --cloud-width: clamp(190px, 28vw, 400px);
+  --duration: 38s;
+  --delay: -31s;
+  --cloud-top: 68%;
+  --shadow-pad: 0.1;
+}
+
+@keyframes dgCloudDrift {
+  0% { transform: translate3d(-40vw, 0, 0); opacity: 0; }
+  8%, 92% { opacity: 0.96; }
+  100% { transform: translate3d(145vw, 0, 0); opacity: 0; }
+}
+
+@keyframes dgCloudShadowDrift {
+  0% { transform: translate3d(-40vw, 0, 0); opacity: 0; }
+  8%, 92% { opacity: 0.24; }
+  100% { transform: translate3d(145vw, 0, 0); opacity: 0; }
+}
+
+/* A tiny floating movement to suggest a light breeze */
+@keyframes dgGirlBreeze {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+/* Very subtle movement of the garden image */
+@keyframes dgGrassBreeze {
+  from { transform: scale(1) translate3d(0, 0, 0); }
+  to { transform: scale(1.035) translate3d(0.3%, -0.2%, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dg-garden,
+  .dg-girl {
+    animation: none;
+  }
+}

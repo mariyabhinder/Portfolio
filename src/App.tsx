@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react'
+import DreamLanding from '@/components/DreamLanding'
 
 // Light mode hero assets (Desktop3)
 import imgFlowers from '@/imports/Desktop3/2182658c973ab1a52c76c51bb6d97abfd86a119b.png'
@@ -996,21 +997,10 @@ function MobileDarkHero({ activeQuality, onHoverIn, onHoverOut, onTap, onToggle 
 // ======= MAIN APP =======
 
 export default function App() {
-  const [darkMode, setDarkMode] = useState(false)
-
-  const toggle = useCallback(() => setDarkMode(d => !d), [])
-
   return (
     <div className="w-full min-h-screen bg-white">
-      {/* Desktop hero (hidden on mobile) */}
-      <div className="hidden md:block">
-        <HeroSection dark={darkMode} onToggle={toggle} />
-      </div>
-
-      {/* Mobile hero (hidden on desktop) */}
-      <div className="block md:hidden">
-        <MobileHeroSection dark={darkMode} onToggle={toggle} />
-      </div>
+      {/* Dream scroll landing */}
+      <DreamLanding />
     </div>
   )
 }

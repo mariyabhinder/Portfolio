@@ -23,6 +23,7 @@ export default defineConfig(({ mode }) => {
       figmaErrorOverlayReplay(),
       figmaReactRefreshBoundaryFallback(),
       figmaMakeKitPlugin({ storiesGlob: '/src/**/*.stories.{ts,tsx,js,jsx}' }),
+      preloadHeroImages([/^assets\/garden-.*\.webp$/]),
     ],
     resolve: {
       alias: {
@@ -351,6 +352,35 @@ function figmaMakeKitPlugin(options: { storiesGlob: string | string[] }): Plugin
           next(err as Error)
         }
       })
+    },
+  }
+}
+
+/**
+ * Hero images are imported from JS (one as a CSS background), so the browser
+ * would only discover them after the bundle runs. Emit high-priority preloads
+ * for them into the built index.html so they download in parallel with the JS.
+ */
+function preloadHeroImages(patterns: RegExp[]): Plugin {
+  let base = '/'
+  return {
+    name: 'preload-hero-images',
+    apply: 'build',
+    configResolved(config) {
+      base = config.base
+    },
+    transformIndexHtml: {
+      order: 'post',
+      handler(_html, ctx) {
+        if (!ctx.bundle) return []
+        return Object.keys(ctx.bundle)
+          .filter((fileName) => patterns.some((pattern) => pattern.test(fileName)))
+          .map((fileName) => ({
+            tag: 'link',
+            attrs: { rel: 'preload', as: 'image', href: base + fileName, fetchpriority: 'high' },
+            injectTo: 'head',
+          }))
+      },
     },
   }
 }
