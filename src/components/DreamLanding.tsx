@@ -1,217 +1,76 @@
 import { useEffect, useRef } from 'react'
-import { createDreamDust, type DustState } from './dreamDust'
-import imgGarden from '@/assets/garden/garden.webp'
-import imgGirl from '@/assets/garden/girl.webp'
-import imgCloud1 from '@/assets/garden/cloud-1.webp'
-import imgCloud2 from '@/assets/garden/cloud-2.webp'
-import imgCloud3 from '@/assets/garden/cloud-3.webp'
-// Pre-blurred black silhouettes of the clouds (cheaper than a live blur filter while zooming)
-import imgCloudShadow1 from '@/assets/garden/cloud-1-shadow.webp'
-import imgCloudShadow2 from '@/assets/garden/cloud-2-shadow.webp'
-import imgCloudShadow3 from '@/assets/garden/cloud-3-shadow.webp'
+import type { MeadowHandle, MeadowState } from './meadow/meadow'
 
-// Scroll progress (0-1) at which the dream distortion begins
-const DREAM_START = 0.65
-// Maximum displacement of the liquid effect
-const MAX_WOBBLE = 32
-// Face position inside the girl picture (fraction of image width / height)
-const FACE_X = 0.652
-const FACE_Y = 0.105
-// Face radius as a fraction of the girl's rendered width
-const FACE_R = 0.08
-// The face should end up about this large (fraction of the smaller viewport side)
-const FACE_TARGET = 0.55
-const FACE_WIDTH = 0.23
-
-const CLOUDS = [
-  { src: imgCloud1, shadowSrc: imgCloudShadow1, name: 'one' },
-  { src: imgCloud2, shadowSrc: imgCloudShadow2, name: 'two' },
-  { src: imgCloud3, shadowSrc: imgCloudShadow3, name: 'three' },
-]
-
-function CloudSet({ className, shadow }: { className: string; shadow?: boolean }) {
-  return (
-    <div className={className}>
-      {CLOUDS.map((c) => (
-        <img
-          key={c.name}
-          src={shadow ? c.shadowSrc : c.src}
-          className={`${shadow ? 'dg-cloud-shadow' : 'dg-cloud'} dg-cloud-${c.name}`}
-          alt=""
-          aria-hidden="true"
-        />
-      ))}
-    </div>
-  )
-}
+// Scroll progress (0-1): the camera closes in on her face until ZOOM_END, she falls asleep, and the dream wave
+// begins at DREAM_START
+const ZOOM_END = 0.6
+const DREAM_START = 0.72
 
 export default function DreamLanding() {
   const sectionRef = useRef<HTMLElement>(null)
   const cameraRef = useRef<HTMLDivElement>(null)
-  const imageRef = useRef<HTMLDivElement>(null)
-  const girlRef = useRef<HTMLDivElement>(null)
-  const displacementRef = useRef<SVGFEDisplacementMapElement>(null)
-  const turbulenceRef = useRef<SVGFETurbulenceElement>(null)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const stageRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const section = sectionRef.current!
     const camera = cameraRef.current!
-    const image = imageRef.current!
-    const girl = girlRef.current!
-    const displacement = displacementRef.current!
-    const turbulence = turbulenceRef.current!
-    const canvas = canvasRef.current!
+    const stage = stageRef.current!
 
-    girl.style.setProperty('--fx', FACE_X * 100 + '%')
-    girl.style.setProperty('--fy', FACE_Y * 100 + '%')
-
-    // Layout is read only on resize; scroll frames just do math and write a transform
+    // Layout is read only on resize; scroll just does math (the meadow reads the state each frame)
     let sectionStart = 0
     let scrollDistance = 1
-    let faceX = 0
-    let faceY = 0
-    let maxZoom = 3
-    let vw = 0
-    let vh = 0
+
+    const state: MeadowState = { zoom: 0, dream: 0 }
+    // The meadow (and p5) load after first paint; the poster stands in until its first frame is up
+    let meadow: MeadowHandle | null = null
+    let visible = true
+    let cancelled = false
+    import('./meadow/meadow').then(({ createMeadow }) => {
+      if (cancelled) return
+      meadow = createMeadow(stage, state, () => camera.classList.add('meadow-ready'))
+      meadow.setVisible(visible)
+    })
 
     const measure = () => {
-      vw = window.innerWidth
-      vh = window.innerHeight
       sectionStart = section.getBoundingClientRect().top + window.scrollY
-      scrollDistance = Math.max(1, section.offsetHeight - vh)
-
-      // Face position in unscaled scene coordinates (offsets ignore transforms)
-      const girlW = girl.offsetWidth
-      faceX = girl.offsetLeft + FACE_X * girlW
-      faceY = girl.offsetTop + FACE_Y * girl.offsetHeight
-      const targetSize = FACE_TARGET * Math.min(vw, vh)
-      maxZoom = Math.max(3, Math.min(6, targetSize / (FACE_WIDTH * girlW)))
-
-      girl.style.setProperty('--fr', FACE_R * girlW + 'px')
-      image.style.transformOrigin = `${faceX}px ${faceY}px`
-      dustState.originX = faceX
-      dustState.originY = faceY
-      dust?.measure()
+      scrollDistance = Math.max(1, section.offsetHeight - window.innerHeight)
     }
-
-    // The WebGL dust wave replaces the SVG displacement filter when WebGL2 is available
-    const dustState: DustState = { zoom: 1, moveX: 0, moveY: 0, originX: 0, originY: 0, t: 0 }
-    const dust = createDreamDust(canvas, camera, image, dustState)
-
-    let dreaming = false
-    let lastTransform = ''
-    let lastScale = ''
-    let lastFrequency = ''
 
     const update = () => {
-      frame = 0
       const progress = Math.max(0, Math.min(1, (window.scrollY - sectionStart) / scrollDistance))
-
-      const zoomProgress = Math.min(progress / DREAM_START, 1)
-      const zoom = 1 + (maxZoom - 1) * zoomProgress
-      const moveX = (vw / 2 - faceX) * zoomProgress
-      const moveY = (vh / 2 - faceY) * zoomProgress
-      const transform = `translate3d(${moveX.toFixed(1)}px, ${moveY.toFixed(1)}px, 0) scale(${zoom.toFixed(4)})`
-      dustState.zoom = zoom
-      dustState.moveX = moveX
-      dustState.moveY = moveY
-      dustState.t = Math.max(0, Math.min(1, (progress - DREAM_START) / (1 - DREAM_START)))
-      if (transform !== lastTransform) {
-        image.style.transform = transform
-        lastTransform = transform
-      }
-
-      const isDreaming = !dust?.active && progress >= DREAM_START
-      if (isDreaming !== dreaming) {
-        camera.classList.toggle('dreaming', isDreaming)
-        dreaming = isDreaming
-      }
-
-      // Rounded so the filter (and its noise texture) is only rebuilt when the change is visible
-      let scale = '0'
-      if (isDreaming) {
-        const dreamProgress = Math.min(1, (progress - DREAM_START) / (1 - DREAM_START))
-        scale = (Math.sin(dreamProgress * Math.PI) * MAX_WOBBLE).toFixed(1)
-        const frequency = `${(0.008 + dreamProgress * 0.012).toFixed(4)} ${(0.012 + dreamProgress * 0.018).toFixed(4)}`
-        if (frequency !== lastFrequency) {
-          turbulence.setAttribute('baseFrequency', frequency)
-          lastFrequency = frequency
-        }
-      }
-      if (scale !== lastScale) {
-        displacement.setAttribute('scale', scale)
-        lastScale = scale
-      }
+      state.zoom = Math.min(progress / ZOOM_END, 1)
+      state.dream = Math.max(0, Math.min(1, (progress - DREAM_START) / (1 - DREAM_START)))
     }
 
-    let frame = 0
-    const schedule = () => {
-      if (!frame) frame = requestAnimationFrame(update)
-    }
     const onResize = () => {
       measure()
-      schedule()
+      update()
     }
 
     const resizeObserver = new ResizeObserver(onResize)
     resizeObserver.observe(section)
-    resizeObserver.observe(girl)
-    const visibility = new IntersectionObserver(([entry]) => dust?.setVisible(entry.isIntersecting))
+    const visibility = new IntersectionObserver(([entry]) => {
+      visible = entry.isIntersecting
+      meadow?.setVisible(visible)
+    })
     visibility.observe(section)
-    window.addEventListener('scroll', schedule, { passive: true })
-    window.addEventListener('resize', onResize)
+    window.addEventListener('scroll', update, { passive: true })
     measure()
     update()
     return () => {
-      cancelAnimationFrame(frame)
       resizeObserver.disconnect()
       visibility.disconnect()
-      dust?.dispose()
-      window.removeEventListener('scroll', schedule)
-      window.removeEventListener('resize', onResize)
+      cancelled = true
+      meadow?.dispose()
+      window.removeEventListener('scroll', update)
     }
   }, [])
 
   return (
-    <>
-      <section ref={sectionRef} className="dream-section">
-        <div ref={cameraRef} className="dream-camera">
-          <div ref={imageRef} className="sleeping-image">
-            <div className="dg-garden" style={{ backgroundImage: `url(${imgGarden})` }} />
-
-            <CloudSet className="dg-shadow-layer dg-ground-shadows" shadow />
-
-            <div ref={girlRef} className="dg-girl">
-              <img src={imgGirl} alt="Girl lying in the garden" />
-              <img className="face-layer" src={imgGirl} alt="" aria-hidden="true" />
-            </div>
-
-            <CloudSet className="dg-shadow-layer dg-girl-shadows" shadow />
-            <CloudSet className="dg-cloud-layer" />
-          </div>
-          <canvas ref={canvasRef} className="dream-dust" aria-hidden="true" />
-        </div>
-      </section>
-
-      <svg className="dream-filters" aria-hidden="true">
-        <filter id="dreamDistortion">
-          <feTurbulence
-            ref={turbulenceRef}
-            type="fractalNoise"
-            baseFrequency="0.008 0.012"
-            numOctaves={2}
-            seed={5}
-          />
-          <feDisplacementMap
-            ref={displacementRef}
-            in="SourceGraphic"
-            scale={0}
-            xChannelSelector="R"
-            yChannelSelector="G"
-          />
-        </filter>
-      </svg>
-    </>
+    <section ref={sectionRef} className="dream-section">
+      <div ref={cameraRef} className="dream-camera">
+        <div ref={stageRef} className="meadow-stage" role="img" aria-label="A girl lying asleep in a hand-drawn meadow" />
+      </div>
+    </section>
   )
 }

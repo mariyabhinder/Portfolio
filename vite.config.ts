@@ -23,7 +23,7 @@ export default defineConfig(({ mode }) => {
       figmaErrorOverlayReplay(),
       figmaReactRefreshBoundaryFallback(),
       figmaMakeKitPlugin({ storiesGlob: '/src/**/*.stories.{ts,tsx,js,jsx}' }),
-      preloadHeroImages([/^assets\/garden-.*\.webp$/]),
+      preloadHeroImages([/^assets\/poster-.*\.webp$/]),
     ],
     resolve: {
       alias: {
