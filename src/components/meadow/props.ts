@@ -16,7 +16,7 @@ export interface Prop {
   lift: number
 }
 
-type Pt = [number, number]
+export type Pt = [number, number]
 
 // px per scene px; the camera closes in on her face with the glasses and hat in view, so they are painted fine
 const D = 7
@@ -27,7 +27,7 @@ const BAND = [244, 232, 140] // the yellow of her dress
 const RIM = [214, 196, 168] // her glasses' pale gold wire
 
 // a small seeded random, so the props are painted the same every time
-function rng(seed: number) {
+export function rng(seed: number) {
   let s = seed >>> 0
   return () => {
     s = (s + 0x6d2b79f5) >>> 0
@@ -38,7 +38,7 @@ function rng(seed: number) {
   }
 }
 
-const rgba = (c: number[], a = 1) => `rgba(${c[0] | 0}, ${c[1] | 0}, ${c[2] | 0}, ${a})`
+export const rgba = (c: number[], a = 1) => `rgba(${c[0] | 0}, ${c[1] | 0}, ${c[2] | 0}, ${a})`
 const shade = (c: number[], k: number) => c.map((v) => v * k)
 
 function canvas(w: number, h: number) {
@@ -54,7 +54,7 @@ function canvas(w: number, h: number) {
 }
 
 // a closed hand-drawn loop round an ellipse: the radius wanders a little, as a brush would
-function loop(rx: number, ry: number, wobble: number, rand: () => number, cx = 0, cy = 0, n = 48): Pt[] {
+export function loop(rx: number, ry: number, wobble: number, rand: () => number, cx = 0, cy = 0, n = 48): Pt[] {
   const ph = [rand() * 6.28, rand() * 6.28, rand() * 6.28]
   return Array.from({ length: n }, (_, i) => {
     const a = (i / n) * Math.PI * 2
@@ -64,7 +64,7 @@ function loop(rx: number, ry: number, wobble: number, rand: () => number, cx = 0
 }
 
 // a smooth path through the points (quadratics between midpoints)
-function trace(ctx: CanvasRenderingContext2D, pts: Pt[], closed: boolean) {
+export function trace(ctx: CanvasRenderingContext2D, pts: Pt[], closed: boolean) {
   ctx.beginPath()
   if (closed) {
     const m = (i: number) => {
@@ -114,7 +114,7 @@ function wash(ctx: CanvasRenderingContext2D, pts: Pt[], col: number[], rand: () 
 }
 
 // a pencil line: two light passes that never quite agree, a little heavier in the middle of each stroke
-function pencil(ctx: CanvasRenderingContext2D, pts: Pt[], closed: boolean, rand: () => number, width = 0.32, ink = INK) {
+export function pencil(ctx: CanvasRenderingContext2D, pts: Pt[], closed: boolean, rand: () => number, width = 0.32, ink = INK) {
   ctx.save()
   ctx.strokeStyle = ink
   for (let pass = 0; pass < 2; pass++) {
@@ -129,7 +129,7 @@ function pencil(ctx: CanvasRenderingContext2D, pts: Pt[], closed: boolean, rand:
 }
 
 // the paper's tooth, laid over everything painted so far (and only there)
-function grain(cv: HTMLCanvasElement, rand: () => number, amount = 0.08) {
+export function grain(cv: HTMLCanvasElement, rand: () => number, amount = 0.08) {
   const ctx = cv.getContext('2d')!
   const img = ctx.getImageData(0, 0, cv.width, cv.height), px = img.data
   for (let i = 0; i < px.length; i += 4) {
@@ -257,9 +257,10 @@ function paintHat() {
 }
 
 // ---------- her glasses, folded: two round wire rims, the bridge, and the temples folded across the lenses ----------
-function paintGlasses() {
+// (or open, as they slip off her face while she falls: the temples straight out to either side)
+function paintGlasses(open = false) {
   const rand = rng(5)
-  const W = 34, H = 20
+  const W = open ? 48 : 34, H = 20
   const { cv, ctx } = canvas(W, H)
   const R = 6.4, cx = 7.3
   // the lenses: almost nothing, a breath of sky in them and a streak of light
@@ -291,9 +292,14 @@ function paintGlasses() {
     pencil(ctx, pts, closed, rand, w * 0.35, 'rgba(255, 250, 236, 0.85)')
     ctx.restore()
   }
-  // the temples, folded in across the lenses (the far one first, partly under the near one)
-  wire([[cx + R + 0.6, -0.8], [6, 0.6], [-2, 1.6], [-8.6, 2.3], [-10.8, 3.4]], false, 0.5)
-  wire([[-cx - R - 0.6, -1.2], [-5, -0.2], [3, 0.6], [9.4, 1.4], [11.6, 2.6]], false, 0.5)
+  if (open) {
+    // the temples, out to either side (foreshortened, as if seen a little from behind), curling down at the ends
+    for (const s of [-1, 1]) wire([[s * (cx + R), -1], [s * 17, -0.6], [s * 21, 0.4], [s * 22.6, 2.2], [s * 22.8, 3.4]], false, 0.5)
+  } else {
+    // the temples, folded in across the lenses (the far one first, partly under the near one)
+    wire([[cx + R + 0.6, -0.8], [6, 0.6], [-2, 1.6], [-8.6, 2.3], [-10.8, 3.4]], false, 0.5)
+    wire([[-cx - R - 0.6, -1.2], [-5, -0.2], [3, 0.6], [9.4, 1.4], [11.6, 2.6]], false, 0.5)
+  }
   for (const s of [-1, 1]) wire(loop(R, R * 0.96, 0.01, rand, s * cx, 0, 40), true)
   // the bridge, arched, and the hinges
   wire([[-cx + R * 0.82, -2.6], [-0.8, -3.6], [0.8, -3.6], [cx - R * 0.82, -2.6]], false, 0.55)
@@ -385,6 +391,49 @@ function paintShoe(seed: number, side: number) {
   ctx.restore()
   grain(cv, rand, 0.06)
   return { w: W, h: H, sprite: cv, shadow: shadowOf(cv, 1), lift: 1.8 }
+}
+
+/** Her glasses, open, for the fall: the sprite, its box (scene px), and the distance between the lens centres. */
+export function paintFallingGlasses() {
+  const { w, h, sprite } = paintGlasses(true)
+  return { w, h, sprite, lensGap: 14.6 }
+}
+
+/** Her ring, a thin gold band with a small stone, as it sits round her finger and then tumbles off it: the sprite and its box (px). */
+export function paintFallingRing() {
+  const W = 10, H = 15
+  const { cv, ctx } = canvas(W, H)
+  // the band, seen a little from the side: an open ellipse, darker underneath and paler along the top
+  ctx.beginPath()
+  ctx.ellipse(0, 0.6, 2.9, 5.6, 0, 0, Math.PI * 2)
+  ctx.strokeStyle = 'rgba(120, 90, 40, 0.9)'
+  ctx.lineWidth = 1.5
+  ctx.stroke()
+  ctx.strokeStyle = 'rgb(236, 198, 96)'
+  ctx.lineWidth = 1.1
+  ctx.stroke()
+  ctx.beginPath()
+  ctx.ellipse(-0.1, 0.5, 2.7, 5.4, 0, Math.PI * 0.95, Math.PI * 1.55)
+  ctx.strokeStyle = 'rgba(255, 245, 205, 0.95)'
+  ctx.lineWidth = 0.45
+  ctx.stroke()
+  // the stone, on top, with a glint
+  ctx.beginPath()
+  ctx.moveTo(0, -7.3)
+  ctx.lineTo(1.5, -5.7)
+  ctx.lineTo(0, -4.3)
+  ctx.lineTo(-1.5, -5.7)
+  ctx.closePath()
+  ctx.fillStyle = 'rgba(244, 252, 255, 0.95)'
+  ctx.fill()
+  ctx.strokeStyle = 'rgba(150, 120, 60, 0.9)'
+  ctx.lineWidth = 0.35
+  ctx.stroke()
+  ctx.beginPath()
+  ctx.arc(-0.4, -6, 0.3, 0, Math.PI * 2)
+  ctx.fillStyle = '#fff'
+  ctx.fill()
+  return { w: W, h: H, sprite: cv }
 }
 
 export function paintProps(): Prop[] {

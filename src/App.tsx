@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import DreamLanding from '@/components/DreamLanding'
 
 // Light mode hero assets (Desktop3)
@@ -94,6 +94,33 @@ function QualityPopupContent({
   )
 }
 
+// Alpha channel of the cloud sprite, used to hit-test against the actual cloud shape
+let cloudAlpha: { data: Uint8ClampedArray; w: number; h: number } | null = null
+if (typeof window !== 'undefined') {
+  const img = new Image()
+  img.onload = () => {
+    const canvas = document.createElement('canvas')
+    canvas.width = img.naturalWidth
+    canvas.height = img.naturalHeight
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    ctx.drawImage(img, 0, 0)
+    cloudAlpha = { data: ctx.getImageData(0, 0, canvas.width, canvas.height).data, w: canvas.width, h: canvas.height }
+  }
+  img.src = imgClouds
+}
+
+// True when the point lies on an opaque pixel of the rendered cloud <img>
+function isOverCloud(imgEl: HTMLImageElement | null, clientX: number, clientY: number) {
+  if (!imgEl) return false
+  if (!cloudAlpha) return true // sprite not decoded yet — fall back to the box
+  const r = imgEl.getBoundingClientRect()
+  const x = Math.floor(((clientX - r.left) / r.width) * cloudAlpha.w)
+  const y = Math.floor(((clientY - r.top) / r.height) * cloudAlpha.h)
+  if (x < 0 || y < 0 || x >= cloudAlpha.w || y >= cloudAlpha.h) return false
+  return cloudAlpha.data[(y * cloudAlpha.w + x) * 4 + 3] > 40
+}
+
 // Interactive zone: hover/tap shows popup
 function InteractiveZone({
   qualityId,
@@ -105,6 +132,7 @@ function InteractiveZone({
   className,
   style,
   popupSide,
+  cloudImgClassName,
   children,
 }: {
   qualityId: QualityId
@@ -116,20 +144,42 @@ function InteractiveZone({
   className?: string
   style?: React.CSSProperties
   popupSide: 'left' | 'right' | 'below'
+  // When set, the zone renders this crop of the cloud sprite and only reacts over its opaque pixels
+  cloudImgClassName?: string
   children?: React.ReactNode
 }) {
   const isActive = activeQuality === qualityId
+  const cloudRef = useRef<HTMLImageElement>(null)
+  const [overShape, setOverShape] = useState(false)
+
+  const handleMove = (e: React.MouseEvent) => {
+    if (!cloudImgClassName) return
+    const over = isOverCloud(cloudRef.current, e.clientX, e.clientY)
+    if (over === overShape) return
+    setOverShape(over)
+    if (over) onHoverIn(qualityId)
+    else onHoverOut()
+  }
 
   return (
     <div
-      className={`absolute cursor-pointer select-none ${className ?? ''}`}
+      className={`absolute select-none ${cloudImgClassName && !overShape ? '' : 'cursor-pointer'} ${className ?? ''}`}
       style={{ ...(style ?? {}), zIndex: 40 }}
-      onMouseEnter={() => onHoverIn(qualityId)}
-      onMouseLeave={() => onHoverOut()}
-      onClick={(e) => { e.stopPropagation(); onTap(qualityId) }}
+      onMouseEnter={cloudImgClassName ? handleMove : () => onHoverIn(qualityId)}
+      onMouseMove={handleMove}
+      onMouseLeave={() => { setOverShape(false); onHoverOut() }}
+      onClick={(e) => {
+        if (cloudImgClassName && !isOverCloud(cloudRef.current, e.clientX, e.clientY)) return
+        e.stopPropagation()
+        onTap(qualityId)
+      }}
     >
-      {/* Invisible enlarged hit area to make hovering anywhere over a cloud trigger the zone */}
-      {popupSide === 'below' && (
+      {cloudImgClassName ? (
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <img ref={cloudRef} alt="" className={`absolute max-w-none ${cloudImgClassName}`} src={imgClouds} />
+        </div>
+      ) : popupSide === 'below' && (
+        // Invisible enlarged hit area to make hovering anywhere over a cloud trigger the zone
         <div style={{ position: 'absolute', left: '-30%', top: '-30%', width: '160%', height: '160%', pointerEvents: 'auto' }} />
       )}
       {children}
@@ -467,23 +517,8 @@ function LightHero({ activeQuality, onHoverIn, onHoverOut, onTap, onToggle, show
     <div className="absolute inset-0 bg-gradient-to-b from-[#bbedff] from-[49%] to-white">
 
       {/* === Decorative clouds (background, non-interactive) === */}
-      <div className="absolute pointer-events-none overflow-hidden" style={{ left: '-8.7%', top: '1.8%', width: '40.3%', height: '19.7%' }}>
-        <img alt="" className="absolute h-[289.69%] left-0 max-w-none top-[-104.93%] w-full" src={imgClouds} />
-      </div>
       <div className="absolute pointer-events-none overflow-hidden" style={{ left: '-7.4%', top: '34.5%', width: '25.8%', height: '12.5%' }}>
         <img alt="" className="absolute h-[289.69%] left-0 max-w-none top-[-104.93%] w-full" src={imgClouds} />
-      </div>
-      <div className="absolute pointer-events-none overflow-hidden" style={{ left: '58.8%', top: '19.7%', width: '31.2%', height: '15.2%' }}>
-        <img alt="" className="absolute h-[289.69%] left-0 max-w-none top-[-104.93%] w-full" src={imgClouds} />
-      </div>
-      <div className="absolute pointer-events-none overflow-hidden" style={{ left: '38.4%', top: '1.8%', width: '26.6%', height: '20%' }}>
-        <img alt="" className="absolute h-[353.43%] left-0 max-w-none top-[-253.43%] w-[188.25%]" src={imgClouds} />
-      </div>
-      <div className="absolute pointer-events-none overflow-hidden" style={{ left: '80.2%', top: '2.8%', width: '26.6%', height: '20%' }}>
-        <img alt="" className="absolute h-[353.43%] left-0 max-w-none top-[-253.43%] w-[188.25%]" src={imgClouds} />
-      </div>
-      <div className="absolute pointer-events-none overflow-hidden" style={{ left: '33.7%', top: '30.6%', width: '20.5%', height: '17%' }}>
-        <img alt="" className="absolute h-[342.47%] left-[-101.61%] max-w-none top-[-242.47%] w-[201.61%]" src={imgClouds} />
       </div>
       <div className="absolute pointer-events-none overflow-hidden" style={{ left: '88.8%', top: '34.8%', width: '17.2%', height: '14.3%' }}>
         <img alt="" className="absolute h-[342.47%] left-[-101.61%] max-w-none top-[-242.47%] w-[201.61%]" src={imgClouds} />
@@ -539,9 +574,9 @@ function LightHero({ activeQuality, onHoverIn, onHoverOut, onTap, onToggle, show
         </div>
       </div>
 
-      {/* === Interactive cloud zones (each triggers a quality popup) === */}
+      {/* === Interactive cloud zones (each triggers a quality popup, hit-tested on the cloud shape) === */}
 
-      {/* UI/UX Designing — left cloud area */}
+      {/* UI/UX Designing — left cloud */}
       <InteractiveZone
         qualityId="uiux"
         dark={false}
@@ -550,7 +585,8 @@ function LightHero({ activeQuality, onHoverIn, onHoverOut, onTap, onToggle, show
         onHoverOut={onHoverOut}
         onTap={onTap}
         popupSide="below"
-        style={{ left: '0%', top: '14%', width: '20%', height: '18%' }}
+        style={{ left: '-8.7%', top: '1.8%', width: '40.3%', height: '19.7%' }}
+        cloudImgClassName="h-[289.69%] left-0 top-[-104.93%] w-full"
       />
 
       {/* Cross Stitching — center cloud */}
@@ -562,7 +598,8 @@ function LightHero({ activeQuality, onHoverIn, onHoverOut, onTap, onToggle, show
         onHoverOut={onHoverOut}
         onTap={onTap}
         popupSide="below"
-        style={{ left: '39%', top: '10%', width: '18%', height: '16%' }}
+        style={{ left: '38.4%', top: '1.8%', width: '26.6%', height: '20%' }}
+        cloudImgClassName="h-[353.43%] left-0 top-[-253.43%] w-[188.25%]"
       />
 
       {/* Coffee Lover — right cloud */}
@@ -574,7 +611,8 @@ function LightHero({ activeQuality, onHoverIn, onHoverOut, onTap, onToggle, show
         onHoverOut={onHoverOut}
         onTap={onTap}
         popupSide="below"
-        style={{ left: '82%', top: '12%', width: '16%', height: '16%' }}
+        style={{ left: '80.2%', top: '2.8%', width: '26.6%', height: '20%' }}
+        cloudImgClassName="h-[353.43%] left-0 top-[-253.43%] w-[188.25%]"
       />
 
       {/* Love Capturing Clouds — center-right cloud */}
@@ -586,10 +624,11 @@ function LightHero({ activeQuality, onHoverIn, onHoverOut, onTap, onToggle, show
         onHoverOut={onHoverOut}
         onTap={onTap}
         popupSide="below"
-        style={{ left: '61%', top: '28%', width: '20%', height: '15%' }}
+        style={{ left: '58.8%', top: '19.7%', width: '31.2%', height: '15.2%' }}
+        cloudImgClassName="h-[289.69%] left-0 top-[-104.93%] w-full"
       />
 
-      {/* Mandala Art — center small cloud */}
+      {/* Mandala Art — center small cloud (popup to the right so it never covers the girl's face) */}
       <InteractiveZone
         qualityId="mandala"
         dark={false}
@@ -597,8 +636,9 @@ function LightHero({ activeQuality, onHoverIn, onHoverOut, onTap, onToggle, show
         onHoverIn={onHoverIn}
         onHoverOut={onHoverOut}
         onTap={onTap}
-        popupSide="below"
-        style={{ left: '36%', top: '42%', width: '17%', height: '15%' }}
+        popupSide="right"
+        style={{ left: '33.7%', top: '30.6%', width: '20.5%', height: '17%' }}
+        cloudImgClassName="h-[342.47%] left-[-101.61%] top-[-242.47%] w-[201.61%]"
       />
 
       {/* === Toggle === */}
@@ -770,23 +810,8 @@ function MobileLightHero({ activeQuality, onHoverIn, onHoverOut, onTap, onToggle
   return (
     <div className="absolute inset-0 bg-[#bceeff]">
       {/* Clouds */}
-      <div className="absolute pointer-events-none overflow-hidden" style={{ left: '-9.6%', top: '4.2%', width: '41.1%', height: '19.6%' }}>
-        <img alt="" className="absolute h-[289.69%] left-0 max-w-none top-[-104.93%] w-full" src={imgClouds} />
-      </div>
       <div className="absolute pointer-events-none overflow-hidden" style={{ left: '-15.7%', top: '29.4%', width: '35.1%', height: '16.7%' }}>
         <img alt="" className="absolute h-[289.69%] left-0 max-w-none top-[-104.93%] w-full" src={imgClouds} />
-      </div>
-      <div className="absolute pointer-events-none overflow-hidden" style={{ left: '40.9%', top: '4.8%', width: '22.4%', height: '16.5%' }}>
-        <img alt="" className="absolute h-[353.43%] left-0 max-w-none top-[-253.43%] w-[188.25%]" src={imgClouds} />
-      </div>
-      <div className="absolute pointer-events-none overflow-hidden" style={{ left: '62.1%', top: '21.3%', width: '22.4%', height: '16.5%' }}>
-        <img alt="" className="absolute h-[353.43%] left-0 max-w-none top-[-253.43%] w-[188.25%]" src={imgClouds} />
-      </div>
-      <div className="absolute pointer-events-none overflow-hidden" style={{ left: '25.9%', top: '31.6%', width: '19.6%', height: '16%' }}>
-        <img alt="" className="absolute h-[342.47%] left-[-101.61%] max-w-none top-[-242.47%] w-[201.61%]" src={imgClouds} />
-      </div>
-      <div className="absolute pointer-events-none overflow-hidden" style={{ left: '84.6%', top: '8.1%', width: '19.6%', height: '16%' }}>
-        <img alt="" className="absolute h-[342.47%] left-[-101.61%] max-w-none top-[-242.47%] w-[201.61%]" src={imgClouds} />
       </div>
       <div className="absolute pointer-events-none overflow-hidden" style={{ left: '90.2%', top: '35.5%', width: '19.6%', height: '16%' }}>
         <img alt="" className="absolute h-[342.47%] left-[-101.61%] max-w-none top-[-242.47%] w-[201.61%]" src={imgClouds} />
@@ -825,7 +850,8 @@ function MobileLightHero({ activeQuality, onHoverIn, onHoverOut, onTap, onToggle
         onHoverOut={onHoverOut}
         onTap={onTap}
         popupSide="below"
-        style={{ left: '0%', top: '10%', width: '25%', height: '22%' }}
+        style={{ left: '-9.6%', top: '4.2%', width: '41.1%', height: '19.6%' }}
+        cloudImgClassName="h-[289.69%] left-0 top-[-104.93%] w-full"
       />
       <InteractiveZone
         qualityId="stitching"
@@ -835,7 +861,8 @@ function MobileLightHero({ activeQuality, onHoverIn, onHoverOut, onTap, onToggle
         onHoverOut={onHoverOut}
         onTap={onTap}
         popupSide="below"
-        style={{ left: '39%', top: '2%', width: '24%', height: '20%' }}
+        style={{ left: '40.9%', top: '4.8%', width: '22.4%', height: '16.5%' }}
+        cloudImgClassName="h-[353.43%] left-0 top-[-253.43%] w-[188.25%]"
       />
       <InteractiveZone
         qualityId="coffee"
@@ -845,7 +872,8 @@ function MobileLightHero({ activeQuality, onHoverIn, onHoverOut, onTap, onToggle
         onHoverOut={onHoverOut}
         onTap={onTap}
         popupSide="below"
-        style={{ left: '80%', top: '2%', width: '20%', height: '20%' }}
+        style={{ left: '84.6%', top: '8.1%', width: '19.6%', height: '16%' }}
+        cloudImgClassName="h-[342.47%] left-[-101.61%] top-[-242.47%] w-[201.61%]"
       />
       <InteractiveZone
         qualityId="stars"
@@ -855,7 +883,8 @@ function MobileLightHero({ activeQuality, onHoverIn, onHoverOut, onTap, onToggle
         onHoverOut={onHoverOut}
         onTap={onTap}
         popupSide="below"
-        style={{ left: '60%', top: '20%', width: '22%', height: '18%' }}
+        style={{ left: '62.1%', top: '21.3%', width: '22.4%', height: '16.5%' }}
+        cloudImgClassName="h-[353.43%] left-0 top-[-253.43%] w-[188.25%]"
       />
       <InteractiveZone
         qualityId="mandala"
@@ -864,8 +893,9 @@ function MobileLightHero({ activeQuality, onHoverIn, onHoverOut, onTap, onToggle
         onHoverIn={onHoverIn}
         onHoverOut={onHoverOut}
         onTap={onTap}
-        popupSide="below"
-        style={{ left: '24%', top: '30%', width: '20%', height: '18%' }}
+        popupSide="right"
+        style={{ left: '25.9%', top: '31.6%', width: '19.6%', height: '16%' }}
+        cloudImgClassName="h-[342.47%] left-[-101.61%] top-[-242.47%] w-[201.61%]"
       />
 
       {/* Mobile toggle */}

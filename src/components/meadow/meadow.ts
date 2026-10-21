@@ -1,19 +1,27 @@
 // The hand-drawn meadow (ported from the handdrawn-meadow project's baked mode), drawn live with p5 in WEBGL:
 // the watercolour ground, every grass blade and flower bending from its root in the gusts, the girl on a
-// wind-bent mesh (her hijab, sleeves and hems ripple), a few grazing goats, a flock of egrets passing now
-// and then, petals blowing past and clouds drifting over with their shadows on the grass.
+// wind-bent mesh (her hijab, sleeves and hems ripple), petals blowing past and clouds drifting
+// over with their shadows on the grass.
 // As the page scrolls the camera closes in on her face, then a warm wave of light breaks the picture into
 // dust (the dream): the frame is drawn into a framebuffer and sent through the wave shader.
-// The egret and goat sprite sheets were painted by the meadow's sketch.js (pencil and watercolour on canvas)
+// The sprites were painted by the meadow's sketch.js (pencil and watercolour on canvas)
 // and saved as images, so nothing has to be painted while the page loads.
 // Her glasses, hat and shoes lie on the grass beside her (props.ts paints them while the meadow loads).
 // She starts awake (blinking now and then); once the camera has closed in, her eyes grow heavy and shut
 // before the dream begins. The open and drowsy eyes are small patches laid over the closed-eyed picture.
+// The dream wave carries the picture away into a dawn sky (it is revealed behind the wavefront), and she falls
+// through it asleep: the same girl on the same mesh, her clothes blown up around her, clouds and petals rushing past.
 
 import p5 from 'p5'
 import groundUrl from '@/assets/meadow/meadow.jpg'
 import girlUrl from '@/assets/meadow/girl.webp'
 import girlShadowUrl from '@/assets/meadow/girl-shadow.webp'
+import girlFallingUrl from '@/assets/meadow/girl-falling.webp'
+import fallingWatchUrl from '@/assets/meadow/falling-watch.webp'
+import fallingShoe0Url from '@/assets/meadow/falling-shoe-0.webp'
+import fallingShoe1Url from '@/assets/meadow/falling-shoe-1.webp'
+import fallingEyesHalfUrl from '@/assets/meadow/girl-falling-eyes-half.webp'
+import fallingEyesShutUrl from '@/assets/meadow/girl-falling-eyes-shut.webp'
 import eyesOpenUrl from '@/assets/meadow/girl-eyes-open.webp'
 import eyesDrowsyUrl from '@/assets/meadow/girl-eyes-drowsy.webp'
 import cloud0Url from '@/assets/meadow/cloud-0.webp'
@@ -22,18 +30,17 @@ import cloud2Url from '@/assets/meadow/cloud-2.webp'
 import cloud0ShadowUrl from '@/assets/meadow/cloud-0-shadow.webp'
 import cloud1ShadowUrl from '@/assets/meadow/cloud-1-shadow.webp'
 import cloud2ShadowUrl from '@/assets/meadow/cloud-2-shadow.webp'
-import egretsUrl from '@/assets/meadow/egrets.webp'
-import egretsShadowUrl from '@/assets/meadow/egrets-shadow.webp'
-import goatsUrl from '@/assets/meadow/goats.webp'
-import goatsShadowUrl from '@/assets/meadow/goats-shadow.webp'
 import bladesUrl from '@/assets/meadow/blades.json?url'
-import { paintProps } from './props'
+import { paintFallingGlasses, paintFallingRing, paintProps } from './props'
+import { paintSky } from './sky'
 
 export interface MeadowState {
   /** 0 = the whole meadow, 1 = closed in on her face. */
   zoom: number
   /** 0 = no effect, 0→1 = the dream wave crossing the frame. */
   dream: number
+  /** 0→1 = falling through the sky, once the dream wave has passed. */
+  fall: number
 }
 
 export interface MeadowHandle {
@@ -66,11 +73,53 @@ const SLEEP = { drop: 0.3, hold: 0.55, shut: 0.45 }
 // seconds into the animation at which poster.webp (shown while the meadow loads) was taken
 const POSTER_T = 1.4
 
+// Overall drift multiplier for the per-cloud speeds below
+const CLOUD_SPEED = 1.6
+// clouds (and their shadows) thin out to nothing as they reach her face, so it is never hidden:
+// fully gone within FACE_CLEAR scene px of it, fully back FACE_FADE px further out
+const FACE_CLEAR = 28
+const FACE_FADE = 90
+const CLOUD_SHADOW_OFFSET = { x: 22, y: 30 }
+
+// cloud 1 starts just past her face (drifting away) rather than heading straight for it
 const CLOUDS = [
   { x: 436, y: 19, w: 300, h: 261, speed: 7.531513089779764, bob: 3.2024422106333077, period: 25.963951760903, phase: 5.75885148010249, spr: cloud0Url, shadow: cloud0ShadowUrl },
-  { x: 0, y: 94, w: 326, h: 296, speed: 5.457440826576203, bob: 3.14887864748016, period: 26.51416429504752, phase: 1.0580216181843394, spr: cloud1Url, shadow: cloud1ShadowUrl },
+  { x: 420, y: 94, w: 326, h: 296, speed: 5.457440826576203, bob: 3.14887864748016, period: 26.51416429504752, phase: 1.0580216181843394, spr: cloud1Url, shadow: cloud1ShadowUrl },
   { x: 366, y: 632, w: 370, h: 288, speed: 7.764432516414672, bob: 3.2858899985440075, period: 20.60981204919517, phase: 6.133561502907562, spr: cloud2Url, shadow: cloud2ShadowUrl },
 ]
+
+// the fall: her width (fraction of the viewport, held to `h` of its height), hem travel (px on her picture) and
+// tempo of the updraft in her clothes; how much deeper the blue looks by the end of the fall; the trail of mist
+// above her (width as a fraction of the viewport, held to `trailH` of its height); and the bubbles round her
+// (how many, and how far up they rise before they fade, in viewport heights). Her clothes only stream while the
+// page is scrolling: `rush` is the scroll speed (dream + fall per second) at which they stream fully, and they catch
+// the air in `rise` seconds and settle in `settle` seconds
+const FALL = { rush: 0.25, rise: 0.12, settle: 0.7, w: 0.9, h: 0.68, amp: 26, pace: 0.9, deepen: 0.06, trailW: 0.75, trailH: 0.85, bubbles: 46, bubbleRise: 0.4 }
+// her falling picture (girl-falling.webp, px): its size, and her body as a stick figure ([x, y, radius]);
+// her hijab, sleeves and skirt beyond it are free to blow.
+// Her glasses, watch and shoes were painted out of it (scripts/falling-props.py); they start where they were (the
+// glasses between the two lens centres, turned along them; the watch's and shoes' sprite boxes) and slip away from
+// her as she falls. `eyes` is where the patches with her lids half down and shut sit, for her to blink with
+const FALLER = {
+  w: 1303,
+  h: 940,
+  glasses: { left: [128.9, 588.8], right: [172.5, 553.5] },
+  watch: { x: 642, y: 536, w: 51, h: 54 },
+  ring: { x: 749, y: 497, rot: -0.3 }, // on the ring finger of her hand at her hip
+  shoes: [
+    { x: 707, y: 85, w: 166, h: 141 },
+    { x: 1119, y: 6, w: 124, h: 205 },
+  ],
+  eyes: { x: 98, y: 528, w: 90, h: 90 },
+  skeleton: [
+    [[150, 590, 95], [240, 640, 50], [420, 650, 80], [620, 640, 80], [800, 560, 90]],
+    [[800, 560, 60], [820, 300, 40], [790, 150, 60]], // her legs, out to her shoes
+    [[860, 520, 60], [1080, 300, 40], [1180, 110, 60]],
+    [[420, 600, 30], [490, 420, 30], [540, 300, 50]], // her arms, out to her hands
+    [[330, 620, 30], [370, 500, 25], [350, 430, 40]],
+    [[600, 620, 30], [670, 560, 30], [730, 500, 45]],
+  ],
+}
 
 const WIND = { a: 0.22, amp: 10, k: 0.035, w: 2.6, pace: 0.35 } // direction (radians, blowing right), hem travel in px, ripple wavenumber, ripple speed, overall tempo (lower = slower, gentler breeze)
 const windDir = [Math.cos(WIND.a), Math.sin(WIND.a)]
@@ -83,23 +132,6 @@ const SKELETON = [
 ]
 
 const GRASS = { amp: 6, hz: 0.3, seg: 5 } // tip travel in px for a 45 px blade in a full gust, natural sway frequency of a 40 px blade, segments per blade
-
-const BIRDS = { speed: 50, gap: 9, hz: 1.6, heading: -0.62, span: 80, frames: 24 } // px/s, seconds between passes, wingbeats/s, flight direction (radians, up and to the right), wingspan in px at size 1
-// the flock, in flock space: [px ahead of the flock centre, px to its right, size (higher birds look bigger)]
-const FLOCK = [
-  [80, 0, 1.05], [45, -32, 0.95], [52, 38, 1.0], [5, -5, 0.9], [12, 76, 0.85],
-  [0, -76, 1.1], [-40, 25, 0.95], [-44, -46, 0.88], [-88, 6, 1.0],
-]
-const BIRD_CELL = 2.1 // a frame's side, in half-wingspans
-const BIRD_SHEET = { cols: 6, cell: 210 } // egrets.webp: one wingbeat, frames of cell x cell px
-const GOAT = { len: 135, frames: 10 } // nose-to-tail length in px at size 1, frames from head up to head down
-// the herd: [x, y, size, tilt (radians; nose up when negative), facing (1 right, -1 left)]
-const HERD = [
-  [118, 452, 1.0, -0.28, 1], [74, 610, 0.92, -0.1, 1], [178, 742, 1.06, -0.32, 1], [96, 866, 0.95, -0.18, 1],
-  [630, 612, 0.98, 0.08, -1],
-]
-const GOAT_CELL = 1.3 // a frame's side, in goat lengths
-const GOAT_SHEET = { cols: 5, cell: 351 } // goats.webp: head up to head down, frames of cell x cell px
 
 const TWO_PI = Math.PI * 2
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
@@ -133,14 +165,19 @@ function sceneToGirl(x: number, y: number) {
 // how loose the fabric is at girl-space (u, v): 0 on her body, face, hands and shoes, 1 at the far edge of a hem or sleeve
 function looseness(u: number, v: number) {
   const X = (u / GIRL_SIZE.w) * (855 + 2 * GIRL_PAD) - GIRL_PAD, Y = (v / GIRL_SIZE.h) * (1461 + 2 * GIRL_PAD) - GIRL_PAD
+  return easeStep(0, 90, skeletonDistance(SKELETON, X, Y))
+}
+
+// how far (X, Y) lies outside a stick figure's limbs
+function skeletonDistance(skeleton: number[][][], X: number, Y: number) {
   let d = Infinity
-  for (const limb of SKELETON) for (let i = 0; i < limb.length - 1; i++) {
+  for (const limb of skeleton) for (let i = 0; i < limb.length - 1; i++) {
     const [ax, ay, ar] = limb[i], [bx, by, br] = limb[i + 1]
     const ex = bx - ax, ey = by - ay
     const s = clamp(((X - ax) * ex + (Y - ay) * ey) / (ex * ex + ey * ey), 0, 1)
     d = Math.min(d, Math.hypot(X - ax - ex * s, Y - ay - ey * s) - lerp(ar, br, s))
   }
-  return easeStep(0, 90, d)
+  return d
 }
 
 // her sprite's box in the scene (with an 18 px margin round her, clipped to the scene)
@@ -250,7 +287,7 @@ uniform float uIsShadow, uEyes;
 varying vec2 vTexCoord;
 void main() {
   vec4 c = uIsShadow > 0.5 ? vec4(0.133, 0.22, 0.07, 0.47 * texture2D(uShadow, vTexCoord).a) : texture2D(uSprite, vTexCoord);
-  // her eyes: shut (the sprite itself) -> drowsy -> open
+  // her eyes: shut (the sprite itself) -> drowsy -> open; falling, the other way: open -> half shut -> shut
   vec2 q = (vTexCoord - uEyeRect.xy) / uEyeRect.zw;
   if (uIsShadow < 0.5 && uEyes > 0.0 && q.x > 0.0 && q.y > 0.0 && q.x < 1.0 && q.y < 1.0) {
     vec4 drowsy = texture2D(uEyesDrowsy, q);
@@ -341,11 +378,12 @@ uniform mat4 uModelViewMatrix, uProjectionMatrix;
 void main() { gl_Position = uProjectionMatrix * uModelViewMatrix * vec4(aPosition, 1.0); }`
 
 // The dream: a warm wave of light runs out from the centre; the picture bends before it as if behind a lens,
-// splits into its channels, and thins into scattered dust where the light bites hardest.
+// splits into its channels, and thins into scattered dust where the light bites hardest. Behind the front
+// the sky shows through (tSky), so the dust settles into it.
 const POST_FRAG = `
 precision highp float;
 uniform vec2 uRes;       // viewport, CSS px
-uniform sampler2D tScene;
+uniform sampler2D tScene, tSky;
 uniform vec2 uCentre;
 uniform float uWave;     // wavefront radius, CSS px
 uniform float uAmp;      // 0..1, bell over the whole transition
@@ -353,9 +391,12 @@ uniform float uRim;      // 0..1, the light's own curve
 uniform float uDpr;
 uniform float uSpan;     // viewport diagonal; every width below is a fraction of it
 
+// how far the sky has replaced the meadow at this pixel (set in main)
+float reveal;
+
 // p5 framebuffers are stored top row first, so p (y down) maps straight onto the texture
 vec3 scene(vec2 p) {
-  return texture2D(tScene, p / uRes).rgb;
+  return mix(texture2D(tScene, p / uRes).rgb, texture2D(tSky, p / uRes).rgb, reveal);
 }
 
 float hash(vec2 v) {
@@ -369,6 +410,7 @@ void main() {
   vec2 d = p - uCentre;
   float r = length(d);
   vec2 out_ = r > 1.0 ? d / r : vec2(0.0, -1.0);
+  reveal = smoothstep(uWave, uWave - uSpan * 0.2, r);
 
   // Where the wave is doing work: the soft front, plus the dust it leaves behind it.
   float ring = exp(-sq((r - uWave) / (uSpan * 0.24)));
@@ -467,17 +509,27 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sketch = (p: any) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let groundImg: any, cloth: any, clouds: any[] = [], petals: any[] = []
+    let groundImg: any, cloth: any, faller: any, clouds: any[] = [], petals: any[] = []
     let blades: Blade[] = [], flowers: Flower[] = []
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let clothShader: any, grassShader: any, grassGeom: any, flowerGeom: any, postShader: any, fb: any
+    let clothShader: any, grassShader: any, grassGeom: any, flowerGeom: any, postShader: any, fb: any, fbSky: any
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let egrets: any, egretShadows: any, goats: any, goatShadows: any
+    let skyWater: any, skyTrail: any
+    // bubbles round her: where they start (fractions of her size, from her middle), size, pace, and phase
+    let bubbles: { u: number; v: number; r: number; k: number; ph: number }[] = []
+    // her glasses, watch and shoes, in her falling picture's px (centre, size, turn), and how they drift off her: up
+    // (viewport heights), sideways (viewport widths), and turning over (radians) by the end of the fall
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let slipping: { spr: any; x: number; y: number; w: number; h: number; rot: number; lift: number; drift: number; spin: number; ph: number; grow?: number }[] = []
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let props: { x: number; y: number; rot: number; w: number; h: number; lift: number; spr: any; shadow: any }[] = []
     let animStart = 0, lastT = 0, shown = false
-    // seconds she has spent falling asleep (runs back when the camera pulls away), and her next blink
-    let sleepS = 0, lastMs = 0, nextBlink = 2, blinkAt = -1
+    // seconds she has spent falling asleep (runs back when the camera pulls away), her next blink, and how open
+    // her eyes are in it (1 = open), which she keeps on doing as she falls
+    let sleepS = 0, lastMs = 0, nextBlink = 2, blinkAt = -1, blinkOpen = 1
+    // falling: how hard the air is pulling at her clothes (0..1, from the scroll speed), the time their flutter has
+    // run (it only runs while they stream), and how far through the dream and fall the last frame was
+    let updraft = 0, updraftT = 0, lastDrop = -1
 
     const imageFromPixels = (data: Uint8ClampedArray, w: number, h: number) => {
       const im = p.createImage(w, h)
@@ -496,6 +548,18 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
         verts.push([x, y, looseness(...(sceneToGirl(x, y) as [number, number])), (x - c.x) / c.w, (y - c.y) / c.h])
       }
       return { ...c, cols, rows, verts }
+    }
+
+    // the same for her falling picture, in its own px
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const makeFaller = (imgs: any) => {
+      const step = 12, cols = Math.ceil(FALLER.w / step), rows = Math.ceil(FALLER.h / step), verts = []
+      for (let j = 0; j <= rows; j++) for (let i = 0; i <= cols; i++) {
+        const x = Math.min(i * step, FALLER.w), y = Math.min(j * step, FALLER.h)
+        verts.push([x, y, easeStep(0, 120, skeletonDistance(FALLER.skeleton, x, y)), x / FALLER.w, y / FALLER.h])
+      }
+      const { x, y, w, h } = FALLER.eyes
+      return { ...imgs, cols, rows, verts, eyeRect: [x / FALLER.w, y / FALLER.h, w / FALLER.w, h / FALLER.h] }
     }
 
     // The baked cloud sprites and shadows are cut off at their boxes; fade their alpha out over the last
@@ -517,22 +581,26 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       p.pixelDensity(Math.min(window.devicePixelRatio || 1, 2))
       p.noLoop()
 
-      const [ground, girlImg, eyesOpenImg, eyesDrowsyImg, girlShadow, bladeData, ...sprites] = await Promise.all([
+      const [ground, girlImg, eyesOpenImg, eyesDrowsyImg, girlShadow, fallingImg, watchImg, shoe0Img, shoe1Img, eyesHalfImg, eyesShutImg, bladeData, ...sprites] = await Promise.all([
         p.loadImage(groundUrl),
         loadHtmlImage(girlUrl),
         loadHtmlImage(eyesOpenUrl),
         loadHtmlImage(eyesDrowsyUrl),
         p.loadImage(girlShadowUrl),
+        p.loadImage(girlFallingUrl),
+        p.loadImage(fallingWatchUrl),
+        p.loadImage(fallingShoe0Url),
+        p.loadImage(fallingShoe1Url),
+        p.loadImage(fallingEyesHalfUrl),
+        p.loadImage(fallingEyesShutUrl),
         fetch(bladesUrl).then((r) => r.json()),
-        ...[egretsUrl, egretsShadowUrl, goatsUrl, goatsShadowUrl].map((u) => p.loadImage(u)),
         ...CLOUDS.flatMap((c) => [p.loadImage(c.spr), p.loadImage(c.shadow)]),
       ])
       // the poster is on screen meanwhile; let the browser breathe between the heavier steps
       const breathe = () => new Promise((r) => setTimeout(r, 0))
       if (disposed) return
       groundImg = ground
-      ;[egrets, egretShadows, goats, goatShadows] = sprites
-      const cloudImgs = sprites.slice(4)
+      const cloudImgs = sprites
       clouds = CLOUDS.map((c, i) => ({ ...c, spr: featherEdges(cloudImgs[i * 2], 24), shadow: featherEdges(cloudImgs[i * 2 + 1], 16) }))
       const box = girlBox()
       const spr = imageFromPixels(girlPixels(girlImg, box, GIRL_DENSITY), box.w * GIRL_DENSITY, box.h * GIRL_DENSITY)
@@ -546,10 +614,33 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
         eyesDrowsy: imageFromPixels(girlPixels(girlImg, box, GIRL_DENSITY, eyesDrowsyImg, er), er.w, er.h),
         eyeRect: [er.x / sw, er.y / sh, er.w / sw, er.h / sh],
       })
+      faller = makeFaller({ spr: fallingImg, eyesHalf: eyesHalfImg, eyesShut: eyesShutImg })
       await breathe()
       if (disposed) return
       const fromCanvas = (cv: HTMLCanvasElement) => imageFromPixels(cv.getContext('2d')!.getImageData(0, 0, cv.width, cv.height).data, cv.width, cv.height)
       props = paintProps().map(({ sprite, shadow, ...rest }) => ({ ...rest, spr: fromCanvas(sprite), shadow: fromCanvas(shadow) }))
+      const ring = paintFallingRing(), rg = FALLER.ring
+      const glasses = paintFallingGlasses(), { left: gl, right: gr } = FALLER.glasses, wt = FALLER.watch
+      const k = Math.hypot(gr[0] - gl[0], gr[1] - gl[1]) / glasses.lensGap
+      slipping = [
+        {
+          spr: fromCanvas(glasses.sprite), x: (gl[0] + gr[0]) / 2, y: (gl[1] + gr[1]) / 2, w: glasses.w * k, h: glasses.h * k,
+          rot: Math.atan2(gr[1] - gl[1], gr[0] - gl[0]), lift: 0.8, drift: -0.12, spin: 2.6, ph: 0.4,
+        },
+        { spr: watchImg, x: wt.x + wt.w / 2, y: wt.y + wt.h / 2, w: wt.w, h: wt.h, rot: 0, lift: 0.65, drift: 0.14, spin: -3.4, ph: 2.1 },
+        // her ring, tiny on her finger, grows as it floats off so it can be seen
+        { spr: fromCanvas(ring.sprite), x: rg.x, y: rg.y, w: ring.w, h: ring.h, rot: rg.rot, lift: 0.72, drift: 0.06, spin: 4.2, ph: 4.1, grow: 2 },
+        // her shoes, heavier, rise least and kick out to either side
+        ...[shoe0Img, shoe1Img].map((spr, i) => {
+          const b = FALLER.shoes[i]
+          return { spr, x: b.x + b.w / 2, y: b.y + b.h / 2, w: b.w, h: b.h, rot: 0, lift: [0.5, 0.42][i], drift: [-0.1, 0.12][i], spin: [-2.2, 1.9][i], ph: [3.3, 5.0][i] }
+        }),
+      ]
+      await breathe()
+      if (disposed) return
+      const sky = paintSky()
+      skyWater = fromCanvas(sky.water)
+      skyTrail = fromCanvas(sky.trail)
       await breathe()
       if (disposed) return
       ;({ blades, flowers } = unpackBlades(bladeData))
@@ -560,6 +651,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       clothShader = p.createShader(CLOTH_VERT, CLOTH_FRAG)
       postShader = p.createShader(POST_VERT, POST_FRAG)
       fb = p.createFramebuffer({ depth: false })
+      fbSky = p.createFramebuffer({ depth: false })
       // start the clock where the poster frame was taken, so the live meadow picks up from it
       animStart = p.millis() - POSTER_T * 1000
       ready = true
@@ -577,26 +669,44 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       petals = Array.from({ length: 30 }, () => ({
         x: p.random(W), y: p.random(H), r: p.random(1.6, 3.2), k: p.random(0.6, 1.3), spin: p.random(0.5, 1.4), ph: p.random(TWO_PI),
       }))
+      bubbles = Array.from({ length: FALL.bubbles }, () => ({
+        u: p.random(-1, 1), v: p.random(-1, 1), r: p.random(0.8, 3.2), k: p.random(0.6, 1.4), ph: p.random(),
+      }))
     }
 
     p.draw = () => {
       if (!ready) return
       const dream = clamp(state.dream, 0, 1)
-      const dreaming = dream > 0 && dream < 1
+      const t = (p.millis() - animStart) / 1000
+      const eyes = eyesNow()
 
-      if (dreaming) {
+      const meadowFrame = () => {
+        p.background(SCENE_BG[0], SCENE_BG[1], SCENE_BG[2])
+        p.push()
+        p.translate(-p.width / 2, -p.height / 2)
+        applyCamera()
+        drawDrift(t, eyes)
+        p.pop()
+      }
+      const skyFrame = () => {
+        p.push()
+        p.translate(-p.width / 2, -p.height / 2)
+        drawSky(t, blinkOpen)
+        p.pop()
+      }
+
+      if (dream <= 0) meadowFrame()
+      else if (dream >= 1) skyFrame()
+      else {
+        // the wave carries the meadow away into the sky: both are drawn, and mixed behind the front
         fb.begin()
         p.clear()
-      }
-      p.background(SCENE_BG[0], SCENE_BG[1], SCENE_BG[2])
-      p.push()
-      p.translate(-p.width / 2, -p.height / 2)
-      applyCamera()
-      drawDrift((p.millis() - animStart) / 1000)
-      p.pop()
-
-      if (dreaming) {
+        meadowFrame()
         fb.end()
+        fbSky.begin()
+        p.clear()
+        skyFrame()
+        fbSky.end()
         drawDream(dream)
       }
 
@@ -628,6 +738,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       p.noStroke()
       p.shader(postShader)
       postShader.setUniform('tScene', fb)
+      postShader.setUniform('tSky', fbSky)
       postShader.setUniform('uRes', [vw, vh])
       postShader.setUniform('uCentre', [vw / 2, vh / 2])
       postShader.setUniform('uWave', t * (span / 2) * 1.62)
@@ -640,25 +751,30 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       p.pop()
     }
 
-    function drawDrift(t: number) {
+    function drawDrift(t: number, eyes: number) {
       if (reduceMotion) t = 0
       const dt = Math.min(t - lastT, 0.1)
       lastT = t
       p.image(groundImg, 0, 0, W, H)
       drawGrass(t)
       drawProps()
-      drawCloth(t)
+      drawCloth(t, eyes)
       drawPetals(t, dt)
-      drawBirds(t)
       for (const c of clouds) {
         // wrap so a cloud leaves fully on the right before re-entering from the left
         const span = W + c.w
-        const x = ((c.x + c.speed * t + c.w) % span) - c.w
+        const x = ((c.x + c.speed * CLOUD_SPEED * t + c.w) % span) - c.w
         const y = c.y + c.bob * (Math.sin((t / c.period) * TWO_PI + c.phase) - Math.sin(c.phase))
-        p.tint(40, 70, 20, 60)
-        p.image(c.shadow, x + 22, y + 30, c.w, c.h)
-        p.noTint()
+        // distance from her face to the cloud-plus-shadow box
+        const dx = Math.max(x - FACE.x, 0, FACE.x - (x + c.w + CLOUD_SHADOW_OFFSET.x))
+        const dy = Math.max(y - FACE.y, 0, FACE.y - (y + c.h + CLOUD_SHADOW_OFFSET.y))
+        const a = easeStep(FACE_CLEAR, FACE_CLEAR + FACE_FADE, Math.hypot(dx, dy))
+        if (a <= 0) continue
+        p.tint(40, 70, 20, 60 * a)
+        p.image(c.shadow, x + CLOUD_SHADOW_OFFSET.x, y + CLOUD_SHADOW_OFFSET.y, c.w, c.h)
+        p.tint(255, 255 * a)
         p.image(c.spr, x, y, c.w, c.h)
+        p.noTint()
       }
     }
 
@@ -673,25 +789,33 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       const total = SLEEP.drop + SLEEP.hold + SLEEP.shut
       if (reduceMotion) sleepS = asleep ? total : 0
       else sleepS = clamp(sleepS + (asleep ? dt : -2 * dt), 0, total)
-      let eyes = eyesAfter(sleepS)
-      if (sleepS === 0 && !reduceMotion) {
+      blinkOpen = 1
+      if (!reduceMotion) {
         if (blinkAt < 0 && (nextBlink -= dt) <= 0) blinkAt = now
         if (blinkAt >= 0) {
-          const b = (now - blinkAt) / 0.24
+          // falling, she is frightened: quick, frequent blinks, often a rapid flutter of two or three, her eyes
+          // snapping wide in between
+          const scared = state.dream > 0
+          const b = (now - blinkAt) / (scared ? 0.15 : 0.24)
           if (b >= 1) {
             blinkAt = -1
-            // now and then a double blink
-            nextBlink = Math.random() < 0.2 ? 0.15 : 2.5 + Math.random() * 3
-          } else eyes = Math.min(eyes, Math.abs(1 - 2 * b) ** 0.8)
+            if (scared) nextBlink = Math.random() < 0.5 ? 0.06 : 0.5 + Math.random() * 1.1
+            else nextBlink = Math.random() < 0.2 ? 0.15 : 2.5 + Math.random() * 3 // now and then a double blink
+          } else blinkOpen = Math.abs(1 - 2 * b) ** 0.8
         }
       }
-      return eyes
+      const eyes = eyesAfter(sleepS)
+      return sleepS === 0 ? Math.min(eyes, blinkOpen) : eyes
     }
 
-    function drawCloth(t: number) {
-      if (!cloth.geom) {
-        const { cols, rows, verts } = cloth
-        cloth.geom = p.buildGeometry(() => {
+    // In the meadow the breeze blows along windDir and she has her shadow on the grass; falling (her falling
+    // picture, `faller`), the updraft blows along `wind` (in its own frame) at the FALL strength, with no ground
+    // to shade, its own lids blinking over her open eyes, and the updraft at `gust` (0..1) of its strength
+    function drawCloth(t: number, eyes: number, wind?: number[], gust = 1) {
+      const falling = !!wind, body = falling ? faller : cloth
+      if (!body.geom) {
+        const { cols, rows, verts } = body
+        body.geom = p.buildGeometry(() => {
           p.beginShape(p.TRIANGLES)
           for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
             const a = j * (cols + 1) + i, b = a + 1, c = a + cols + 1, d = c + 1
@@ -702,24 +826,126 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       }
       p.noStroke()
       p.shader(clothShader)
-      clothShader.setUniform('uTime', t * WIND.pace)
-      clothShader.setUniform('uAmp', reduceMotion ? 0 : WIND.amp)
+      clothShader.setUniform('uTime', t * (falling ? FALL.pace : WIND.pace))
+      clothShader.setUniform('uAmp', reduceMotion ? 0 : falling ? FALL.amp * gust : WIND.amp)
       clothShader.setUniform('uK', WIND.k)
       clothShader.setUniform('uW', WIND.w)
-      clothShader.setUniform('uWind', windDir)
-      clothShader.setUniform('uSprite', cloth.spr)
+      clothShader.setUniform('uWind', wind ?? windDir)
+      clothShader.setUniform('uSprite', body.spr)
       clothShader.setUniform('uShadow', cloth.shadow)
-      clothShader.setUniform('uEyesOpen', cloth.eyesOpen)
-      clothShader.setUniform('uEyesDrowsy', cloth.eyesDrowsy)
-      clothShader.setUniform('uEyeRect', cloth.eyeRect)
-      clothShader.setUniform('uEyes', eyesNow())
+      clothShader.setUniform('uEyesOpen', falling ? faller.eyesShut : cloth.eyesOpen)
+      clothShader.setUniform('uEyesDrowsy', falling ? faller.eyesHalf : cloth.eyesDrowsy)
+      clothShader.setUniform('uEyeRect', body.eyeRect)
+      clothShader.setUniform('uEyes', falling ? 1 - eyes : eyes)
       // the shadow first, a little down and to the right, in dark green
-      for (const [isShadow, off] of [[1, [5, 7]], [0, [0, 0]]] as const) {
+      const passes = [[1, [5, 7]], [0, [0, 0]]] as const
+      for (const [isShadow, off] of falling ? passes.slice(1) : passes) {
         clothShader.setUniform('uIsShadow', isShadow)
         clothShader.setUniform('uOffset', off)
-        p.model(cloth.geom)
+        p.model(body.geom)
       }
       p.resetShader()
+    }
+
+    // ---------- the fall ----------
+
+    // In viewport px. She drops into view as the dream clears, then falls on with the scroll, swaying,
+    // slowly turning, deeper into the blue, the trail of mist she leaves billowing down behind her.
+    function drawSky(t: number, eyes: number) {
+      if (reduceMotion) t = 0
+      const vw = p.width, vh = p.height, fall = clamp(state.fall, 0, 1)
+      const gw = Math.min(FALL.w * vw, (FALL.h * vh * FALLER.w) / FALLER.h), sc = gw / FALLER.w
+      const gx = vw / 2 + Math.sin(t * 0.37) * vw * 0.02
+      const gy = lerp(-0.6 * gw, vh * 0.52, easeStep(0.2, 1, state.dream)) + fall * vh * 0.04 + Math.sin(t * 0.61) * vh * 0.012
+      // she turns over a little as she falls; the updraft is straight up on screen, so her clothes billow up
+      const rot = 0.08 - 0.16 * fall + Math.sin(t * 0.29) * 0.05
+      // the air only pulls at her clothes while the page scrolls her down; still, they settle
+      const dt = Math.min(p.deltaTime / 1000, 0.1), drop = state.dream + state.fall
+      const pull = lastDrop < 0 || dt <= 0 ? 0 : clamp(Math.abs(drop - lastDrop) / dt / FALL.rush, 0, 1)
+      lastDrop = drop
+      updraft += (pull - updraft) * (1 - Math.exp(-dt / (pull > updraft ? FALL.rise : FALL.settle)))
+      updraftT += dt * updraft
+
+      coverImage(skyWater, 1 + FALL.deepen * fall + 0.01 * Math.sin(t * 0.2))
+      drawTrail(t, gx, gy)
+      p.push()
+      p.translate(gx, gy)
+      p.scale(sc)
+      p.rotate(rot)
+      p.translate(-FALLER.w / 2, -FALLER.h / 2)
+      drawCloth(updraftT, eyes, [-Math.sin(rot), -Math.cos(rot)], updraft)
+      p.pop()
+      // a point on her picture, on screen
+      const onScreen = (x: number, y: number) => {
+        const u = (x - FALLER.w / 2) * sc, v = (y - FALLER.h / 2) * sc
+        return [gx + u * Math.cos(rot) - v * Math.sin(rot), gy + u * Math.sin(rot) + v * Math.cos(rot)]
+      }
+      drawSlipping(t, fall, rot, sc, onScreen)
+      drawBubbles(t, gx, gy, gw)
+    }
+
+    // an image covering the viewport, centred, `zoom` times closer than just covering it
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    function coverImage(im: any, zoom: number) {
+      const vw = p.width, vh = p.height, s = Math.max(vw / im.width, vh / im.height) * zoom
+      p.image(im, (vw - im.width * s) / 2, (vh - im.height * s) / 2, im.width * s, im.height * s)
+    }
+
+    // Her glasses, watch, ring and shoes slip off as she falls and float up away from her (light things fall slower than she
+    // does), drifting apart and tumbling, until the end of the scroll carries them off the top of the sky
+    function drawSlipping(t: number, fall: number, rot: number, sc: number, onScreen: (x: number, y: number) => number[]) {
+      const vw = p.width, vh = p.height
+      const off = easeStep(0.03, 1, fall)
+      for (const q of slipping) {
+        const [ax, ay] = onScreen(q.x, q.y)
+        // just loose, they bob about in the air; further off, they turn over
+        const loose = easeStep(0, 0.12, off)
+        p.push()
+        p.translate(ax + q.drift * vw * off + Math.sin(t * 0.9 + q.ph) * 10 * loose, ay - q.lift * vh * off + Math.cos(t * 0.7 + q.ph) * 6 * loose)
+        p.rotate(rot + q.rot + q.spin * off + Math.sin(t * 1.3 + q.ph) * 0.3 * loose)
+        const s = sc * (1 + (q.grow ?? 0.25) * off)
+        p.image(q.spr, (-q.w * s) / 2, (-q.h * s) / 2, q.w * s, q.h * s)
+        p.pop()
+      }
+    }
+
+    // the trail of mist she leaves, coming down from above the view and ending at her, billowing a little
+    // (in its own proportions where that runs its top off the top of the view, stretched taller where it would not)
+    function drawTrail(t: number, gx: number, gy: number) {
+      const tw = Math.min(FALL.trailW * p.width, FALL.trailH * p.height)
+      const th = Math.max((tw * skyTrail.height) / skyTrail.width, gy + 0.1 * p.height)
+      if (gy < 0) return
+      // two passes, a little out of step, so it seems to stir
+      for (const [k, a] of [[0, 235], [1, 90]]) {
+        const sway = Math.sin(t * (0.23 + 0.11 * k) + k * 2) * tw * 0.03, grow = 1 + 0.03 * k * Math.sin(t * 0.31)
+        p.tint(255, a)
+        p.image(skyTrail, gx - (tw * grow) / 2 + sway, gy - th * grow, tw * grow, th * grow)
+      }
+      p.noTint()
+    }
+
+    // little bubbles round her, rising into the trail and fading as they go
+    function drawBubbles(t: number, gx: number, gy: number, gw: number) {
+      const vh = p.height, k = gw / 700
+      for (const b of bubbles) {
+        const age = (t * 0.12 * b.k + b.ph) % 1
+        const x = gx + b.u * gw * 0.32 + Math.sin(age * 7 + b.ph * 9) * 6 * k, y = gy + b.v * gw * 0.18 - age * vh * FALL.bubbleRise
+        const a = 220 * easeStep(0, 0.1, age) * (1 - easeStep(0.55, 1, age)), r = b.r * k * (1 + 0.6 * age)
+        if (r < 2) {
+          p.noStroke()
+          p.fill(255, 255, 255, a)
+          p.circle(x, y, r * 2)
+        } else {
+          p.noFill()
+          p.stroke(255, 255, 255, a)
+          p.strokeWeight(Math.max(1, r * 0.22))
+          p.circle(x, y, r * 2)
+          p.noStroke()
+          p.fill(255, 255, 255, a)
+          p.circle(x - r * 0.35, y - r * 0.35, r * 0.5)
+        }
+      }
+      p.noStroke()
     }
 
     // ---------- her things on the grass ----------
@@ -826,82 +1052,6 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
         p.ellipse(0, 0, q.r * 2, q.r * 2 * Math.abs(Math.sin(t * q.spin + q.ph)) + 0.6)
         p.pop()
       }
-    }
-
-    // ---------- egrets ----------
-    // White egrets seen from straight above, flapping across now and then under the clouds, their shadows
-    // sliding over the grass. Each frame the flock is laid on from the wingbeat sheet.
-
-    // where the flock is at time t: it crosses the meadow along BIRDS.heading, then is gone for a while; each pass a little to the side of the last
-    function drawBirds(t: number) {
-      const hx = Math.cos(BIRDS.heading), hy = Math.sin(BIRDS.heading), sx = -hy, sy = hx
-      const half = (W * Math.abs(hx) + H * Math.abs(hy)) / 2 + 360
-      const cross = (2 * half) / BIRDS.speed, cycle = cross + BIRDS.gap
-      const tt = reduceMotion ? cross * 0.45 : t + cross * 0.3 // the first pass is already on its way in
-      const pass = Math.floor(tt / cycle), tau = tt - pass * cycle
-      if (tau > cross) return
-      const side = Math.sin(pass * 12.9898) * 140 // this pass's line, to the side of the centre
-      const along0 = -half + BIRDS.speed * tau
-
-      const { cols, cell } = BIRD_SHEET, N = BIRDS.frames
-      const birds = FLOCK.map(([a, c, size], i) => {
-        // each bird wanders a little in the flock and flaps in its own time
-        const along = along0 + a + 7 * Math.sin(t * 0.21 + i * 1.7)
-        const across = side + c + 8 * Math.sin(t * 0.17 + i * 2.3)
-        const x = W / 2 + hx * along + sx * across, y = H / 2 + hy * along + sy * across
-        const turn = 0.06 * Math.cos(t * 0.17 + i * 2.3) // heading follows the sideways drift
-        const beat = reduceMotion ? 0.3 + i * 0.13 : t * BIRDS.hz * (0.92 + 0.16 * ((i * 0.618) % 1)) + i * 0.37
-        const f = Math.floor((((beat % 1) + 1) % 1) * N)
-        return { x, y, a: BIRDS.heading + turn, size, f }
-      })
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const draw = (im: any, b: (typeof birds)[number], dx: number, dy: number) => {
-        const d = (BIRD_CELL * BIRDS.span * b.size) / 2
-        p.push()
-        p.translate(b.x + dx, b.y + dy)
-        p.rotate(b.a)
-        p.image(im, -d / 2, -d / 2, d, d, (b.f % cols) * cell, ((b.f / cols) | 0) * cell, cell, cell)
-        p.pop()
-      }
-      // shadows first, down and to the right like the clouds' but nearer (the birds fly lower); the higher the bird, the further its shadow
-      p.tint(22, 42, 10, 130)
-      for (const b of birds) draw(egretShadows, b, 10 * b.size * b.size, 14 * b.size * b.size)
-      p.noTint()
-      for (const b of [...birds].sort((q, r) => q.size - r.size)) draw(egrets, b, 0, 0)
-    }
-
-    // ---------- goats ----------
-    // A few white goats grazing, seen from above and a little in front: thin black legs under a white, thickly
-    // painted coat, a black head, ears out to the sides, small horns swept back. One lowering of the head is
-    // pre-drawn as a strip of frames; each goat grazes, nibbles, and now and then looks up in its own time.
-
-    function drawGoats(t: number) {
-      const { cols, cell } = GOAT_SHEET, N = GOAT.frames
-      const herd = HERD.map(([x, y, size, tilt, facing], i) => {
-        const down = reduceMotion ? 1 : easeStep(0.36, 0.5, p.noise(t * 0.09 + i * 17.3, i * 3.1))
-        let f = Math.round(down * (N - 1))
-        if (f >= N - 2 && !reduceMotion) f = N - 1 - (Math.floor(t * 2.4 + i * 0.7) % 2)
-        // a slow step forward and back now and then
-        const step = 4 * Math.sin(t * 0.05 + i * 2.1)
-        return { x: x + facing * Math.cos(tilt) * step, y: y + Math.sin(tilt) * step, size, tilt, facing, f }
-      })
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const draw = (im: any, g: (typeof herd)[number], dx: number, dy: number) => {
-        const d = GOAT_CELL * GOAT.len * g.size
-        p.push()
-        p.translate(g.x + dx, g.y + dy)
-        p.scale(g.facing, 1)
-        p.rotate(g.tilt)
-        p.image(im, -d / 2, -d / 2, d, d, (g.f % cols) * cell, ((g.f / cols) | 0) * cell, cell, cell)
-        p.pop()
-      }
-      // their shadows fall below them, where their feet meet the grass, and a little to the right like the rest
-      p.tint(22, 42, 10, 215)
-      for (const g of herd) draw(goatShadows, g, 0.1 * GOAT.len * g.size, 0.3 * GOAT.len * g.size)
-      p.noTint()
-      for (const g of [...herd].sort((q, r) => q.y - r.y)) draw(goats, g, 0, 0)
     }
 
   }
