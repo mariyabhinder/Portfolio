@@ -648,7 +648,6 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       drawGrass(t)
       drawProps()
       drawCloth(t)
-      drawGoats(t)
       drawPetals(t, dt)
       drawBirds(t)
       for (const c of clouds) {
