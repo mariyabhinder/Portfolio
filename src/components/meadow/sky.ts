@@ -1,5 +1,4 @@
-// The deep blue she falls through, painted once while the meadow loads: a saturated blue, lighter down the middle
-// and darkening toward the edges and the bottom, worked in long, soft vertical brush strokes; and the trail of
+// The sky she falls through, painted once while the meadow loads: a pale blue with soft, fluffy white clouds; and the trail of
 // white mist she leaves behind her, billowing down from above in a column that narrows as it reaches her,
 // with fine glints of bubbles caught in its lower end.
 // `water` covers the viewport behind everything; `trail` is laid over it, above her.
@@ -9,9 +8,8 @@ import { grain, rgba, rng } from './props'
 const WATER = { w: 1000, h: 1600 }
 const TRAIL = { w: 700, h: 1000 }
 
-const BLUE = [22, 96, 214]
-const BLUES = [[40, 120, 232], [18, 86, 200], [58, 138, 238], [12, 70, 180], [30, 108, 224]]
-const DEEP = [8, 46, 146]
+const TOP = [172, 210, 244]
+const BLUE = [188, 220, 247]
 
 function canvas(w: number, h: number) {
   const cv = document.createElement('canvas')
@@ -37,50 +35,73 @@ const pick = <T>(list: T[], rand: () => number) => list[Math.floor(rand() * list
 // roughly normal, -1..1 mostly
 const gauss = (rand: () => number) => (rand() + rand() + rand() - 1.5) / 1.5
 
+// seeded value noise (smooth), summed over octaves
+function noiser(rand: () => number) {
+  const N = 256, lat = Float32Array.from({ length: N * N }, () => rand())
+  const at = (x: number, y: number) => lat[((y & (N - 1)) * N) + (x & (N - 1))]
+  const sm = (t: number) => t * t * (3 - 2 * t)
+  const v = (x: number, y: number) => {
+    const xi = Math.floor(x), yi = Math.floor(y), fx = sm(x - xi), fy = sm(y - yi)
+    const a = at(xi, yi), b = at(xi + 1, yi), c = at(xi, yi + 1), d = at(xi + 1, yi + 1)
+    return a + (b - a) * fx + (c - a) * fy + (a - b - c + d) * fx * fy
+  }
+  return (x: number, y: number, oct = 5) => {
+    let s = 0, amp = 0.5, f = 1, tot = 0
+    for (let i = 0; i < oct; i++) { s += v(x * f, y * f) * amp; tot += amp; amp *= 0.5; f *= 2.03 }
+    return s / tot
+  }
+}
+const smooth = (a: number, b: number, x: number) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t) }
+
+// cumulus: [x, y, size] with x and size in fractions of the width, y of the height; some run off the edges. Each is a
+// heap of round puffs [x, y, radius] (in sizes)
+const CLOUDS = [[0.72, 0.03, 0.17], [0.1, 0.2, 0.22], [0.74, 0.42, 0.2], [0.08, 0.63, 0.16], [0.78, 0.74, 0.2], [0.3, 0.98, 0.24]]
+const PUFFS = [[-1.3, 0.25, 0.5], [-0.8, -0.1, 0.7], [-0.2, -0.35, 0.8], [0.45, -0.25, 0.75], [1.0, 0.0, 0.65], [1.5, 0.3, 0.45], [0.1, 0.2, 0.8], [0.8, 0.3, 0.6]]
+
+// a soft, airy sky: pale blue with fluffy white cumulus whose edges are cottony and fade into the blue
 function paintWater() {
   const rand = rng(61)
   const { w: W, h: H } = WATER
   const { cv, ctx } = canvas(W, H)
-  ctx.fillStyle = rgba(BLUE)
+  const sky = ctx.createLinearGradient(0, 0, 0, H)
+  sky.addColorStop(0, rgba(TOP))
+  sky.addColorStop(0.5, rgba(BLUE))
+  sky.addColorStop(1, rgba(TOP))
+  ctx.fillStyle = sky
   ctx.fillRect(0, 0, W, H)
-  // lighter down the middle, where the light comes through
-  const mid = ctx.createRadialGradient(W / 2, H * 0.38, 0, W / 2, H * 0.38, W * 0.75)
-  mid.addColorStop(0, rgba([62, 140, 240], 0.85))
-  mid.addColorStop(1, rgba([62, 140, 240], 0))
-  ctx.fillStyle = mid
-  ctx.fillRect(0, 0, W, H)
-  // long soft strokes, mostly straight down, curving in a little toward the bottom like a bowl of light
-  for (let i = 0; i < 1100; i++) {
-    const x = rand() * W, y = rand() * H * 1.1 - H * 0.05, len = 140 + rand() * 520, wd = 20 + rand() * 60
-    const side = (x - W / 2) / (W / 2), bend = -side * len * 0.18 * (y / H)
-    ctx.strokeStyle = rgba(pick(BLUES, rand), 0.03 + rand() * 0.05)
-    ctx.lineWidth = wd
-    ctx.beginPath()
-    ctx.moveTo(x, y)
-    ctx.quadraticCurveTo(x + bend * 0.2, y + len * 0.5, x + bend, y + len)
-    ctx.stroke()
+  const noise = noiser(rand)
+  const w = 400, h = 640
+  const layer = canvas(w, h)
+  const img = layer.ctx.createImageData(w, h)
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const u = x / w, vv = y / h
+      // puffs heaped into clouds; fine noise bites the outline into a cauliflower fluff
+      let m = 0
+      const fluff = noise(u * 26, vv * 42, 4) - 0.5, bulge = noise(u * 7, vv * 11, 3) - 0.5
+      for (const [cx, cy, s] of CLOUDS) {
+        const sz = s * w, px = (u - cx) * w, py = (vv - cy) * h
+        if (py > sz * 0.9) continue
+        const base = 1 - smooth(0.45, 0.9, py / sz)
+        for (const [ox, oy, r] of PUFFS) {
+          const d = Math.hypot(px - ox * sz, py - oy * sz) / (r * sz)
+          m = Math.max(m, (1 - d + fluff * 0.5 + bulge * 0.3) * base)
+        }
+      }
+      // wide soft edge, brighter in the core, a cool blue-white toward the rim
+      const body = smooth(-0.05, 0.55, m), core = smooth(0.15, 0.8, m)
+      const k = (y * w + x) * 4
+      img.data[k] = 226 + 29 * core
+      img.data[k + 1] = 239 + 16 * core
+      img.data[k + 2] = 252 + 3 * core
+      img.data[k + 3] = 255 * body * (0.92 + 0.08 * fluff)
+    }
   }
-  // darker toward the edges and the bottom, in the same soft strokes
-  const edge = ctx.createRadialGradient(W / 2, H * 0.42, W * 0.32, W / 2, H * 0.5, W * 0.95)
-  edge.addColorStop(0, rgba(DEEP, 0))
-  edge.addColorStop(1, rgba(DEEP, 0.85))
-  ctx.fillStyle = edge
-  ctx.fillRect(0, 0, W, H)
-  const low = ctx.createLinearGradient(0, H * 0.6, 0, H)
-  low.addColorStop(0, rgba(DEEP, 0))
-  low.addColorStop(1, rgba(DEEP, 0.45))
-  ctx.fillStyle = low
-  ctx.fillRect(0, 0, W, H)
-  for (let i = 0; i < 260; i++) {
-    const side = rand() < 0.5 ? rand() * 0.22 : 1 - rand() * 0.22, x = side * W, y = rand() * H, len = 200 + rand() * 500
-    ctx.strokeStyle = rgba(DEEP, 0.05 + rand() * 0.07)
-    ctx.lineWidth = 10 + rand() * 30
-    ctx.beginPath()
-    ctx.moveTo(x, y)
-    ctx.quadraticCurveTo(x, y + len * 0.5, x + (0.5 - side) * len * 0.25, y + len)
-    ctx.stroke()
-  }
-  grain(cv, rand, 0.05)
+  layer.ctx.putImageData(img, 0, 0)
+  ctx.imageSmoothingEnabled = true
+  ctx.imageSmoothingQuality = 'high'
+  ctx.drawImage(layer.cv, 0, 0, W, H)
+  grain(cv, rand, 0.015)
   return cv
 }
 

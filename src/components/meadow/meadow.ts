@@ -6,7 +6,7 @@
 // dust (the dream): the frame is drawn into a framebuffer and sent through the wave shader.
 // The sprites were painted by the meadow's sketch.js (pencil and watercolour on canvas)
 // and saved as images, so nothing has to be painted while the page loads.
-// Her glasses, hat and shoes lie on the grass beside her (props.ts paints them while the meadow loads).
+// Her glasses, hat, phone and bag lie on the grass around her (props.ts prepares them while the meadow loads).
 // She starts awake (blinking now and then); once the camera has closed in, her eyes grow heavy and shut
 // before the dream begins. The open and drowsy eyes are small patches laid over the closed-eyed picture.
 // The dream wave carries the picture away into a dawn sky (it is revealed behind the wavefront), and she falls
@@ -15,11 +15,10 @@
 import p5 from 'p5'
 import groundUrl from '@/assets/meadow/meadow.jpg'
 import girlUrl from '@/assets/meadow/girl.webp'
+import bagUrl from '@/assets/meadow/bag.webp'
+import phoneUrl from '@/assets/meadow/phone.webp'
 import girlShadowUrl from '@/assets/meadow/girl-shadow.webp'
 import girlFallingUrl from '@/assets/meadow/girl-falling.webp'
-import fallingWatchUrl from '@/assets/meadow/falling-watch.webp'
-import fallingShoe0Url from '@/assets/meadow/falling-shoe-0.webp'
-import fallingShoe1Url from '@/assets/meadow/falling-shoe-1.webp'
 import fallingEyesHalfUrl from '@/assets/meadow/girl-falling-eyes-half.webp'
 import fallingEyesShutUrl from '@/assets/meadow/girl-falling-eyes-shut.webp'
 import eyesOpenUrl from '@/assets/meadow/girl-eyes-open.webp'
@@ -31,7 +30,7 @@ import cloud0ShadowUrl from '@/assets/meadow/cloud-0-shadow.webp'
 import cloud1ShadowUrl from '@/assets/meadow/cloud-1-shadow.webp'
 import cloud2ShadowUrl from '@/assets/meadow/cloud-2-shadow.webp'
 import bladesUrl from '@/assets/meadow/blades.json?url'
-import { paintFallingGlasses, paintFallingRing, paintProps } from './props'
+import { paintProps } from './props'
 import { paintSky } from './sky'
 
 export interface MeadowState {
@@ -94,7 +93,7 @@ const CLOUDS = [
 // (how many, and how far up they rise before they fade, in viewport heights). Her clothes only stream while the
 // page is scrolling: `rush` is the scroll speed (dream + fall per second) at which they stream fully, and they catch
 // the air in `rise` seconds and settle in `settle` seconds
-const FALL = { rush: 0.25, rise: 0.12, settle: 0.7, w: 0.9, h: 0.68, amp: 26, pace: 0.9, deepen: 0.06, trailW: 0.75, trailH: 0.85, bubbles: 46, bubbleRise: 0.4 }
+const FALL = { rush: 0.25, rise: 0.12, settle: 0.7, w: 0.9, h: 0.68, amp: 26, pace: 0.9, deepen: 0.06 }
 // her falling picture (girl-falling.webp, px): its size, and her body as a stick figure ([x, y, radius]);
 // her hijab, sleeves and skirt beyond it are free to blow.
 // Her glasses, watch and shoes were painted out of it (scripts/falling-props.py); they start where they were (the
@@ -514,13 +513,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let clothShader: any, grassShader: any, grassGeom: any, flowerGeom: any, postShader: any, fb: any, fbSky: any
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let skyWater: any, skyTrail: any
-    // bubbles round her: where they start (fractions of her size, from her middle), size, pace, and phase
-    let bubbles: { u: number; v: number; r: number; k: number; ph: number }[] = []
-    // her glasses, watch and shoes, in her falling picture's px (centre, size, turn), and how they drift off her: up
-    // (viewport heights), sideways (viewport widths), and turning over (radians) by the end of the fall
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let slipping: { spr: any; x: number; y: number; w: number; h: number; rot: number; lift: number; drift: number; spin: number; ph: number; grow?: number }[] = []
+    let skyWater: any
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let props: { x: number; y: number; rot: number; w: number; h: number; lift: number; spr: any; shadow: any }[] = []
     let animStart = 0, lastT = 0, shown = false
@@ -581,19 +574,18 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       p.pixelDensity(Math.min(window.devicePixelRatio || 1, 2))
       p.noLoop()
 
-      const [ground, girlImg, eyesOpenImg, eyesDrowsyImg, girlShadow, fallingImg, watchImg, shoe0Img, shoe1Img, eyesHalfImg, eyesShutImg, bladeData, ...sprites] = await Promise.all([
+      const [ground, girlImg, eyesOpenImg, eyesDrowsyImg, girlShadow, fallingImg, eyesHalfImg, eyesShutImg, bladeData, bagImg, phoneImg, ...sprites] = await Promise.all([
         p.loadImage(groundUrl),
         loadHtmlImage(girlUrl),
         loadHtmlImage(eyesOpenUrl),
         loadHtmlImage(eyesDrowsyUrl),
         p.loadImage(girlShadowUrl),
         p.loadImage(girlFallingUrl),
-        p.loadImage(fallingWatchUrl),
-        p.loadImage(fallingShoe0Url),
-        p.loadImage(fallingShoe1Url),
         p.loadImage(fallingEyesHalfUrl),
         p.loadImage(fallingEyesShutUrl),
         fetch(bladesUrl).then((r) => r.json()),
+        loadHtmlImage(bagUrl),
+        loadHtmlImage(phoneUrl),
         ...CLOUDS.flatMap((c) => [p.loadImage(c.spr), p.loadImage(c.shadow)]),
       ])
       // the poster is on screen meanwhile; let the browser breathe between the heavier steps
@@ -618,29 +610,11 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       await breathe()
       if (disposed) return
       const fromCanvas = (cv: HTMLCanvasElement) => imageFromPixels(cv.getContext('2d')!.getImageData(0, 0, cv.width, cv.height).data, cv.width, cv.height)
-      props = paintProps().map(({ sprite, shadow, ...rest }) => ({ ...rest, spr: fromCanvas(sprite), shadow: fromCanvas(shadow) }))
-      const ring = paintFallingRing(), rg = FALLER.ring
-      const glasses = paintFallingGlasses(), { left: gl, right: gr } = FALLER.glasses, wt = FALLER.watch
-      const k = Math.hypot(gr[0] - gl[0], gr[1] - gl[1]) / glasses.lensGap
-      slipping = [
-        {
-          spr: fromCanvas(glasses.sprite), x: (gl[0] + gr[0]) / 2, y: (gl[1] + gr[1]) / 2, w: glasses.w * k, h: glasses.h * k,
-          rot: Math.atan2(gr[1] - gl[1], gr[0] - gl[0]), lift: 0.8, drift: -0.12, spin: 2.6, ph: 0.4,
-        },
-        { spr: watchImg, x: wt.x + wt.w / 2, y: wt.y + wt.h / 2, w: wt.w, h: wt.h, rot: 0, lift: 0.65, drift: 0.14, spin: -3.4, ph: 2.1 },
-        // her ring, tiny on her finger, grows as it floats off so it can be seen
-        { spr: fromCanvas(ring.sprite), x: rg.x, y: rg.y, w: ring.w, h: ring.h, rot: rg.rot, lift: 0.72, drift: 0.06, spin: 4.2, ph: 4.1, grow: 2 },
-        // her shoes, heavier, rise least and kick out to either side
-        ...[shoe0Img, shoe1Img].map((spr, i) => {
-          const b = FALLER.shoes[i]
-          return { spr, x: b.x + b.w / 2, y: b.y + b.h / 2, w: b.w, h: b.h, rot: 0, lift: [0.5, 0.42][i], drift: [-0.1, 0.12][i], spin: [-2.2, 1.9][i], ph: [3.3, 5.0][i] }
-        }),
-      ]
+      props = paintProps({ bag: bagImg, phone: phoneImg }).map(({ sprite, shadow, ...rest }) => ({ ...rest, spr: fromCanvas(sprite), shadow: fromCanvas(shadow) }))
       await breathe()
       if (disposed) return
       const sky = paintSky()
       skyWater = fromCanvas(sky.water)
-      skyTrail = fromCanvas(sky.trail)
       await breathe()
       if (disposed) return
       ;({ blades, flowers } = unpackBlades(bladeData))
@@ -669,9 +643,6 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       petals = Array.from({ length: 30 }, () => ({
         x: p.random(W), y: p.random(H), r: p.random(1.6, 3.2), k: p.random(0.6, 1.3), spin: p.random(0.5, 1.4), ph: p.random(TWO_PI),
       }))
-      bubbles = Array.from({ length: FALL.bubbles }, () => ({
-        u: p.random(-1, 1), v: p.random(-1, 1), r: p.random(0.8, 3.2), k: p.random(0.6, 1.4), ph: p.random(),
-      }))
     }
 
     p.draw = () => {
@@ -691,7 +662,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       const skyFrame = () => {
         p.push()
         p.translate(-p.width / 2, -p.height / 2)
-        drawSky(t, blinkOpen)
+        drawSky(t, 1)
         p.pop()
       }
 
@@ -867,7 +838,6 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       updraftT += dt * updraft
 
       coverImage(skyWater, 1 + FALL.deepen * fall + 0.01 * Math.sin(t * 0.2))
-      drawTrail(t, gx, gy)
       p.push()
       p.translate(gx, gy)
       p.scale(sc)
@@ -875,13 +845,6 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       p.translate(-FALLER.w / 2, -FALLER.h / 2)
       drawCloth(updraftT, eyes, [-Math.sin(rot), -Math.cos(rot)], updraft)
       p.pop()
-      // a point on her picture, on screen
-      const onScreen = (x: number, y: number) => {
-        const u = (x - FALLER.w / 2) * sc, v = (y - FALLER.h / 2) * sc
-        return [gx + u * Math.cos(rot) - v * Math.sin(rot), gy + u * Math.sin(rot) + v * Math.cos(rot)]
-      }
-      drawSlipping(t, fall, rot, sc, onScreen)
-      drawBubbles(t, gx, gy, gw)
     }
 
     // an image covering the viewport, centred, `zoom` times closer than just covering it
@@ -889,63 +852,6 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
     function coverImage(im: any, zoom: number) {
       const vw = p.width, vh = p.height, s = Math.max(vw / im.width, vh / im.height) * zoom
       p.image(im, (vw - im.width * s) / 2, (vh - im.height * s) / 2, im.width * s, im.height * s)
-    }
-
-    // Her glasses, watch, ring and shoes slip off as she falls and float up away from her (light things fall slower than she
-    // does), drifting apart and tumbling, until the end of the scroll carries them off the top of the sky
-    function drawSlipping(t: number, fall: number, rot: number, sc: number, onScreen: (x: number, y: number) => number[]) {
-      const vw = p.width, vh = p.height
-      const off = easeStep(0.03, 1, fall)
-      for (const q of slipping) {
-        const [ax, ay] = onScreen(q.x, q.y)
-        // just loose, they bob about in the air; further off, they turn over
-        const loose = easeStep(0, 0.12, off)
-        p.push()
-        p.translate(ax + q.drift * vw * off + Math.sin(t * 0.9 + q.ph) * 10 * loose, ay - q.lift * vh * off + Math.cos(t * 0.7 + q.ph) * 6 * loose)
-        p.rotate(rot + q.rot + q.spin * off + Math.sin(t * 1.3 + q.ph) * 0.3 * loose)
-        const s = sc * (1 + (q.grow ?? 0.25) * off)
-        p.image(q.spr, (-q.w * s) / 2, (-q.h * s) / 2, q.w * s, q.h * s)
-        p.pop()
-      }
-    }
-
-    // the trail of mist she leaves, coming down from above the view and ending at her, billowing a little
-    // (in its own proportions where that runs its top off the top of the view, stretched taller where it would not)
-    function drawTrail(t: number, gx: number, gy: number) {
-      const tw = Math.min(FALL.trailW * p.width, FALL.trailH * p.height)
-      const th = Math.max((tw * skyTrail.height) / skyTrail.width, gy + 0.1 * p.height)
-      if (gy < 0) return
-      // two passes, a little out of step, so it seems to stir
-      for (const [k, a] of [[0, 235], [1, 90]]) {
-        const sway = Math.sin(t * (0.23 + 0.11 * k) + k * 2) * tw * 0.03, grow = 1 + 0.03 * k * Math.sin(t * 0.31)
-        p.tint(255, a)
-        p.image(skyTrail, gx - (tw * grow) / 2 + sway, gy - th * grow, tw * grow, th * grow)
-      }
-      p.noTint()
-    }
-
-    // little bubbles round her, rising into the trail and fading as they go
-    function drawBubbles(t: number, gx: number, gy: number, gw: number) {
-      const vh = p.height, k = gw / 700
-      for (const b of bubbles) {
-        const age = (t * 0.12 * b.k + b.ph) % 1
-        const x = gx + b.u * gw * 0.32 + Math.sin(age * 7 + b.ph * 9) * 6 * k, y = gy + b.v * gw * 0.18 - age * vh * FALL.bubbleRise
-        const a = 220 * easeStep(0, 0.1, age) * (1 - easeStep(0.55, 1, age)), r = b.r * k * (1 + 0.6 * age)
-        if (r < 2) {
-          p.noStroke()
-          p.fill(255, 255, 255, a)
-          p.circle(x, y, r * 2)
-        } else {
-          p.noFill()
-          p.stroke(255, 255, 255, a)
-          p.strokeWeight(Math.max(1, r * 0.22))
-          p.circle(x, y, r * 2)
-          p.noStroke()
-          p.fill(255, 255, 255, a)
-          p.circle(x - r * 0.35, y - r * 0.35, r * 0.5)
-        }
-      }
-      p.noStroke()
     }
 
     // ---------- her things on the grass ----------

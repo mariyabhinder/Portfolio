@@ -436,11 +436,49 @@ export function paintFallingRing() {
   return { w: W, h: H, sprite: cv }
 }
 
-export function paintProps(): Prop[] {
+// ---------- her bag and phone: finished pictures, trimmed to what is drawn and given the same soft shadow ----------
+function paintPicture(img: HTMLImageElement, h: number, soften: number, lift: number) {
+  // the picture's own margins are transparent: find the box the drawing really fills
+  const src = document.createElement('canvas')
+  src.width = img.naturalWidth
+  src.height = img.naturalHeight
+  const sctx = src.getContext('2d', { willReadFrequently: true })!
+  sctx.drawImage(img, 0, 0)
+  const px = sctx.getImageData(0, 0, src.width, src.height).data
+  let x0 = src.width, y0 = src.height, x1 = 0, y1 = 0
+  for (let y = 0; y < src.height; y++) {
+    for (let x = 0; x < src.width; x++) {
+      if (px[(y * src.width + x) * 4 + 3] > 12) {
+        x0 = Math.min(x0, x)
+        x1 = Math.max(x1, x)
+        y0 = Math.min(y0, y)
+        y1 = Math.max(y1, y)
+      }
+    }
+  }
+  const cw = x1 - x0 + 1, ch = y1 - y0 + 1
+  const w = (h * cw) / ch
+  const cv = document.createElement('canvas')
+  cv.width = Math.min(cw, Math.ceil(w * D))
+  cv.height = Math.min(ch, Math.ceil(h * D))
+  const ctx = cv.getContext('2d')!
+  ctx.imageSmoothingQuality = 'high'
+  ctx.drawImage(src, x0, y0, cw, ch, 0, 0, cv.width, cv.height)
+  return { w, h, sprite: cv, shadow: shadowOf(cv, soften), lift }
+}
+
+export interface PropImages {
+  bag: HTMLImageElement
+  phone: HTMLImageElement
+}
+
+// where each lies, in scene px: her phone on the grass between the hat and glasses, a little to their right, and her
+// tote tipped over on its side on her other side, by her left hip
+export function paintProps(imgs: PropImages): Prop[] {
   return [
     { x: 452, y: 280, rot: 0.3, ...paintHat() },
     { x: 470, y: 352, rot: -0.5, ...paintGlasses() },
-    { x: 280, y: 628, rot: 2.1, ...paintShoe(3, -1) },
-    { x: 268, y: 656, rot: 1.8, ...paintShoe(8, 1) },
+    { x: 496, y: 318, rot: 0.25, ...paintPicture(imgs.phone, 34, 0.5, 1.2) },
+    { x: 226, y: 515, rot: -1.2, ...paintPicture(imgs.bag, 86, 1, 2.8) },
   ]
 }
