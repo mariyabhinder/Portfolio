@@ -15,7 +15,15 @@ import skyUrl from '@/assets/meadow/sky-bg.jpg'
 export const FALL_ASSETS = { girl: fallingGirlUrl, sky: skyUrl }
 
 export const FALL_CONFIG = {
-  // ---- timing & acceleration ----
+  // ---- scroll mapping ----
+  /**
+   * The fall has no clock of its own: its progress (0-1, from the scroll) is mapped onto this many seconds of "virtual time",
+   * and everything below (acceleration, flutter, sway, camera shake) is a pure function of that time. Scroll stops, it freezes;
+   * scroll back, it rewinds. Longer = slower, more relaxed fall per scroll distance.
+   */
+  duration: 14,
+
+  // ---- timing & acceleration (in virtual seconds) ----
   /** seconds she hangs unstable before gravity takes over (phase A) */
   hover: 0.9,
   /** time constant (s) of the acceleration: speed follows tanh((t - hover) / accel), i.e. drag-limited free fall */
@@ -24,8 +32,6 @@ export const FALL_CONFIG = {
   terminalSpeed: 1.5,
   /** drift speed while hovering (fraction of terminal) */
   hoverDrift: 0.05,
-  /** how much a fast scroll adds to the fall speed (fraction of terminal) */
-  scrollBoost: 0.35,
   /** progress (0-1 of `u`) at which phases B, C, D begin, for anything that wants to key off them */
   phases: { B: 0.05, C: 0.4, D: 0.85 },
 
@@ -56,8 +62,25 @@ export const FALL_CONFIG = {
   clothPace: 1.0,
 
   // ---- sky layers (see SKY_LAYERS) ----
-  /** streak count behind and in front of her are in meadow.ts (drawStreaks); blur is the motion-blur length factor */
-  blur: 0.05,
+  /** radial (zoom) motion-blur length on the cloud layers, scaled by speed */
+  blur: 0.09,
+}
+
+/**
+ * The 3D depth system. Each cloud layer is a stack of "slices" flying toward the camera: a slice starts far (small, faint),
+ * grows as 1/z, and fades out as it passes the lens while the next one takes its place, so there is no loop point or pop.
+ * Depth position is a pure function of the distance fallen (`travel`).
+ */
+export const DEPTH = {
+  /** depth cycles per unit of `travel` for a layer of speed 1: higher = clouds rush faster per scroll distance */
+  rate: 0.2,
+  /** where the sky radiates from (fraction of the viewport height, 0 = top) and how far the camera sways (fraction of vw) */
+  vanishY: 0.4,
+  sway: 0.035,
+  /** how much the distant backdrop swells over the whole fall (fraction) */
+  backdropGrow: 0.45,
+  /** wind streaks: how many (behind her, in front), outward cycles per unit of `travel`, and overall strength */
+  streaks: { back: 60, front: 40, rate: 0.16, alpha: 1 },
 }
 
 /** Sprite geometry, in the px of falling-girl.webp (354 x 427). */
@@ -86,35 +109,39 @@ export const FALLER = {
   ],
 }
 
-/** Her path on screen, keyed by progress along the fall: y (fractions of her height from screen centre), x (px), tilt (deg), scale */
+/**
+ * Her path on screen, keyed by fall progress (0-1): y (fractions of her height from screen centre, positive = lower),
+ * x (px), tilt (deg), scale (she grows a little as she drops toward the camera). `start` is how far along the path she
+ * already is when the fall begins (the dream wave covers it); the rest is driven by the fall's scroll.
+ */
 export const PATH = {
-  reach: 0.8,
+  start: 0.1,
   keys: [
-    { at: 0, y: -0.1, x: 0, r: -6, s: 0.8 },
-    { at: 0.2, y: -0.04, x: -20, r: 3, s: 0.88 },
-    { at: 0.45, y: 0.04, x: 16, r: -4, s: 0.96 },
+    { at: 0, y: -0.22, x: 0, r: -6, s: 0.8 },
+    { at: 0.2, y: -0.12, x: -20, r: 3, s: 0.86 },
+    { at: 0.45, y: 0.0, x: 16, r: -4, s: 0.96 },
     { at: 0.7, y: 0.12, x: -10, r: 5, s: 1.04 },
-    { at: 1, y: 0.2, x: 8, r: 0, s: 1.1 },
+    { at: 1, y: 0.22, x: 8, r: 0, s: 1.1 },
   ],
 }
 
 /**
- * The sky, back to front. `scale` = size of one tile (of the photo) relative to covering the viewport, `speed` how fast it
- * streams past relative to terminal speed, `alpha`, `rot` (rad, the layer's own angle), `drift` sideways speed,
- * `mask` = clouds only (blue is transparent), `hole` = fades out over her body (for layers in front of her).
+ * The cloud layers, far to near (the photo itself is the backdrop behind them). Per layer: `scale` size of one tile of the
+ * photo (relative to covering the viewport), `speed` how fast its slices approach (x DEPTH.rate), `zFar`/`zNear` the slice's
+ * distance at the start and end of its life (apparent size = 1/z, so near layers swell much more), `slices` how many are in
+ * flight, `phase` its depth offset, `alpha`, `mask` = clouds only (blue is transparent), `hole` = fades out over her body.
  */
 export const SKY_LAYERS = [
-  { scale: 1.0, speed: 0.12, alpha: 1, rot: 0, drift: 0, mask: false, hole: 0, front: false },
-  { scale: 1.45, speed: 0.4, alpha: 0.5, rot: Math.PI, drift: 0.01, mask: true, hole: 0, front: false },
-  { scale: 2.0, speed: 0.85, alpha: 0.72, rot: 0.55, drift: -0.02, mask: true, hole: 0, front: false },
-  { scale: 3.3, speed: 1.7, alpha: 0.85, rot: -0.35, drift: 0.035, mask: true, hole: 1, front: true },
+  { scale: 1.45, speed: 0.4, zFar: 3.2, zNear: 0.85, slices: 2, phase: 0.0, alpha: 0.5, front: false, hole: 0 },
+  { scale: 2.0, speed: 0.85, zFar: 3.2, zNear: 0.5, slices: 2, phase: 0.31, alpha: 0.72, front: false, hole: 0 },
+  { scale: 2.6, speed: 1.7, zFar: 3.0, zNear: 0.28, slices: 2, phase: 0.62, alpha: 0.85, front: true, hole: 1 },
 ]
 
 const TWO_PI = Math.PI * 2
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
 
 export interface FallFrame {
-  /** seconds into the fall (0 while it has not started) */
+  /** virtual seconds into the fall (from the scroll; 0 before it starts) */
   s: number
   /** current phase */
   phase: 'A' | 'B' | 'C' | 'D'
@@ -141,35 +168,32 @@ export interface FallFrame {
   limbs: number[]
 }
 
-/** The motion model: call `step` once a frame. A drag-limited fall, with the body and camera reacting to it. */
+/**
+ * The motion model: `at(f)` gives the whole state of the fall for progress f (0-1). Pure and stateless: the same f always
+ * gives the same frame, so scrolling is exactly reversible and nothing advances when the page is still. A drag-limited
+ * fall, with the body and camera reacting to it.
+ */
 export function createFallDynamics() {
   const C = FALL_CONFIG
-  let s = 0, travel = 0, clothT = 0, clock = 0
 
   return {
-    reset() {
-      s = travel = clothT = clock = 0
-    },
-    /**
-     * @param dt seconds since the last frame (0 freezes it)
-     * @param active the sky is up and she is falling
-     * @param pull scroll speed, 0..1
-     * @param calm 1 normally, falling to 0 as she lands
-     */
-    step(dt: number, active: boolean, pull: number, calm: number): FallFrame {
-      if (!active) { s = travel = clothT = 0 }
-      else if (dt > 0) s += dt
-      clock += dt
+    /** @param f fall progress 0..1 (from the scroll) */
+    at(f: number): FallFrame {
+      const s = clamp(f, 0, 1) * C.duration
+      const clock = s
 
       // drag-limited acceleration: tanh rises from rest and flattens at terminal speed
       const t = Math.max(0, s - C.hover)
       const base = Math.tanh(t / C.accel)
-      const u = (C.hoverDrift * (1 - base) + base + C.scrollBoost * pull * base) * calm
-      travel += u * C.terminalSpeed * dt
+      const u = C.hoverDrift * (1 - base) + base
+      // distance fallen = the integral of u, in closed form so no state accumulates
+      const dist = C.hoverDrift * s + (1 - C.hoverDrift) * C.accel * Math.log(Math.cosh(t / C.accel))
+      const travel = C.terminalSpeed * dist
 
-      const instab = active ? Math.exp(-s / (C.hover * 2.2)) : 1
+      const instab = Math.exp(-s / (C.hover * 2.2))
       const air = clamp(C.cloth.calm + (1 - C.cloth.calm) * Math.min(1, u), 0, 1)
-      clothT += dt * (0.5 + 1.6 * u)
+      // the fabric flutter's clock: it runs at 0.5 + 1.6u, integrated
+      const clothT = 0.5 * s + 1.6 * dist
 
       // body: slow incommensurate waves, bigger while unstable
       const b = C.body, k = 1 + b.instability * instab
@@ -184,7 +208,7 @@ export function createFallDynamics() {
         return l.amp * sway * (0.5 + 0.5 * air + instab * 0.8) + l.rest * instab
       })
 
-      const sh = C.shake, shakeAmp = active ? sh.amp * Math.exp(-s / sh.decay) * Math.min(1, s / 0.05) : 0
+      const sh = C.shake, shakeAmp = sh.amp * Math.exp(-s / sh.decay) * Math.min(1, s / 0.05)
       const trem = C.tremor * u
       const shake: [number, number] = [
         (Math.sin(clock * sh.freq) * shakeAmp + Math.sin(clock * 53) * trem) * 0.6,
@@ -203,9 +227,9 @@ export function createFallDynamics() {
 }
 
 // ---- sky layer shader ----
-// One full-viewport quad per layer. The photo is tiled with mirrored repeats (so there is never a seam or an obvious
-// loop), rotated, streamed along its own axis, smeared along the motion for blur, and (for the layers in front of her)
-// faded out over her body so bright cloud never hides her face.
+// One full-viewport quad per cloud slice. The photo is tiled with mirrored repeats (never a seam), magnified by `uZoom`
+// about the vanishing point (clouds swell and stream outward toward the edges as they approach), smeared radially for
+// zoom blur, and (for the layers in front of her) faded out over her body so bright cloud never hides her face.
 export const SKY_VERT = `
 precision highp float;
 attribute vec3 aPosition;
@@ -221,18 +245,17 @@ export const SKY_FRAG = `
 precision highp float;
 uniform sampler2D uTex;
 uniform vec2 uRes, uCentre, uTile, uOff;
-uniform float uRot, uBlur, uAlpha, uMask, uHole;
+uniform float uRot, uBlur, uAlpha, uMask, uHole, uZoom;
 uniform vec4 uGirl;
 varying vec2 vTexCoord;
-const int TAPS = 7;
+const int TAPS = 6;
 void main() {
   vec2 pix = vTexCoord * uRes;
   float cr = cos(uRot), sr = sin(uRot);
-  vec2 dir = vec2(-sr, cr);
   vec4 acc = vec4(0.0);
   for (int i = 0; i < TAPS; i++) {
     float k = float(i) / float(TAPS - 1) - 0.5;
-    vec2 d = pix + dir * uBlur * k - uCentre;
+    vec2 d = (pix - uCentre) / (uZoom * (1.0 + uBlur * k));
     vec2 r = vec2(cr * d.x + sr * d.y, -sr * d.x + cr * d.y);
     vec2 uv = (r + uOff) / uTile + 0.5;
     uv = 1.0 - abs(1.0 - mod(uv, 2.0));

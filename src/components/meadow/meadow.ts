@@ -31,7 +31,7 @@ import bladesUrl from '@/assets/meadow/blades.json?url'
 import { paintProps } from './props'
 import { paintSky } from './sky'
 import type { FallFrame } from './fall'
-import { FALL_ASSETS, FALL_CONFIG, FALLER, PATH, SKY_FRAG, SKY_LAYERS, SKY_VERT, createFallDynamics } from './fall'
+import { DEPTH, FALL_ASSETS, FALL_CONFIG, FALLER, PATH, SKY_FRAG, SKY_LAYERS, SKY_VERT, createFallDynamics } from './fall'
 
 export interface MeadowState {
   /** 0 = the whole meadow, 1 = closed in on her face. */
@@ -99,7 +99,7 @@ const CLOUDS = [
 // falling picture's width her body spans). `rest` is her centre when lying (fraction of the viewport height), `cloudW`
 // the cloud's width in her widths, `surf` where its top surface sits in its picture, `sink` how far into it she settles
 // (fraction of her height), `bob` its gentle float (px)
-const LAND = { start: 0.7, grow: 0.3, body: 0.71, rest: 0.52, cloudW: 1.7, surf: 0.34, sink: 0.35, bob: 4 }
+const LAND = { enabled: false, start: 0.7, grow: 0.3, body: 0.71, rest: 0.52, cloudW: 1.7, surf: 0.34, sink: 0.35, bob: 4 }
 const easeInOut = (x: number) => (x < 0.5 ? 2 * x * x : 1 - 2 * (1 - x) * (1 - x))
 // (the falling pose, path, sky layers and physics are in fall.ts)
 const FALL = { rush: 0.25, rise: 0.12, settle: 0.7, w: 0.9, h: 0.64, deepen: 0.06, idle: 0.6 }
@@ -118,6 +118,14 @@ const GRASS = { amp: 6, hz: 0.3, seg: 5 } // tip travel in px for a 45 px blade 
 const TWO_PI = Math.PI * 2
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t
+// deterministic pseudo-randoms: a hash of a number (0..1), and a seeded generator
+const hash = (x: number) => { const v = Math.sin(x * 127.1) * 43758.5453; return v - Math.floor(v) }
+const mulberry = (seed: number) => () => {
+  seed = (seed + 0x6d2b79f5) | 0
+  let t = Math.imul(seed ^ (seed >>> 15), 1 | seed)
+  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+}
 
 function easeStep(e0: number, e1: number, x: number) {
   const t = clamp((x - e0) / (e1 - e0), 0, 1)
@@ -522,11 +530,9 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
     // seconds she has spent falling asleep (runs back when the camera pulls away), her next blink, and how open
     // her eyes are in it (1 = open), which she keeps on doing as she falls
     let sleepS = 0, lastMs = 0, nextBlink = 2, blinkAt = -1, blinkOpen = 1
-    // falling: how hard the air is pulling at her clothes (0..1, from the scroll speed), the time their flutter has
-    // run (it only runs while they stream), and how far through the dream and fall the last frame was
-    let updraft = 0, lastDrop = -1
     const dynamics = createFallDynamics()
-    let streaks: { x: number; y: number; len: number; v: number; w: number; a: number; near: boolean }[] = []
+    // wind streaks: seeded angles and phases, so their positions are a pure function of the distance fallen
+    const streaks = makeStreaks()
 
     const imageFromPixels = (data: Uint8ClampedArray, w: number, h: number) => {
       const im = p.createImage(w, h)
@@ -847,19 +853,15 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       const gh = (gw * FALLER.h) / FALLER.w
       // she is there as soon as the dream has cleared a little; the path keyframes advance with the page scroll
       const enter = easeStep(0.15, 0.85, state.dream)
-      const cyc = PATH.reach * (0.6 * enter + 0.4 * Math.min(fall, LAND.start))
+      const cyc = PATH.start * enter + (1 - PATH.start) * fall
       let k = 0
       while (k < PATH.keys.length - 2 && cyc >= PATH.keys[k + 1].at) k++
       const k0 = PATH.keys[k], k1 = PATH.keys[k + 1]
       const u = easeInOut(clamp((cyc - k0.at) / (k1.at - k0.at), 0, 1))
-      const dt = reduceMotion ? 0 : Math.min(p.deltaTime / 1000, 0.1), drop = state.dream + state.fall
-      const pull = lastDrop < 0 || dt <= 0 ? 0 : clamp(Math.abs(drop - lastDrop) / dt / FALL.rush, 0, 1)
-      lastDrop = drop
-      updraft += (pull - updraft) * (1 - Math.exp(-dt / (pull > updraft ? FALL.rise : FALL.settle)))
-
-      // the landing: the air calms as she slows onto the cloud
-      const land = easeStep(LAND.start, 1, fall)
-      const fr = dynamics.step(dt, state.dream > 0.5, updraft, 1 - land)
+      // the whole fall is a pure function of the scroll: the same fall progress always gives the same frame
+      const land = LAND.enabled ? easeStep(LAND.start, 1, fall) : 0
+      const fr = dynamics.at(fall)
+      if (reduceMotion) fr.shake = [0, 0]
       const rot = lerp(k0.r, k1.r, u) * (Math.PI / 180) + fr.roll
       const gx = vw / 2 + lerp(k0.x, k1.x, u)
       const gy = vh / 2 + lerp(k0.y, k1.y, u) * gh
@@ -870,8 +872,10 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       // the sky layers behind her (a deeper blue as she goes down)
       const girl = [gx, gy, gw * (sc2 / sc) * 0.5, gh * (sc2 / sc) * 0.55]
       p.clearDepth()
-      for (const L of SKY_LAYERS) if (!L.front) skyLayer(L, fr, girl, 1 + FALL.deepen * fall)
-      drawStreaks(t, fr.air * fr.u, gx, gy, gh * sc2, false)
+      const vp = vanishPoint(fr)
+      skyBackdrop(fr, vp, 1 + FALL.deepen * fall)
+      for (const L of SKY_LAYERS) if (!L.front) skyLayer(L, fr, vp, girl)
+      drawStreaks(fr, vp, gx, gy, gh * sc2, false)
 
       // the cloud swells up under her bent body, then she settles onto it as the lying picture takes over
       let rx = gx, ry = gy
@@ -922,63 +926,108 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       }
       // the nearest wisps rush past the edges of the frame, in front of her but faded out over her body
       p.clearDepth()
-      for (const L of SKY_LAYERS) if (L.front) skyLayer(L, fr, girl, 1)
-      drawStreaks(t, fr.air * fr.u, gx, gy, gh * sc2, true)
+      for (const L of SKY_LAYERS) if (L.front) skyLayer(L, fr, vp, girl)
+      drawStreaks(fr, vp, gx, gy, gh * sc2, true)
       p.pop()
     }
 
-    // One cloud layer: a full-viewport quad run through SKY_FRAG. The photo is oversized, streams along its own axis at
-    // the layer's speed (so each layer passes at its own pace), and is smeared along the motion in proportion to it.
-    function skyLayer(L: (typeof SKY_LAYERS)[number], fr: FallFrame, girl: number[], deepen: number) {
+    // Where the sky radiates from: a point above her centre that the camera sways around a little as she falls
+    function vanishPoint(fr: FallFrame): [number, number] {
       const vw = p.width, vh = p.height
-      const tileH = (Math.max(vh, (vw * skyImg.height) / skyImg.width) * 1.15 * L.scale * deepen) / (L.front ? 1 : fr.zoom)
-      const speed = L.speed * fr.u * FALL_CONFIG.terminalSpeed
+      return [vw / 2 + Math.sin(fr.s * 0.45) * DEPTH.sway * vw, vh * DEPTH.vanishY + Math.cos(fr.s * 0.31) * vh * 0.015]
+    }
+
+    // One draw of the sky shader: the photo magnified `zoom` times about the vanishing point `vp`, offset by `off` (px of tile)
+    function skyQuad(vp: number[], tileH: number, zoom: number, off: number[], rot: number, blur: number, alpha: number, mask: boolean, hole: number, girl: number[]) {
+      const vw = p.width, vh = p.height
       p.noStroke()
       p.shader(skyShader)
       skyShader.setUniform('uTex', skyImg)
       skyShader.setUniform('uRes', [vw, vh])
-      skyShader.setUniform('uCentre', [vw / 2, vh / 2])
+      skyShader.setUniform('uCentre', vp)
       skyShader.setUniform('uTile', [(tileH * skyImg.width) / skyImg.height, tileH])
-      skyShader.setUniform('uOff', [L.drift * vh * fr.s, fr.travel * L.speed * vh])
-      skyShader.setUniform('uRot', L.rot + fr.camRoll)
-      skyShader.setUniform('uBlur', vh * FALL_CONFIG.blur * speed * (L.front ? 2.2 : 1.2))
-      skyShader.setUniform('uAlpha', L.alpha * (L.mask ? 0.35 + 0.65 * Math.min(1, fr.u * 1.6) : 1))
-      skyShader.setUniform('uMask', L.mask ? 1 : 0)
-      skyShader.setUniform('uHole', L.hole)
+      skyShader.setUniform('uOff', off)
+      skyShader.setUniform('uZoom', zoom)
+      skyShader.setUniform('uRot', rot)
+      skyShader.setUniform('uBlur', blur)
+      skyShader.setUniform('uAlpha', alpha)
+      skyShader.setUniform('uMask', mask ? 1 : 0)
+      skyShader.setUniform('uHole', hole)
       skyShader.setUniform('uGirl', girl)
       p.rect(0, 0, vw, vh)
       p.resetShader()
     }
 
-    // Wind streaks racing up the screen (she falls down through them). The back layer is wide and faint behind
-    // her; the front layer is fewer, longer and brighter, and fades out over her body so the lines whip past
-    // around her rather than over her.
-    function drawStreaks(t: number, rush: number, cx: number, cy: number, bodyH: number, front: boolean) {
-      if (reduceMotion || rush < 0.01) return
+    // The far sky and haze: the photo itself, swelling slowly as she falls (a distant horizon barely moves)
+    function skyBackdrop(fr: FallFrame, vp: number[], deepen: number) {
       const vw = p.width, vh = p.height
-      if (!streaks.length) {
-        for (let i = 0; i < 90; i++) streaks.push({ x: Math.random(), y: Math.random(), len: 0.5 + Math.random(), v: 0.6 + Math.random() * 0.8, w: 0.6 + Math.random(), a: 0.4 + Math.random() * 0.6, near: Math.random() < 0.4 })
+      const tileH = Math.max(vh, (vw * skyImg.height) / skyImg.width) * 1.15
+      const zoom = deepen * fr.zoom * (1 + DEPTH.backdropGrow * (1 - Math.exp(-fr.travel * 0.12)))
+      skyQuad(vp, tileH, zoom, [0, 0], fr.camRoll, 0, 1, false, 0, [0, 0, 1, 1])
+    }
+
+    // One cloud layer: `slices` copies of the photo flying toward the camera. Each slice's distance z runs far -> near
+    // as the distance fallen grows, so its size (1/z) grows faster and faster as it nears the lens; it fades in at the far
+    // end and out at the near end, and the next slice (with its own offset and angle, from a hash of its index) takes over,
+    // so nothing pops or visibly repeats. Everything is computed from `fr.travel` alone, so it rewinds exactly.
+    function skyLayer(L: (typeof SKY_LAYERS)[number], fr: FallFrame, vp: number[], girl: number[]) {
+      const vw = p.width, vh = p.height
+      const tileH = Math.max(vh, (vw * skyImg.height) / skyImg.width) * 1.15 * L.scale
+      const tileW = (tileH * skyImg.width) / skyImg.height
+      const ramp = 0.35 + 0.65 * Math.min(1, fr.u * 1.6)
+      const blur = clamp(FALL_CONFIG.blur * L.speed * fr.u * (L.front ? 1.6 : 1), 0, 0.3)
+      for (let i = 0; i < L.slices; i++) {
+        const raw = fr.travel * L.speed * DEPTH.rate + L.phase + i / L.slices
+        const n = Math.floor(raw), ph = raw - n
+        const env = easeStep(0, 0.22, ph) * (1 - easeStep(0.72, 1, ph))
+        const alpha = L.alpha * env * ramp
+        if (alpha < 0.01) continue
+        const key = n * 7.31 + i * 13.7 + L.scale * 3.3
+        const off = [(hash(key) - 0.5) * tileW * 2, (hash(key + 1) - 0.5) * tileH * 2]
+        const zoom = 1 / lerp(L.zFar, L.zNear, ph)
+        skyQuad(vp, tileH, zoom, off, hash(key + 2) * TWO_PI + fr.camRoll, blur, alpha, true, L.hole, girl)
       }
+    }
+
+    function makeStreaks() {
+      const rand = mulberry(2024)
+      const mk = (near: boolean) => ({ ang: rand() * TWO_PI, seed: rand(), v: 0.7 + rand() * 0.6, len: 0.5 + rand(), w: 0.6 + rand(), a: 0.4 + rand() * 0.6, near })
+      return [
+        ...Array.from({ length: DEPTH.streaks.back }, () => mk(false)),
+        ...Array.from({ length: DEPTH.streaks.front }, () => mk(true)),
+      ]
+    }
+
+    // Wind streaks: fine lines that fly out from the vanishing point toward the edges of the frame, accelerating and growing
+    // longer and thicker as they near the lens (radius ~ rho^2), and strengthening as the fall speeds up. The back set is
+    // faint behind her; the front set is brighter and fades out over her body. Positions come from the distance fallen only.
+    function drawStreaks(fr: FallFrame, vp: number[], cx: number, cy: number, bodyH: number, front: boolean) {
+      const rush = fr.u
+      if (reduceMotion || rush < 0.02) return
+      const vw = p.width, vh = p.height
+      const rMax = Math.hypot(vw, vh) * 0.8, depth = fr.travel * DEPTH.streaks.rate
       p.noStroke()
       p.beginShape(p.TRIANGLES)
       for (const s of streaks) {
         if (s.near !== front) continue
-        const len = vh * (front ? 0.22 : 0.12) * s.len * (0.5 + rush)
-        const speed = vh * (front ? 2.4 : 1.3) * s.v * rush
-        const span = vh + len * 2
-        const head = vh + len - ((s.y * span + t * speed) % span) // top of the streak; the tail trails below
-        const x = s.x * vw, hw = (front ? 1.6 : 1) * s.w
-        let a = s.a * rush * (front ? 0.55 : 0.32)
+        const raw = s.seed + depth * s.v, rho = raw - Math.floor(raw)
+        const tail = Math.max(0, rho - (0.05 + 0.2 * rush) * s.len)
+        const r1 = rho * rho * rMax, r0 = tail * tail * rMax
+        const dx = Math.cos(s.ang + fr.camRoll), dy = Math.sin(s.ang + fr.camRoll)
+        const hw = (front ? 1.8 : 1.1) * s.w * (0.3 + rho * 1.6)
+        const hx = vp[0] + dx * r1, hy = vp[1] + dy * r1, tx = vp[0] + dx * r0, ty = vp[1] + dy * r0
+        let a = s.a * rush * (front ? 0.55 : 0.32) * DEPTH.streaks.alpha * easeStep(0.08, 0.35, rho) * (1 - easeStep(0.9, 1, rho))
         if (front) {
-          const d = Math.hypot((x - cx) / (bodyH * 0.35), (head + len / 2 - cy) / (bodyH * 0.5))
+          const d = Math.hypot(((hx + tx) / 2 - cx) / (bodyH * 0.35), ((hy + ty) / 2 - cy) / (bodyH * 0.5))
           a *= easeStep(0.7, 1.4, d)
         }
         if (a < 0.01) continue
+        const px = -dy * hw, py = dx * hw, qx = px * 0.25, qy = py * 0.25
         const hi = [235, 245, 255, 255 * a], lo = [235, 245, 255, 0]
-        const quad = [[x - hw, head, hi], [x + hw, head, hi], [x - hw, head + len, lo], [x + hw, head, hi], [x + hw, head + len, lo], [x - hw, head + len, lo]] as const
-        for (const [qx, qy, c] of quad) {
+        const quad = [[hx - px, hy - py, hi], [hx + px, hy + py, hi], [tx - qx, ty - qy, lo], [hx + px, hy + py, hi], [tx + qx, ty + qy, lo], [tx - qx, ty - qy, lo]] as const
+        for (const [x, y, c] of quad) {
           p.fill(c[0], c[1], c[2], c[3])
-          p.vertex(qx, qy)
+          p.vertex(x, y)
         }
       }
       p.endShape()
