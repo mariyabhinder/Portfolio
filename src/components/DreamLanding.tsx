@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react'
 import type { MeadowHandle, MeadowState } from './meadow/meadow'
-
 // Scroll progress (0-1): the camera closes in on her face until ZOOM_END, she falls asleep, the dream wave
 // crosses from DREAM_START to DREAM_END, and from there to the end she falls through the sky
 const ZOOM_END = 0.1154
@@ -69,10 +68,15 @@ export default function DreamLanding() {
   }, [])
 
   return (
-    <section ref={sectionRef} className="dream-section">
-      <div ref={cameraRef} className="dream-camera">
-        <div ref={stageRef} className="meadow-stage" role="img" aria-label="A girl lying asleep in a hand-drawn meadow, who dreams she is falling through the dawn sky" />
-      </div>
-    </section>
+  <section ref={sectionRef} className="dream-section">
+    <div ref={cameraRef} className="dream-camera">
+      <div
+        ref={stageRef}
+        className="meadow-stage"
+        role="img"
+        aria-label="A girl lying asleep in a hand-drawn meadow, who dreams she is falling through the dawn sky"
+      />
+    </div>
+  </section>
   )
 }

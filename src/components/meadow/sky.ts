@@ -134,6 +134,60 @@ function paintTrail() {
   return cv
 }
 
+// the cloud she lands on: a big cottony cumulus with a flat-ish base and a heaped, puffy top. Its volume is shaded from a
+// height field (lit from the upper left, bluish-grey in the hollows and underside) so it reads clearly against the sky
+const LANDING = { w: 900, h: 460 }
+function paintLandingCloud() {
+  const rand = rng(83)
+  const { w, h } = LANDING
+  const noise = noiser(rand)
+  const { cv, ctx } = canvas(w, h)
+  const img = ctx.createImageData(w, h)
+  const sz = w * 0.1, cy = 0.62
+  // heaps of puffs [x (fraction of width), y (in sizes from the base line), radius (sizes)]
+  const puffs = [
+    [0.12, 0.3, 0.8], [0.22, -0.35, 1.0], [0.34, -0.9, 1.15], [0.48, -1.3, 1.3], [0.62, -0.95, 1.2],
+    [0.74, -0.4, 1.0], [0.86, 0.15, 0.8], [0.3, 0.2, 1.0], [0.5, 0.1, 1.1], [0.7, 0.2, 1.0], [0.05, 0.6, 0.5], [0.95, 0.6, 0.5],
+  ]
+  const H = new Float32Array(w * h)
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const u = x / w, vv = y / h
+      const fluff = noise(u * 30, vv * 20, 4) - 0.5, bulge = noise(u * 8, vv * 6, 3) - 0.5
+      const py = (vv - cy) * h
+      // flat-ish base: everything is cut off below the base line
+      const base = 1 - smooth(0.35, 0.75, py / sz)
+      let m = 0
+      if (base > 0) for (const [ox, oy, r] of puffs) {
+        const d = Math.hypot(x - ox * w, py - oy * sz) / (r * sz)
+        // a dome profile (rounder than a cone) so each puff has body
+        m = Math.max(m, (Math.sqrt(Math.max(0, 1 - d * d)) + fluff * 0.45 + bulge * 0.25 - 0.1) * base)
+      }
+      H[y * w + x] = m
+    }
+  }
+  const at = (x: number, y: number) => H[Math.min(h - 1, Math.max(0, y)) * w + Math.min(w - 1, Math.max(0, x))]
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const m = H[y * w + x], vv = y / h
+      const body = smooth(0.02, 0.22, m)
+      // lit from the upper left: slopes that rise away from the light are bright, those facing away are in shade
+      const lit = at(x + 5, y + 5) - at(x - 5, y - 5)
+      const shade = Math.min(1, Math.max(0, 0.55 + lit * 1.6))
+      const under = smooth(0.5, 1, vv) * 0.7 + (1 - smooth(0.1, 0.7, m)) * 0.3
+      const k = (y * w + x) * 4
+      const t = Math.min(1, Math.max(0, (1 - shade) * 0.75 + under * 0.6))
+      img.data[k] = 255 - 78 * t
+      img.data[k + 1] = 255 - 58 * t
+      img.data[k + 2] = 255 - 22 * t
+      img.data[k + 3] = 255 * body
+    }
+  }
+  ctx.putImageData(img, 0, 0)
+  grain(cv, rand, 0.012)
+  return cv
+}
+
 export function paintSky() {
-  return { water: paintWater(), trail: paintTrail() }
+  return { water: paintWater(), trail: paintTrail(), cloud: paintLandingCloud() }
 }
