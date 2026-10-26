@@ -17,6 +17,7 @@ import groundUrl from '@/assets/meadow/meadow.jpg'
 import girlUrl from '@/assets/meadow/girl.webp'
 import bagUrl from '@/assets/meadow/bag.webp'
 import phoneUrl from '@/assets/meadow/phone.webp'
+import wallpaperUrl from '@/assets/meadow/phone-wallpaper.png'
 import girlShadowUrl from '@/assets/meadow/girl-shadow.webp'
 import eyesOpenUrl from '@/assets/meadow/girl-eyes-open.webp'
 import eyesDrowsyUrl from '@/assets/meadow/girl-eyes-drowsy.webp'
@@ -613,7 +614,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       p.pixelDensity(Math.min(window.devicePixelRatio || 1, 2))
       p.noLoop()
 
-      const [ground, girlImg, eyesOpenImg, eyesDrowsyImg, girlShadow, fallingImg, skyPhoto, bladeData, bagImg, phoneImg, ...sprites] = await Promise.all([
+      const [ground, girlImg, eyesOpenImg, eyesDrowsyImg, girlShadow, fallingImg, skyPhoto, bladeData, bagImg, phoneImg, wallpaperImg, ...sprites] = await Promise.all([
         p.loadImage(groundUrl),
         loadHtmlImage(girlUrl),
         loadHtmlImage(eyesOpenUrl),
@@ -624,6 +625,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
         fetch(bladesUrl).then((r) => r.json()),
         loadHtmlImage(bagUrl),
         loadHtmlImage(phoneUrl),
+        loadHtmlImage(wallpaperUrl),
         ...CLOUDS.flatMap((c) => [p.loadImage(c.spr), p.loadImage(c.shadow)]),
       ])
       // the poster is on screen meanwhile; let the browser breathe between the heavier steps
@@ -649,7 +651,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       await breathe()
       if (disposed) return
       const fromCanvas = (cv: HTMLCanvasElement) => imageFromPixels(cv.getContext('2d')!.getImageData(0, 0, cv.width, cv.height).data, cv.width, cv.height)
-      props = paintProps({ bag: bagImg, phone: phoneImg }).map(({ sprite, shadow, ...rest }) => ({ ...rest, spr: fromCanvas(sprite), shadow: fromCanvas(shadow) }))
+      props = paintProps({ bag: bagImg, phone: phoneImg, wallpaper: wallpaperImg }).map(({ sprite, shadow, ...rest }) => ({ ...rest, spr: fromCanvas(sprite), shadow: fromCanvas(shadow) }))
       await breathe()
       if (disposed) return
       ;({ blades, flowers } = unpackBlades(bladeData))

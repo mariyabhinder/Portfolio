@@ -437,11 +437,11 @@ export function paintFallingRing() {
 }
 
 // ---------- her bag and phone: finished pictures, trimmed to what is drawn and given the same soft shadow ----------
-function paintPicture(img: HTMLImageElement, h: number, soften: number, lift: number) {
+function paintPicture(img: CanvasImageSource & { width: number; height: number }, h: number, soften: number, lift: number) {
   // the picture's own margins are transparent: find the box the drawing really fills
   const src = document.createElement('canvas')
-  src.width = img.naturalWidth
-  src.height = img.naturalHeight
+  src.width = img.width
+  src.height = img.height
   const sctx = src.getContext('2d', { willReadFrequently: true })!
   sctx.drawImage(img, 0, 0)
   const px = sctx.getImageData(0, 0, src.width, src.height).data
@@ -470,6 +470,65 @@ function paintPicture(img: HTMLImageElement, h: number, soften: number, lift: nu
 export interface PropImages {
   bag: HTMLImageElement
   phone: HTMLImageElement
+  wallpaper: HTMLImageElement
+}
+
+// the cat picture as the phone's wallpaper, cover-fitted to the screen (found from the phone's own pink pixels). The
+// lock screen's clock and date are lifted off the old wallpaper (they are the unsaturated pixels on the pink) and drawn
+// back in dark ink where they were, with nothing behind them.
+function wallpaperOnPhone(phone: HTMLImageElement, paper: HTMLImageElement) {
+  const W = phone.naturalWidth, H = phone.naturalHeight
+  const cv = document.createElement('canvas')
+  cv.width = W
+  cv.height = H
+  const ctx = cv.getContext('2d', { willReadFrequently: true })!
+  ctx.drawImage(phone, 0, 0)
+  const all = ctx.getImageData(0, 0, W, H).data
+  const pinkish = (i: number) => all[i + 3] > 200 && all[i] - all[i + 1] > 25
+  // the screen: the box of pink pixels
+  let x0 = W, y0 = H, x1 = 0, y1 = 0
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      if (pinkish((y * W + x) * 4)) {
+        x0 = Math.min(x0, x)
+        x1 = Math.max(x1, x)
+        y0 = Math.min(y0, y)
+        y1 = Math.max(y1, y)
+      }
+    }
+  }
+  const sx = x0, sy = y0, sw = x1 - x0 + 1, sh = y1 - y0 + 1
+  // the clock and date: how far each pixel is from the local pink, in how pink it is
+  const tx = Math.floor(W * 0.1), ty = Math.floor(H * 0.1), tw = Math.ceil(W * 0.4), th = Math.ceil(H * 0.15)
+  const text = ctx.getImageData(tx, ty, tw, th)
+  const bg = text.data[(tw - 2) * 4] - text.data[(tw - 2) * 4 + 1] || 1
+  for (let i = 0; i < text.data.length; i += 4) {
+    const a = Math.max(0, Math.min(1, 1 - (text.data[i] - text.data[i + 1]) / bg))
+    text.data[i] = 70
+    text.data[i + 1] = 58
+    text.data[i + 2] = 54
+    text.data[i + 3] = a < 0.2 ? 0 : Math.round(a * 255)
+  }
+  const ink = document.createElement('canvas')
+  ink.width = tw
+  ink.height = th
+  ink.getContext('2d')!.putImageData(text, 0, 0)
+  ctx.save()
+  ctx.globalCompositeOperation = 'source-atop'
+  ctx.beginPath()
+  ctx.roundRect(sx, sy, sw, sh, W * 0.1)
+  ctx.clip()
+  const k = Math.max(sw / paper.naturalWidth, sh / paper.naturalHeight)
+  const dw = paper.naturalWidth * k, dh = paper.naturalHeight * k
+  ctx.drawImage(paper, sx + (sw - dw) / 2, sy + (sh - dh) / 2, dw, dh)
+  ctx.restore()
+  ctx.drawImage(ink, tx, ty)
+  // the notch
+  ctx.fillStyle = '#16161a'
+  ctx.beginPath()
+  ctx.roundRect(sx + sw * 0.3, sy, sw * 0.4, sh * 0.04, sh * 0.02)
+  ctx.fill()
+  return cv
 }
 
 // where each lies, in scene px: her phone on the grass between the hat and glasses, a little to their right, and her
@@ -478,7 +537,7 @@ export function paintProps(imgs: PropImages): Prop[] {
   return [
     { x: 452, y: 280, rot: 0.3, ...paintHat() },
     { x: 470, y: 352, rot: -0.5, ...paintGlasses() },
-    { x: 496, y: 318, rot: 0.25, ...paintPicture(imgs.phone, 34, 0.5, 1.2) },
-    { x: 226, y: 515, rot: -1.2, ...paintPicture(imgs.bag, 86, 1, 2.8) },
+    { x: 496, y: 318, rot: 0.25, ...paintPicture(wallpaperOnPhone(imgs.phone, imgs.wallpaper), 34, 0.5, 1.2) },
+    { x: 226, y: 515, rot: -1.2, ...paintPicture(imgs.bag, 80, 1, 2.8) },
   ]
 }
