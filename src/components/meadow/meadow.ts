@@ -18,7 +18,6 @@ import girlUrl from '@/assets/meadow/girl.webp'
 import bagUrl from '@/assets/meadow/bag.webp'
 import phoneUrl from '@/assets/meadow/phone.webp'
 import girlShadowUrl from '@/assets/meadow/girl-shadow.webp'
-import girlLyingUrl from '@/assets/meadow/lying girl.webp'
 import eyesOpenUrl from '@/assets/meadow/girl-eyes-open.webp'
 import eyesDrowsyUrl from '@/assets/meadow/girl-eyes-drowsy.webp'
 import cloud0Url from '@/assets/meadow/cloud-0.webp'
@@ -29,7 +28,15 @@ import cloud1ShadowUrl from '@/assets/meadow/cloud-1-shadow.webp'
 import cloud2ShadowUrl from '@/assets/meadow/cloud-2-shadow.webp'
 import bladesUrl from '@/assets/meadow/blades.json?url'
 import { paintProps } from './props'
-import { paintSky } from './sky'
+import { createLanding, LANDER } from './landing'
+import type { LandPlace } from './landing'
+import { landAt } from './land'
+import { riseAt } from './rise'
+import { recedeAt } from './recede'
+import { createPlatforms, platformsAt, PLATFORM_CONFIG } from './platforms'
+import { createJump, jumpAt, JUMP_CONFIG, JUMP_POSES } from './jump'
+import { createDrop, dropAt, dropSkyKeep } from './drop'
+import { createTouch, touchAt, TOUCH_CONFIG } from './touch'
 import type { FallFrame } from './fall'
 import { DEPTH, FALL_ASSETS, FALL_CONFIG, FALLER, PATH, SKY_FRAG, SKY_LAYERS, SKY_VERT, createFallDynamics } from './fall'
 
@@ -40,6 +47,29 @@ export interface MeadowState {
   dream: number
   /** 0→1 = falling through the sky, once the dream wave has passed. */
   fall: number
+  /** 0→1 = the landing on the cloud, once the fall is over (land.ts). */
+  land: number
+  /** 0→1 = the rise from the cloud to her feet, once the landing is over (rise.ts). */
+  rise: number
+  /** 0→1 = she and her cloud drift off to the top-left, shrinking, once she stands (recede.ts). */
+  recede: number
+  /** 0→1 = her three jumps down the staircase of clouds, one per third, once the platforms are in place (jump.ts). */
+  jump: number
+  /** 0→1 = the straight drop from the last cloud into the About Me section, once the jumps are over (drop.ts). */
+  drop: number
+  /** 0→1 = the rest of the way down onto the About Me surface, the landing and the seated, confused pose (touch.ts). */
+  touch: number
+  /** 0→1 = how far she has remembered who she is: the eased REAL completion of the About Me word game, not a scroll value (aboutMemory.ts). */
+  memory: number
+}
+
+/** where her head is on screen (viewport px) once she has landed, for the DOM effects around it (GirlFx.tsx); null while she is not on the surface */
+export interface GirlAnchor {
+  face: [number, number]
+  headTop: number
+  headW: number
+  landed: number
+  seated: number
 }
 
 export interface MeadowHandle {
@@ -93,13 +123,7 @@ const CLOUDS = [
 // (how many, and how far up they rise before they fade, in viewport heights). Her clothes only stream while the
 // page is scrolling: `rush` is the scroll speed (dream + fall per second) at which they stream fully, and they catch
 // the air in `rise` seconds and settle in `settle` seconds
-// the landing, over the last part of the fall (`start` = fall progress it begins at): while she is still falling a cloud
-// swells up under her bent body (`grow`, the first part of the landing); then she drops down onto it and turns from her
-// falling picture into her lying one, which is drawn at the same size as the falling one (`body` = how much of the
-// falling picture's width her body spans). `rest` is her centre when lying (fraction of the viewport height), `cloudW`
-// the cloud's width in her widths, `surf` where its top surface sits in its picture, `sink` how far into it she settles
-// (fraction of her height), `bob` its gentle float (px)
-const LAND = { enabled: false, start: 0.7, grow: 0.3, body: 0.71, rest: 0.52, cloudW: 1.7, surf: 0.34, sink: 0.35, bob: 4 }
+// (the landing on the cloud is in land.ts, landing.ts, cloud.ts and face.ts)
 const easeInOut = (x: number) => (x < 0.5 ? 2 * x * x : 1 - 2 * (1 - x) * (1 - x))
 // (the falling pose, path, sky layers and physics are in fall.ts)
 const FALL = { rush: 0.25, rise: 0.12, settle: 0.7, w: 0.9, h: 0.64, deepen: 0.06, idle: 0.6 }
@@ -508,11 +532,17 @@ function bladeCurve(b: Blade) {
   return pts
 }
 
-export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: () => void): MeadowHandle {
+export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: () => void, onAnchor?: (a: GirlAnchor | null) => void): MeadowHandle {
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches
   let disposed = false
   let visible = true
   let ready = false
+  let disposeLanding: (() => void) | null = null
+  let platforms: ReturnType<typeof createPlatforms> | null = null
+  let jumper: ReturnType<typeof createJump> | null = null
+  let dropper: ReturnType<typeof createDrop> | null = null
+  let toucher: ReturnType<typeof createTouch> | null = null
+  let anchored = false
 
   // p5 ships without type definitions, so the instance is untyped
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -523,7 +553,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let clothShader: any, grassShader: any, grassGeom: any, flowerGeom: any, postShader: any, fb: any, fbSky: any
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let skyWater: any, skyCloud: any, lying: any, skyImg: any, skyShader: any
+    let skyImg: any, skyShader: any, landing: ReturnType<typeof createLanding>
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let props: { x: number; y: number; rot: number; w: number; h: number; lift: number; spr: any; shadow: any }[] = []
     let animStart = 0, lastT = 0, shown = false
@@ -583,7 +613,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       p.pixelDensity(Math.min(window.devicePixelRatio || 1, 2))
       p.noLoop()
 
-      const [ground, girlImg, eyesOpenImg, eyesDrowsyImg, girlShadow, fallingImg, skyPhoto, lyingImg, bladeData, bagImg, phoneImg, ...sprites] = await Promise.all([
+      const [ground, girlImg, eyesOpenImg, eyesDrowsyImg, girlShadow, fallingImg, skyPhoto, bladeData, bagImg, phoneImg, ...sprites] = await Promise.all([
         p.loadImage(groundUrl),
         loadHtmlImage(girlUrl),
         loadHtmlImage(eyesOpenUrl),
@@ -591,7 +621,6 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
         p.loadImage(girlShadowUrl),
         p.loadImage(FALL_ASSETS.girl),
         p.loadImage(FALL_ASSETS.sky),
-        p.loadImage(girlLyingUrl),
         fetch(bladesUrl).then((r) => r.json()),
         loadHtmlImage(bagUrl),
         loadHtmlImage(phoneUrl),
@@ -623,12 +652,6 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       props = paintProps({ bag: bagImg, phone: phoneImg }).map(({ sprite, shadow, ...rest }) => ({ ...rest, spr: fromCanvas(sprite), shadow: fromCanvas(shadow) }))
       await breathe()
       if (disposed) return
-      const sky = paintSky()
-      skyWater = fromCanvas(sky.water)
-      skyCloud = fromCanvas(sky.cloud)
-      lying = lyingImg
-      await breathe()
-      if (disposed) return
       ;({ blades, flowers } = unpackBlades(bladeData))
       startDrift()
       buildGrass()
@@ -643,6 +666,14 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       animStart = p.millis() - POSTER_T * 1000
       ready = true
       if (visible) p.loop()
+      // her landing picture, the cloud and the face painter load after the meadow is up (the cloud and face in slices, ~1 s of work)
+      landing = createLanding(p, reduceMotion)
+      disposeLanding = landing.dispose
+      platforms = createPlatforms(p)
+      jumper = createJump(p)
+      dropper = createDrop(p)
+      toucher = createTouch(p)
+      landing.load().then(() => platforms?.load()).then(() => jumper?.load()).then(() => dropper?.load()).then(() => toucher?.load())
     }
 
     p.windowResized = () => {
@@ -858,11 +889,27 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       while (k < PATH.keys.length - 2 && cyc >= PATH.keys[k + 1].at) k++
       const k0 = PATH.keys[k], k1 = PATH.keys[k + 1]
       const u = easeInOut(clamp((cyc - k0.at) / (k1.at - k0.at), 0, 1))
-      // the whole fall is a pure function of the scroll: the same fall progress always gives the same frame
-      const land = LAND.enabled ? easeStep(LAND.start, 1, fall) : 0
-      const fr = dynamics.at(fall)
+      // the whole fall is a pure function of the scroll: the same fall progress always gives the same frame.
+      // Once the fall is over the landing (land.ts) takes the same clock on: the sky runs on at the speed the fall left it,
+      // then slows to a stop as she meets the cloud
+      const lf = state.land > 0 ? landAt(clamp(state.land, 0, 1), reduceMotion) : null
+      // After the landing, she wakes and rises (rise.ts): the landing stays at its last frame and the rise draws her in it
+      const rf = lf && state.rise > 0 && landing?.riseReady ? riseAt(clamp(state.rise, 0, 1), reduceMotion) : null
+      const fr = dynamics.at(lf ? 1 + lf.skyExtra : fall)
+      if (lf) {
+        fr.u *= lf.skySpeed
+        fr.air *= lf.skySpeed
+        fr.shake = [fr.shake[0] * lf.skySpeed, fr.shake[1] * lf.skySpeed]
+      }
+      // the drop (drop.ts) takes over from here: the sky's wind streaks and wisps are gone before the plain background arrives
+      if (state.drop > 0) {
+        const keep = dropSkyKeep(state.drop)
+        fr.u *= keep
+        fr.air *= keep
+        fr.shake = [fr.shake[0] * keep, fr.shake[1] * keep]
+      }
       if (reduceMotion) fr.shake = [0, 0]
-      const rot = lerp(k0.r, k1.r, u) * (Math.PI / 180) + fr.roll
+      const rot =lerp(k0.r, k1.r, u) * (Math.PI / 180) + fr.roll
       const gx = vw / 2 + lerp(k0.x, k1.x, u)
       const gy = vh / 2 + lerp(k0.y, k1.y, u) * gh
       const sc2 = sc * lerp(k0.s, k1.s, u)
@@ -877,56 +924,138 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       for (const L of SKY_LAYERS) if (!L.front) skyLayer(L, fr, vp, girl)
       drawStreaks(fr, vp, gx, gy, gh * sc2, false)
 
-      // the cloud swells up under her bent body, then she settles onto it as the lying picture takes over
-      let rx = gx, ry = gy
-      if (land > 0 && lying && skyCloud) {
-        const lw = LAND.body * gw * sc2, lh = (lw * lying.height) / lying.width
-        const cw = lw * LAND.cloudW, ch = (cw * skyCloud.height) / skyCloud.width
-        const float = reduceMotion ? 0 : Math.sin(t * 0.8) * LAND.bob * easeStep(0, 0.5, land)
-        const grow = easeStep(0, LAND.grow, land), settle = easeInOut(easeStep(LAND.grow * 0.6, 1, land))
-        // her resting spot, and her bent body's underside where the cloud first forms
-        const restY = LAND.rest * vh
-        const surfFall = gy + 0.16 * FALLER.h * sc2, surfRest = restY + lh * (0.5 - LAND.sink)
-        const surf = lerp(surfFall, surfRest, settle) + float
-        rx = lerp(gx, vw / 2, settle)
-        ry = lerp(gy, restY + float, settle)
-        const lieA = easeStep(0.45, 0.85, land)
-        const cs = lerp(0.6, 1, easeInOut(grow))
-
-        p.tint(255, 255 * grow)
-        p.image(skyCloud, rx - (cw * cs) / 2, surf - LAND.surf * ch * cs, cw * cs, ch * cs)
-        p.noTint()
-        // a soft hollow in the cloud under her
-        p.noStroke()
-        p.fill(150, 178, 214, 50 * lieA)
-        p.ellipse(rx, ry + lh * 0.4, lw * 0.9, lh * 0.35)
-        p.tint(255, 255 * lieA)
-        p.push()
-        p.translate(rx, ry)
-        p.rotate(lerp(rot, 0, settle))
-        p.image(lying, -lw / 2, -lh / 2, lw, lh)
-        p.pop()
-        p.noTint()
+      // The landing: the cloud swells up under her, she eases down onto it (the falling picture turns into the landing
+      // one, aligned on her face), presses in, rebounds and settles; the camera knocks and pulls back. The cloud and her
+      // landing picture are drawn in one camera (zoomed about the middle); the sky is far away and stays out of it.
+      let pl: LandPlace | null = null
+      if (lf && landing?.ready) pl = landing.place(lf, { vw, vh, fall: { gx, gy, scale: sc2, rot } })
+      const fa = enter * (pl && lf ? 1 - easeStep(0.35, 1, lf.cross) : 1)
+      let jf: ReturnType<typeof jumpAt> | null = null
+      let df: ReturnType<typeof dropAt> | null = null
+      let jumpBase = 1
+      let touching = false
+      let undoGroup: (() => void) | null = null
+      p.push()
+      if (lf && pl) {
+        p.translate(vw / 2, vh / 2 + lf.camDy * vh)
+        p.scale(lf.camZoom)
+        p.translate(-vw / 2, -vh / 2)
+        // the platform clouds appear behind her group, in their own screen-space places, on the recede's progress
+        // once the jumps begin, she is drawn by jump.ts instead of the rise, and the clouds give under her
+        const jumping = !!(rf && state.recede >= 1 && state.jump > 0 && jumper?.ready)
+        if (jumping && rf) {
+          // her standing point on cloud 1 is wherever the recede has carried it; on the platforms it is their fixed centres
+          const k = lf.camZoom, cy = vh / 2 + lf.camDy * vh
+          const centre: [number, number] = [vw / 2 + (pl.zone[0] - vw / 2) * k, cy + (pl.zone[1] - vh / 2) * k]
+          const rc = recedeAt(1, vw, vh, centre, pl.height * k, pl.cloudK * 1600 * k)
+          const spot = landing.standingSpot(rf, pl)
+          const grp = (v: [number, number]): [number, number] => [
+            pl.zone[0] + rc.dx / k + (v[0] - pl.zone[0]) * rc.scale,
+            pl.zone[1] + rc.dy / k + (v[1] - pl.zone[1]) * rc.scale,
+          ]
+          jumpBase = spot.scale * rc.scale
+          const spots: [number, number][] = [grp(spot.feet)]
+          platformsAt(1, vw, vh).forEach((f) => spots.push([f.x + JUMP_CONFIG.stand[0] * f.w, f.y + JUMP_CONFIG.stand[1] * f.h]))
+          jf = jumpAt(clamp(state.jump, 0, 1), spots, JUMP_POSES[0].h * jumpBase)
+          // the drop: she lets go of cloud 4 and falls straight down; the clouds slide up out of the frame (the camera follows her)
+          if (state.drop > 0 && dropper?.ready) {
+            df = dropAt(clamp(state.drop, 0, 1), spots[3], jumpBase, vw, vh)
+            p.translate(0, df.worldDy / k)
+          }
+          const wdy = df ? df.worldDy / k : 0
+          undoGroup = () => {
+            // back out of the recede group's transform: she is drawn in the same camera space as the platforms
+            p.translate(pl.zone[0], pl.zone[1])
+            p.scale(1 / rc.scale)
+            p.translate(-pl.zone[0], -pl.zone[1])
+            p.translate(-rc.dx / k, -rc.dy / k)
+            p.translate(0, -wdy)
+          }
+        }
+        if (rf && state.recede > 0) platforms?.draw(clamp(state.recede, 0, 1), vw, vh, jf?.press)
+        // she and the cloud recede as one group: one transform about the group's resting centre, on top of the camera
+        if (rf && state.recede > 0) {
+          const k = lf.camZoom, cy = vh / 2 + lf.camDy * vh
+          // the resting centre on screen (through the camera), her height and the cloud's width as they stand
+          const centre: [number, number] = [vw / 2 + (pl.zone[0] - vw / 2) * k, cy + (pl.zone[1] - vh / 2) * k]
+          const rc = recedeAt(clamp(state.recede, 0, 1), vw, vh, centre, pl.height * k, pl.cloudK * 1600 * k)
+          // screen-space offsets are divided by the camera's zoom to apply them inside it
+          p.translate(rc.dx / k, rc.dy / k)
+          p.translate(pl.zone[0], pl.zone[1])
+          p.scale(rc.scale)
+          p.translate(-pl.zone[0], -pl.zone[1])
+        }
+        p.clearDepth()
+        const li = { vw, vh, fall: { gx, gy, scale: sc2, rot } }
+        if (rf) {
+          // her landing shadow and the dent under her lying body give way to the rise's own (under her hand and feet)
+          // when she leaves cloud 1 its dent and her shadow on it fade with her (and cloud 1 gives under her as she crouches)
+          const rj = jf ? { ...rf, shadow: rf.shadow * (1 - jf.leave), feet: rf.feet * (1 - jf.leave) + jf.press[0] * 0.5 } : rf
+          landing.drawBehind({ ...lf, compress: rf.body, shadow: lf.shadow * (1 - rj.shadow) }, pl, li, clamp(1 - rf.pose / 2.4, 0, 1))
+          landing.drawRiseBehind(lf, rj, pl, li)
+          if (!jf) landing.drawRiseGirl(rf, pl, 1)
+        } else {
+          landing.drawBehind(lf, pl, li)
+          landing.drawGirl(lf, pl, easeStep(0, 0.65, lf.cross))
+        }
       }
-
-      if (land < 1) {
-        const fa = (1 - easeStep(0.45, 0.85, land)) * enter
-        const settle = easeInOut(easeStep(LAND.grow * 0.6, 1, land))
+      if (fa > 0.003) {
+        const settle = lf ? lf.settle : 0
         p.clearDepth()
         p.push()
-        p.translate(rx, ry)
+        p.translate(gx + (pl ? pl.offset[0] : 0), gy + (pl ? pl.offset[1] : 0))
         // turning in 3D gives the foreshortening; it relaxes as she lands
         p.rotateX(fr.pitch * (1 - settle))
         p.rotateY(fr.yaw * (1 - settle))
         p.scale(sc2)
-        p.rotate(lerp(rot, 0, settle))
+        p.rotate(rot)
         p.translate(-FALLER.w / 2, -FALLER.h / 2)
-        drawCloth(fr.clothT, eyes, [-Math.sin(rot), -Math.cos(rot)], fr.air * (1 - land), fa, fr.limbs.map((a) => a * (1 - settle)))
+        drawCloth(fr.clothT, eyes, [-Math.sin(rot), -Math.cos(rot)], fr.air, fa, fr.limbs.map((a) => a * (1 - settle)))
         p.pop()
+      }
+      if (lf && pl) landing.drawFront(lf, pl, { vw, vh, fall: { gx, gy, scale: sc2, rot } })
+      if (jf && undoGroup) {
+        undoGroup()
+        p.clearDepth()
+        if (df && lf) {
+          // the plain background rises over the sky (its edge given in screen px, mapped back into the camera), then the lines and her
+          const z = lf.camZoom, cdy = lf.camDy * vh
+          dropper!.drawVeil(df, vw, vh, (y) => (y - vh / 2 - cdy) / z + vh / 2)
+          p.clearDepth()
+          // the touchdown (touch.ts) carries her the rest of the way onto the surface; its first frame is the drop's last
+          const tf = state.touch > 0 && toucher?.ready
+            ? touchAt(clamp(state.touch, 0, 1), easeStep(0, 1, clamp(state.memory, 0, 1)), df, (TOUCH_CONFIG.surface * vh - vh / 2 - cdy) / z + vh / 2, ((vw * 0.97) - vw / 2) / z + vw / 2, vh, reduceMotion)
+            : null
+          if (tf) {
+            toucher!.drawSurface(tf, vw, vh)
+            toucher!.drawShadow(tf, vh)
+            dropper!.drawLines({ ...df, face: tf.fallFace, speed: tf.speed, travel: tf.travel }, df.base)
+            toucher!.draw(tf)
+            // her head on screen (through the camera), for the DOM effects around it
+            const sx = (x: number) => vw / 2 + (x - vw / 2) * z, sy = (y: number) => vh / 2 + cdy + (y - vh / 2) * z
+            onAnchor?.({ face: [sx(tf.face[0]), sy(tf.face[1])], headTop: sy(tf.headTop), headW: tf.headW * z, landed: tf.landed, seated: tf.seated })
+            touching = anchored = true
+          } else {
+            dropper!.drawLines(df, df.base)
+            dropper!.draw(df)
+          }
+        } else jumper!.draw(jf, jumpBase)
+      }
+      p.pop()
+      if (anchored && !touching) {
+        anchored = false
+        onAnchor?.(null)
       }
       // the nearest wisps rush past the edges of the frame, in front of her but faded out over her body
       p.clearDepth()
-      for (const L of SKY_LAYERS) if (L.front) skyLayer(L, fr, vp, girl)
+      // while she lands the clear space is over her landing place (not where the fall left her), and the near wisps fade out
+      let girlNow = girl
+      if (pl) {
+        const lw = LANDER.w * pl.scale, lh = LANDER.h * pl.scale
+        girlNow = [pl.anchor[0] + (LANDER.centre[0] - LANDER.face[0]) * pl.scale, pl.anchor[1] + (LANDER.centre[1] - LANDER.face[1]) * pl.scale, lw * 0.95, lh * 0.95]
+      }
+      frontFade = (lf ? 1 - 0.9 * lf.closeness : 1) * (state.drop > 0 ? dropSkyKeep(state.drop) : 1)
+      for (const L of SKY_LAYERS) if (L.front) skyLayer(L, fr, vp, girlNow)
       drawStreaks(fr, vp, gx, gy, gh * sc2, true)
       p.pop()
     }
@@ -970,6 +1099,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
     // as the distance fallen grows, so its size (1/z) grows faster and faster as it nears the lens; it fades in at the far
     // end and out at the near end, and the next slice (with its own offset and angle, from a hash of its index) takes over,
     // so nothing pops or visibly repeats. Everything is computed from `fr.travel` alone, so it rewinds exactly.
+    let frontFade = 1
     function skyLayer(L: (typeof SKY_LAYERS)[number], fr: FallFrame, vp: number[], girl: number[]) {
       const vw = p.width, vh = p.height
       const tileH = Math.max(vh, (vw * skyImg.height) / skyImg.width) * 1.15 * L.scale
@@ -980,7 +1110,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
         const raw = fr.travel * L.speed * DEPTH.rate + L.phase + i / L.slices
         const n = Math.floor(raw), ph = raw - n
         const env = easeStep(0, 0.22, ph) * (1 - easeStep(0.72, 1, ph))
-        const alpha = L.alpha * env * ramp
+        const alpha = L.alpha * env * ramp * (L.front ? frontFade : 1)
         if (alpha < 0.01) continue
         const key = n * 7.31 + i * 13.7 + L.scale * 3.3
         const off = [(hash(key) - 0.5) * tileW * 2, (hash(key + 1) - 0.5) * tileH * 2]
@@ -1161,6 +1291,11 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
     },
     dispose() {
       disposed = true
+      disposeLanding?.()
+      platforms?.dispose()
+      jumper?.dispose()
+      dropper?.dispose()
+      toucher?.dispose()
       instance.remove()
     },
   }

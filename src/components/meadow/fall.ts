@@ -177,9 +177,10 @@ export function createFallDynamics() {
   const C = FALL_CONFIG
 
   return {
-    /** @param f fall progress 0..1 (from the scroll) */
+    /** @param f fall progress 0..1 (from the scroll); above 1 the fall carries on, for the landing's approach */
     at(f: number): FallFrame {
-      const s = clamp(f, 0, 1) * C.duration
+      // past 1 the clock runs on (the landing's approach keeps the sky moving, slowing to a stop)
+      const s = Math.max(0, f) * C.duration
       const clock = s
 
       // drag-limited acceleration: tanh rises from rest and flattens at terminal speed
