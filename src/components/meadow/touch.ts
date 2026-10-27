@@ -1,6 +1,6 @@
 // The touchdown: after the drop she is falling upright, on the right, over the plain About Me background. The next scroll (state.touch, 0-1)
 // carries her the rest of the way down onto the About Me surface, she lands, settles into a seated, confused pose and stays there.
-// Like the rest of the dream there is no clock: the frame is a pure function of the scroll progress (and of state.memory, see below),
+// Like the rest of the dream there is no clock: the frame is a pure function of the scroll progress,
 // so stopping freezes her, scrolling up runs it backwards, and nothing is integrated frame to frame.
 //
 // Timeline (progress u, 0-1):
@@ -10,15 +10,11 @@
 //   0.50 - 0.68  SETTLE    land1 -> land2 (seated, confused, hand at her head); she comes a little closer
 //   0.72 - 1.00  REST      stable. The dizzy effects and the bubble (GirlFx.tsx) are DOM, driven by the anchor this file returns.
 //
-// The memory-restored picture (land3.webp) is NOT driven by scroll: state.memory (0-1) is the eased real completion of the word game
-// (aboutMemory.ts). It dissolves land2 -> land3 whenever it changes, even if nobody is scrolling.
-//
 // All pictures are placed by the same two points, so nothing slides or passes through the surface: x on her face, y on the lowest point
 // of her dress/shoes ("contact"), which sits on the surface line from the moment of contact on.
 
 import land1Url from '@/assets/meadow/land1.webp'
 import land2Url from '@/assets/meadow/land2.webp'
-import land3Url from '@/assets/meadow/land3.webp'
 import { DROP_POSES, ABOUT_BG } from './drop'
 import type { DropFrame } from './drop'
 
@@ -50,7 +46,6 @@ export const TOUCH_POSES = [
   { ...DROP_POSES[2], contact: 484, head: [55, 85] as [number, number] },
   { key: 'land1', url: land1Url, w: 578, h: 674, face: [240, 188], contact: 618, scale: 1.05 * 0.535, head: [112, 150] as [number, number] },
   { key: 'land2', url: land2Url, w: 429, h: 644, face: [188, 168], contact: 602, scale: 1.05 * 0.535, head: [90, 150] as [number, number] },
-  { key: 'land3', url: land3Url, w: 459, h: 689, face: [200, 158], contact: 646, scale: 1.05 * 0.535, head: [86, 150] as [number, number] },
 ]
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
@@ -100,10 +95,10 @@ export interface TouchFrame {
 }
 
 /**
- * The touchdown frame for progress u (0-1) and memory m (0-1, the word game's completion). `df` is the drop's last frame, `surfaceCam` where the
+ * The touchdown frame for progress u (0-1). `df` is the drop's last frame, `surfaceCam` where the
  * surface line goes (camera px), `rightEdge` the furthest right her seated body may reach (camera px). Pure and stateless.
  */
-export function touchAt(u: number, m: number, df: DropFrame, surfaceCam: number, rightEdge: number, vh: number, reduced = false): TouchFrame {
+export function touchAt(u: number, df: DropFrame, surfaceCam: number, rightEdge: number, vh: number, reduced = false): TouchFrame {
   const C = TOUCH_CONFIG
   u = clamp(u, 0, 1)
   const k = reduced ? C.reducedMotion : 1
@@ -142,14 +137,11 @@ export function touchAt(u: number, m: number, df: DropFrame, surfaceCam: number,
   // the pictures: each new one fades in over the old, which stays whole under it until the new one is nearly opaque
   const m1 = smooth(C.toLand1[0], C.toLand1[1], u)
   const m2 = smooth(C.toLand2[0], C.toLand2[1], u)
-  // memory only dissolves her seated picture: it cannot show before she has settled
-  const m3 = clamp(m, 0, 1) * m2
   const layers: TouchLayer[] = [
     // the falling picture is a different shape from the seated ones, so it goes quickly (no ghost of a standing girl is left hanging above her)
     { pose: 0, alpha: 1 - smooth(0.3, 0.7, m1) },
     { pose: 1, alpha: smooth(0, 0.6, m1) * (1 - smooth(0.6, 1, m2)) },
-    { pose: 2, alpha: smooth(0, 0.7, m2) * (1 - smooth(0.6, 1, m3)) },
-    { pose: 3, alpha: smooth(0, 0.7, m3) },
+    { pose: 2, alpha: smooth(0, 0.7, m2) },
   ]
 
   // the head follows whichever pictures are showing (their weights, normalised)

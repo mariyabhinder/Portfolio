@@ -11,6 +11,8 @@
 // before the dream begins. The open and drowsy eyes are small patches laid over the closed-eyed picture.
 // The dream wave carries the picture away into a dawn sky (it is revealed behind the wavefront), and she falls
 // through it asleep: the same girl on the same mesh, her clothes blown up around her, clouds and petals rushing past.
+// Once she has landed on a cloud (land.ts), a second wave through the same shader breaks the cloud scene into dust and reveals
+// the plain About Me background (leave.ts), where she falls the rest of the way and sits down, dazed (touch.ts).
 
 import p5 from 'p5'
 import groundUrl from '@/assets/meadow/meadow.jpg'
@@ -32,11 +34,8 @@ import { paintProps } from './props'
 import { createLanding, LANDER } from './landing'
 import type { LandPlace } from './landing'
 import { landAt } from './land'
-import { riseAt } from './rise'
-import { recedeAt } from './recede'
-import { createPlatforms, platformsAt, PLATFORM_CONFIG } from './platforms'
-import { createJump, jumpAt, JUMP_CONFIG, JUMP_POSES } from './jump'
-import { createDrop, dropAt, dropSkyKeep } from './drop'
+import { createDrop, ABOUT_BG } from './drop'
+import { leaveFrame } from './leave'
 import { createTouch, touchAt, TOUCH_CONFIG } from './touch'
 import type { FallFrame } from './fall'
 import { DEPTH, FALL_ASSETS, FALL_CONFIG, FALLER, PATH, SKY_FRAG, SKY_LAYERS, SKY_VERT, createFallDynamics } from './fall'
@@ -50,18 +49,10 @@ export interface MeadowState {
   fall: number
   /** 0→1 = the landing on the cloud, once the fall is over (land.ts). */
   land: number
-  /** 0→1 = the rise from the cloud to her feet, once the landing is over (rise.ts). */
-  rise: number
-  /** 0→1 = she and her cloud drift off to the top-left, shrinking, once she stands (recede.ts). */
-  recede: number
-  /** 0→1 = her three jumps down the staircase of clouds, one per third, once the platforms are in place (jump.ts). */
-  jump: number
-  /** 0→1 = the straight drop from the last cloud into the About Me section, once the jumps are over (drop.ts). */
-  drop: number
+  /** 0→1 = a second dream wave carries the cloud scene away into the About Me background, once the landing is over (LEAVE_CONFIG). */
+  leave: number
   /** 0→1 = the rest of the way down onto the About Me surface, the landing and the seated, confused pose (touch.ts). */
   touch: number
-  /** 0→1 = how far she has remembered who she is: the eased REAL completion of the About Me word game, not a scroll value (aboutMemory.ts). */
-  memory: number
 }
 
 /** where her head is on screen (viewport px) once she has landed, for the DOM effects around it (GirlFx.tsx); null while she is not on the surface */
@@ -539,8 +530,6 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
   let visible = true
   let ready = false
   let disposeLanding: (() => void) | null = null
-  let platforms: ReturnType<typeof createPlatforms> | null = null
-  let jumper: ReturnType<typeof createJump> | null = null
   let dropper: ReturnType<typeof createDrop> | null = null
   let toucher: ReturnType<typeof createTouch> | null = null
   let anchored = false
@@ -671,11 +660,10 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       // her landing picture, the cloud and the face painter load after the meadow is up (the cloud and face in slices, ~1 s of work)
       landing = createLanding(p, reduceMotion)
       disposeLanding = landing.dispose
-      platforms = createPlatforms(p)
-      jumper = createJump(p)
+      // the drop's wind lines are drawn past her as she falls onto the About Me surface (they need no pictures of their own)
       dropper = createDrop(p)
       toucher = createTouch(p)
-      landing.load().then(() => platforms?.load()).then(() => jumper?.load()).then(() => dropper?.load()).then(() => toucher?.load())
+      landing.load().then(() => toucher?.load())
     }
 
     p.windowResized = () => {
@@ -712,7 +700,28 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
         p.pop()
       }
 
-      if (dream <= 0) meadowFrame()
+      const leave = clamp(state.leave, 0, 1)
+      let touching = false
+      const aboutFrame = () => {
+        p.push()
+        p.translate(-p.width / 2, -p.height / 2)
+        touching = drawAbout(leave)
+        p.pop()
+      }
+
+      if (leave >= 1) aboutFrame()
+      else if (leave > 0) {
+        // the second wave carries the cloud scene away into the About Me background, through the same two buffers
+        fb.begin()
+        p.clear()
+        skyFrame()
+        fb.end()
+        fbSky.begin()
+        p.clear()
+        aboutFrame()
+        fbSky.end()
+        drawDream(leave)
+      } else if (dream <= 0) meadowFrame()
       else if (dream >= 1) skyFrame()
       else {
         // the wave carries the meadow away into the sky: both are drawn, and mixed behind the front
@@ -725,6 +734,10 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
         skyFrame()
         fbSky.end()
         drawDream(dream)
+      }
+      if (anchored && !touching) {
+        anchored = false
+        onAnchor?.(null)
       }
 
       if (!shown) {
@@ -895,20 +908,11 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       // Once the fall is over the landing (land.ts) takes the same clock on: the sky runs on at the speed the fall left it,
       // then slows to a stop as she meets the cloud
       const lf = state.land > 0 ? landAt(clamp(state.land, 0, 1), reduceMotion) : null
-      // After the landing, she wakes and rises (rise.ts): the landing stays at its last frame and the rise draws her in it
-      const rf = lf && state.rise > 0 && landing?.riseReady ? riseAt(clamp(state.rise, 0, 1), reduceMotion) : null
       const fr = dynamics.at(lf ? 1 + lf.skyExtra : fall)
       if (lf) {
         fr.u *= lf.skySpeed
         fr.air *= lf.skySpeed
         fr.shake = [fr.shake[0] * lf.skySpeed, fr.shake[1] * lf.skySpeed]
-      }
-      // the drop (drop.ts) takes over from here: the sky's wind streaks and wisps are gone before the plain background arrives
-      if (state.drop > 0) {
-        const keep = dropSkyKeep(state.drop)
-        fr.u *= keep
-        fr.air *= keep
-        fr.shake = [fr.shake[0] * keep, fr.shake[1] * keep]
       }
       if (reduceMotion) fr.shake = [0, 0]
       const rot =lerp(k0.r, k1.r, u) * (Math.PI / 180) + fr.roll
@@ -932,74 +936,15 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       let pl: LandPlace | null = null
       if (lf && landing?.ready) pl = landing.place(lf, { vw, vh, fall: { gx, gy, scale: sc2, rot } })
       const fa = enter * (pl && lf ? 1 - easeStep(0.35, 1, lf.cross) : 1)
-      let jf: ReturnType<typeof jumpAt> | null = null
-      let df: ReturnType<typeof dropAt> | null = null
-      let jumpBase = 1
-      let touching = false
-      let undoGroup: (() => void) | null = null
       p.push()
       if (lf && pl) {
         p.translate(vw / 2, vh / 2 + lf.camDy * vh)
         p.scale(lf.camZoom)
         p.translate(-vw / 2, -vh / 2)
-        // the platform clouds appear behind her group, in their own screen-space places, on the recede's progress
-        // once the jumps begin, she is drawn by jump.ts instead of the rise, and the clouds give under her
-        const jumping = !!(rf && state.recede >= 1 && state.jump > 0 && jumper?.ready)
-        if (jumping && rf) {
-          // her standing point on cloud 1 is wherever the recede has carried it; on the platforms it is their fixed centres
-          const k = lf.camZoom, cy = vh / 2 + lf.camDy * vh
-          const centre: [number, number] = [vw / 2 + (pl.zone[0] - vw / 2) * k, cy + (pl.zone[1] - vh / 2) * k]
-          const rc = recedeAt(1, vw, vh, centre, pl.height * k, pl.cloudK * 1600 * k)
-          const spot = landing.standingSpot(rf, pl)
-          const grp = (v: [number, number]): [number, number] => [
-            pl.zone[0] + rc.dx / k + (v[0] - pl.zone[0]) * rc.scale,
-            pl.zone[1] + rc.dy / k + (v[1] - pl.zone[1]) * rc.scale,
-          ]
-          jumpBase = spot.scale * rc.scale
-          const spots: [number, number][] = [grp(spot.feet)]
-          platformsAt(1, vw, vh).forEach((f) => spots.push([f.x + JUMP_CONFIG.stand[0] * f.w, f.y + JUMP_CONFIG.stand[1] * f.h]))
-          jf = jumpAt(clamp(state.jump, 0, 1), spots, JUMP_POSES[0].h * jumpBase)
-          // the drop: she lets go of cloud 4 and falls straight down; the clouds slide up out of the frame (the camera follows her)
-          if (state.drop > 0 && dropper?.ready) {
-            df = dropAt(clamp(state.drop, 0, 1), spots[3], jumpBase, vw, vh)
-            p.translate(0, df.worldDy / k)
-          }
-          const wdy = df ? df.worldDy / k : 0
-          undoGroup = () => {
-            // back out of the recede group's transform: she is drawn in the same camera space as the platforms
-            p.translate(pl.zone[0], pl.zone[1])
-            p.scale(1 / rc.scale)
-            p.translate(-pl.zone[0], -pl.zone[1])
-            p.translate(-rc.dx / k, -rc.dy / k)
-            p.translate(0, -wdy)
-          }
-        }
-        if (rf && state.recede > 0) platforms?.draw(clamp(state.recede, 0, 1), vw, vh, jf?.press)
-        // she and the cloud recede as one group: one transform about the group's resting centre, on top of the camera
-        if (rf && state.recede > 0) {
-          const k = lf.camZoom, cy = vh / 2 + lf.camDy * vh
-          // the resting centre on screen (through the camera), her height and the cloud's width as they stand
-          const centre: [number, number] = [vw / 2 + (pl.zone[0] - vw / 2) * k, cy + (pl.zone[1] - vh / 2) * k]
-          const rc = recedeAt(clamp(state.recede, 0, 1), vw, vh, centre, pl.height * k, pl.cloudK * 1600 * k)
-          // screen-space offsets are divided by the camera's zoom to apply them inside it
-          p.translate(rc.dx / k, rc.dy / k)
-          p.translate(pl.zone[0], pl.zone[1])
-          p.scale(rc.scale)
-          p.translate(-pl.zone[0], -pl.zone[1])
-        }
         p.clearDepth()
         const li = { vw, vh, fall: { gx, gy, scale: sc2, rot } }
-        if (rf) {
-          // her landing shadow and the dent under her lying body give way to the rise's own (under her hand and feet)
-          // when she leaves cloud 1 its dent and her shadow on it fade with her (and cloud 1 gives under her as she crouches)
-          const rj = jf ? { ...rf, shadow: rf.shadow * (1 - jf.leave), feet: rf.feet * (1 - jf.leave) + jf.press[0] * 0.5 } : rf
-          landing.drawBehind({ ...lf, compress: rf.body, shadow: lf.shadow * (1 - rj.shadow) }, pl, li, clamp(1 - rf.pose / 2.4, 0, 1))
-          landing.drawRiseBehind(lf, rj, pl, li)
-          if (!jf) landing.drawRiseGirl(rf, pl, 1)
-        } else {
-          landing.drawBehind(lf, pl, li)
-          landing.drawGirl(lf, pl, easeStep(0, 0.65, lf.cross))
-        }
+        landing.drawBehind(lf, pl, li)
+        landing.drawGirl(lf, pl, easeStep(0, 0.65, lf.cross))
       }
       if (fa > 0.003) {
         const settle = lf ? lf.settle : 0
@@ -1016,38 +961,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
         p.pop()
       }
       if (lf && pl) landing.drawFront(lf, pl, { vw, vh, fall: { gx, gy, scale: sc2, rot } })
-      if (jf && undoGroup) {
-        undoGroup()
-        p.clearDepth()
-        if (df && lf) {
-          // the plain background rises over the sky (its edge given in screen px, mapped back into the camera), then the lines and her
-          const z = lf.camZoom, cdy = lf.camDy * vh
-          dropper!.drawVeil(df, vw, vh, (y) => (y - vh / 2 - cdy) / z + vh / 2)
-          p.clearDepth()
-          // the touchdown (touch.ts) carries her the rest of the way onto the surface; its first frame is the drop's last
-          const tf = state.touch > 0 && toucher?.ready
-            ? touchAt(clamp(state.touch, 0, 1), easeStep(0, 1, clamp(state.memory, 0, 1)), df, (TOUCH_CONFIG.surface * vh - vh / 2 - cdy) / z + vh / 2, ((vw * 0.97) - vw / 2) / z + vw / 2, vh, reduceMotion)
-            : null
-          if (tf) {
-            toucher!.drawSurface(tf, vw, vh)
-            toucher!.drawShadow(tf, vh)
-            dropper!.drawLines({ ...df, face: tf.fallFace, speed: tf.speed, travel: tf.travel }, df.base)
-            toucher!.draw(tf)
-            // her head on screen (through the camera), for the DOM effects around it
-            const sx = (x: number) => vw / 2 + (x - vw / 2) * z, sy = (y: number) => vh / 2 + cdy + (y - vh / 2) * z
-            onAnchor?.({ face: [sx(tf.face[0]), sy(tf.face[1])], headTop: sy(tf.headTop), headW: tf.headW * z, landed: tf.landed, seated: tf.seated })
-            touching = anchored = true
-          } else {
-            dropper!.drawLines(df, df.base)
-            dropper!.draw(df)
-          }
-        } else jumper!.draw(jf, jumpBase)
-      }
       p.pop()
-      if (anchored && !touching) {
-        anchored = false
-        onAnchor?.(null)
-      }
       // the nearest wisps rush past the edges of the frame, in front of her but faded out over her body
       p.clearDepth()
       // while she lands the clear space is over her landing place (not where the fall left her), and the near wisps fade out
@@ -1056,10 +970,34 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
         const lw = LANDER.w * pl.scale, lh = LANDER.h * pl.scale
         girlNow = [pl.anchor[0] + (LANDER.centre[0] - LANDER.face[0]) * pl.scale, pl.anchor[1] + (LANDER.centre[1] - LANDER.face[1]) * pl.scale, lw * 0.95, lh * 0.95]
       }
-      frontFade = (lf ? 1 - 0.9 * lf.closeness : 1) * (state.drop > 0 ? dropSkyKeep(state.drop) : 1)
+      frontFade = lf ? 1 - 0.9 * lf.closeness : 1
       for (const L of SKY_LAYERS) if (L.front) skyLayer(L, fr, vp, girlNow)
       drawStreaks(fr, vp, gx, gy, gh * sc2, true)
       p.pop()
+    }
+
+    // ---------- the About Me surface ----------
+
+    // In viewport px. The plain About Me background the second wave reveals, with her already falling into it on the right (the lines
+    // flow past her as the wave crosses); then the touchdown (touch.ts) carries her down onto the surface. Returns whether she is on it,
+    // having reported where her head is for the DOM effects around it.
+    function drawAbout(leave: number) {
+      const vw = p.width, vh = p.height
+      p.background(ABOUT_BG[0], ABOUT_BG[1], ABOUT_BG[2])
+      if (!toucher?.ready || !dropper) return false
+      const df = leaveFrame(vw, vh)
+      df.travel = 1.5 * leave
+      const tf = touchAt(clamp(state.touch, 0, 1), df, TOUCH_CONFIG.surface * vh, vw * 0.97, vh, reduceMotion)
+      p.clearDepth()
+      toucher.drawSurface(tf, vw, vh)
+      toucher.drawShadow(tf, vh)
+      dropper.drawLines({ ...df, face: tf.fallFace, speed: tf.speed, travel: tf.travel }, df.base)
+      p.clearDepth()
+      toucher.draw(tf)
+      if (state.touch <= 0) return false
+      onAnchor?.({ face: tf.face, headTop: tf.headTop, headW: tf.headW, landed: tf.landed, seated: tf.seated })
+      anchored = true
+      return true
     }
 
     // Where the sky radiates from: a point above her centre that the camera sways around a little as she falls
@@ -1294,8 +1232,6 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
     dispose() {
       disposed = true
       disposeLanding?.()
-      platforms?.dispose()
-      jumper?.dispose()
       dropper?.dispose()
       toucher?.dispose()
       instance.remove()
