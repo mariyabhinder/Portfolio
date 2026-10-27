@@ -471,8 +471,15 @@ const TABS: [string, string][] = [['Library', ICON.library], ['For You', ICON.fo
 export default function PhoneGallery({ onClose }: { onClose: () => void }) {
   const [album, setAlbum] = useState<Album | null>(null)
   const [viewing, setViewing] = useState<number | null>(null)
-  // showing the back of the phone, its case and charm
-  const [flipped, setFlipped] = useState(false)
+  // showing the back of the phone, its case and charm: it opens this way round, then turns over to the screen on its own
+  const [flipped, setFlipped] = useState(true)
+  const turn = useRef<number | undefined>(undefined)
+  useEffect(() => {
+    turn.current = window.setTimeout(() => setFlipped(false), 1800)
+    return () => clearTimeout(turn.current)
+  }, [])
+  // a flip by hand cancels the automatic one
+  const flip = (to: boolean) => { clearTimeout(turn.current); setFlipped(to) }
   // the photo viewer with its chrome hidden: black, with a white status bar
   const [immersive, setImmersive] = useState(false)
   useEffect(() => { if (viewing === null) setImmersive(false) }, [viewing])
@@ -528,13 +535,13 @@ export default function PhoneGallery({ onClose }: { onClose: () => void }) {
             </div>
             <DynamicIsland />
           </div>
-          <div className="absolute inset-0" style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)', pointerEvents: flipped ? undefined : 'none' }}>
+          <div className="absolute inset-0 cursor-pointer" style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)', pointerEvents: flipped ? undefined : 'none' }} onClick={() => flip(false)}>
             <PhoneBack />
             <style>{'@keyframes phone-charm-sway { from { transform: rotate(-3deg) } to { transform: rotate(2.5deg) } } @keyframes phone-name-sway { from { transform: rotate(-4deg) } to { transform: rotate(3deg) } }'}</style>
           </div>
         </div>
       </div>
-      <button onClick={(e) => { e.stopPropagation(); setFlipped((f) => !f) }} aria-label="Flip phone" className="absolute left-5 top-5 flex items-center gap-2 rounded-full bg-white/15 px-4 py-2 text-sm font-medium text-white backdrop-blur-md transition-colors hover:bg-white/25 cursor-pointer">
+      <button onClick={(e) => { e.stopPropagation(); flip(!flipped) }} aria-label="Flip phone" className="absolute left-5 top-5 flex items-center gap-2 rounded-full bg-white/15 px-4 py-2 text-sm font-medium text-white backdrop-blur-md transition-colors hover:bg-white/25 cursor-pointer">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0115.5-6.2L21 8M21 3v5h-5M21 12a9 9 0 01-15.5 6.2L3 16M3 21v-5h5" /></svg>
         {flipped ? 'Front' : 'Flip'}
       </button>
