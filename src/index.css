@@ -205,6 +205,10 @@
 .girl-bubble-dot-2 { width: 11px; height: 11px; bottom: -28px; left: calc(var(--tx) * 1px + var(--td) * 0.6px - 5px); }
 .girl-bubble-dot-3 { width: 7px; height: 7px; bottom: -38px; left: calc(var(--tx) * 1px + var(--td) * 1px - 3px); }
 
+/* GirlFx sets data-idle while both are at 0 (nothing shows) */
+.girl-fx[data-idle] { visibility: hidden; }
+.girl-fx[data-idle] * { animation-play-state: paused; }
+
 @keyframes girl-loop-sway { to { rotate: calc(var(--tilt) + 14deg); } }
 @keyframes girl-loop-dash { to { stroke-dashoffset: -184; } }
 @keyframes girl-orbit-spin { to { rotate: 360deg; } }

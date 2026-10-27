@@ -17,6 +17,7 @@ import land1Url from '@/assets/meadow/land1.webp'
 import land2Url from '@/assets/meadow/land2.webp'
 import { DROP_POSES, ABOUT_BG } from './drop'
 import type { DropFrame } from './drop'
+import { createTris } from './tris'
 
 export const TOUCH_CONFIG = {
   /** extra scroll length for the touchdown, in viewport heights (the last part of it is the pinned rest) */
@@ -179,6 +180,7 @@ export function createTouch(p: any) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let imgs: any[] | null = null
   let disposed = false
+  const tris = createTris(p)
 
   async function load() {
     // the falling picture is already loaded by drop.ts (the browser caches it); only the three landing pictures are new
@@ -194,8 +196,8 @@ export function createTouch(p: any) {
     const x0 = -vw * 0.2, x1 = vw * 1.2, cols = 64, rows = 6, band = vh * 0.15
     const wob = (x: number) => (Math.sin(x * 0.011 + 1.3) * 1.6 + Math.sin(x * 0.031) * 0.9) * (vh / 900)
     p.noStroke()
-    p.beginShape(p.TRIANGLES)
-    const put = (x: number, y: number, alpha: number) => { p.fill(shade[0], shade[1], shade[2], 255 * alpha); p.vertex(x, y) }
+    tris.begin()
+    const put = (x: number, y: number, alpha: number) => tris.vertex(x, y, shade[0], shade[1], shade[2], 255 * alpha)
     for (let c = 0; c < cols; c++) {
       const xa = lerp(x0, x1, c / cols), xb = lerp(x0, x1, (c + 1) / cols)
       for (let i = 0; i < rows; i++) {
@@ -207,20 +209,19 @@ export function createTouch(p: any) {
         put(xb, yc, aa); put(xb, yd, ab); put(xa, yb, ab)
       }
     }
-    p.endShape()
+    tris.end()
     // the line itself: thin, a little darker at the top of the shade, only where the wobble puts it
     const hairline = 0.5 * f.surface
-    p.beginShape(p.TRIANGLES)
+    tris.begin()
     for (let c = 0; c < cols; c++) {
       const xa = lerp(x0, x1, c / cols), xb = lerp(x0, x1, (c + 1) / cols)
       const ya = f.surfaceY + wob(xa), yb = f.surfaceY + wob(xb), th = Math.max(1, vh / 600)
       const col = [188, 174, 150]
       for (const [x, y] of [[xa, ya], [xb, yb], [xa, ya + th], [xb, yb], [xb, yb + th], [xa, ya + th]] as const) {
-        p.fill(col[0], col[1], col[2], 255 * hairline)
-        p.vertex(x, y)
+        tris.vertex(x, y, col[0], col[1], col[2], 255 * hairline)
       }
     }
-    p.endShape()
+    tris.end()
   }
 
   /** her soft contact shadow, on the surface under her */
@@ -255,5 +256,5 @@ export function createTouch(p: any) {
     p.pop()
   }
 
-  return { load, draw, drawSurface, drawShadow, get ready() { return !!imgs }, dispose() { disposed = true } }
+  return { load, draw, drawSurface, drawShadow, get ready() { return !!imgs }, dispose() { disposed = true; tris.dispose() } }
 }

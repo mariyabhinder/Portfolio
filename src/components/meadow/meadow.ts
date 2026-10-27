@@ -19,7 +19,7 @@ import groundUrl from '@/assets/meadow/meadow.jpg'
 import girlUrl from '@/assets/meadow/girl.webp'
 import bagUrl from '@/assets/meadow/bag.webp'
 import phoneUrl from '@/assets/meadow/phone.webp'
-import wallpaperUrl from '@/assets/meadow/phone-wallpaper.png'
+import wallpaperUrl from '@/assets/meadow/phone-wallpaper.webp'
 import girlShadowUrl from '@/assets/meadow/girl-shadow.webp'
 import eyesOpenUrl from '@/assets/meadow/girl-eyes-open.webp'
 import eyesDrowsyUrl from '@/assets/meadow/girl-eyes-drowsy.webp'
@@ -38,8 +38,10 @@ import { landAt } from './land'
 import { createDrop, ABOUT_BG } from './drop'
 import { leaveFrame } from './leave'
 import { createTouch, touchAt, TOUCH_CONFIG } from './touch'
+import { createTris } from './tris'
+import { gridGeometry } from './grid'
 import type { FallFrame } from './fall'
-import { DEPTH, FALL_ASSETS, FALL_CONFIG, FALLER, PATH, SKY_FRAG, SKY_LAYERS, SKY_VERT, createFallDynamics } from './fall'
+import { DEPTH, FALL_ASSETS, FALL_CONFIG, FALLER, PATH, SKY_FRAG, SKY_FRAG_SHARP, SKY_LAYERS, SKY_VERT, createFallDynamics } from './fall'
 
 export interface MeadowState {
   /** 0 = the whole meadow, 1 = closed in on her face. */
@@ -546,7 +548,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let clothShader: any, grassShader: any, grassGeom: any, flowerGeom: any, postShader: any, fb: any, fbSky: any
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let skyImg: any, skyShader: any, landing: ReturnType<typeof createLanding>
+    let skyImg: any, skyShader: any, skySharpShader: any, landing: ReturnType<typeof createLanding>
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let props: { id?: string; x: number; y: number; rot: number; w: number; h: number; lift: number; spr: any; shadow: any }[] = []
     // the things in her bag (painted once, like the props), and how far the little lift under the pointer has come
@@ -554,10 +556,14 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
     let bagItems: { w: number; h: number; spr: any; shadow: any }[] = []
     let bagHover = 0
     let animStart = 0, lastT = 0, shown = false
+    // what the last still frame was drawn from (see p.draw)
+    let stillKey = ''
     // seconds she has spent falling asleep (runs back when the camera pulls away), her next blink, and how open
     // her eyes are in it (1 = open), which she keeps on doing as she falls
     let sleepS = 0, lastMs = 0, nextBlink = 2, blinkAt = -1, blinkOpen = 1
     const dynamics = createFallDynamics()
+    // the wind streaks' ribbons, rebuilt each frame (made once the renderer is up)
+    let streakTris: ReturnType<typeof createTris> | null = null
     // wind streaks: seeded angles and phases, so their positions are a pure function of the distance fallen
     const streaks = makeStreaks()
 
@@ -662,6 +668,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       if (disposed) return
       clothShader = p.createShader(CLOTH_VERT, CLOTH_FRAG)
       skyShader = p.createShader(SKY_VERT, SKY_FRAG)
+      skySharpShader = p.createShader(SKY_VERT, SKY_FRAG_SHARP)
       postShader = p.createShader(POST_VERT, POST_FRAG)
       fb = p.createFramebuffer({ depth: false })
       fbSky = p.createFramebuffer({ depth: false })
@@ -679,6 +686,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
     }
 
     p.windowResized = () => {
+      stillKey = ''
       p.resizeCanvas(parent.clientWidth || window.innerWidth, parent.clientHeight || window.innerHeight)
     }
 
@@ -694,6 +702,13 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
     p.draw = () => {
       if (!ready) return
       const dream = clamp(state.dream, 0, 1)
+      // Once the dream wave has passed, the frame is a pure function of the scroll and of what has loaded (only the meadow runs on
+      // the clock): while none of that changes the canvas keeps the last frame (p5 preserves its drawing buffer) and nothing is redrawn
+      if (dream >= 1 && shown) {
+        const key = [state.fall, state.land, state.leave, state.touch, p.width, p.height, !!landing?.ready, !!toucher?.ready].join()
+        if (key === stillKey) return
+        stillKey = key
+      } else stillKey = ''
       const t = (p.millis() - animStart) / 1000
       const eyes = eyesNow()
 
@@ -862,17 +877,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
     // to shade, its own lids blinking over her open eyes, and the updraft at `gust` (0..1) of its strength
     function drawCloth(t: number, eyes: number, wind?: number[], gust = 1, alpha = 1, limbs?: number[]) {
       const falling = !!wind, body = falling ? faller : cloth
-      if (!body.geom) {
-        const { cols, rows, verts } = body
-        body.geom = p.buildGeometry(() => {
-          p.beginShape(p.TRIANGLES)
-          for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
-            const a = j * (cols + 1) + i, b = a + 1, c = a + cols + 1, d = c + 1
-            for (const k of [a, b, c, b, d, c]) p.vertex(...verts[k])
-          }
-          p.endShape()
-        })
-      }
+      if (!body.geom) body.geom = gridGeometry(p, body.cols, body.rows, body.verts)
       p.noStroke()
       p.shader(clothShader)
       const cl = FALL_CONFIG.cloth
@@ -1028,20 +1033,22 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
     // One draw of the sky shader: the photo magnified `zoom` times about the vanishing point `vp`, offset by `off` (px of tile)
     function skyQuad(vp: number[], tileH: number, zoom: number, off: number[], rot: number, blur: number, alpha: number, mask: boolean, hole: number, girl: number[]) {
       const vw = p.width, vh = p.height
+      // unblurred (the backdrop, and the whole sky once it has stopped) needs one texture read, not six
+      const sh = blur > 0 ? skyShader : skySharpShader
       p.noStroke()
-      p.shader(skyShader)
-      skyShader.setUniform('uTex', skyImg)
-      skyShader.setUniform('uRes', [vw, vh])
-      skyShader.setUniform('uCentre', vp)
-      skyShader.setUniform('uTile', [(tileH * skyImg.width) / skyImg.height, tileH])
-      skyShader.setUniform('uOff', off)
-      skyShader.setUniform('uZoom', zoom)
-      skyShader.setUniform('uRot', rot)
-      skyShader.setUniform('uBlur', blur)
-      skyShader.setUniform('uAlpha', alpha)
-      skyShader.setUniform('uMask', mask ? 1 : 0)
-      skyShader.setUniform('uHole', hole)
-      skyShader.setUniform('uGirl', girl)
+      p.shader(sh)
+      sh.setUniform('uTex', skyImg)
+      sh.setUniform('uRes', [vw, vh])
+      sh.setUniform('uCentre', vp)
+      sh.setUniform('uTile', [(tileH * skyImg.width) / skyImg.height, tileH])
+      sh.setUniform('uOff', off)
+      sh.setUniform('uZoom', zoom)
+      sh.setUniform('uRot', rot)
+      sh.setUniform('uBlur', blur)
+      sh.setUniform('uAlpha', alpha)
+      sh.setUniform('uMask', mask ? 1 : 0)
+      sh.setUniform('uHole', hole)
+      sh.setUniform('uGirl', girl)
       p.rect(0, 0, vw, vh)
       p.resetShader()
     }
@@ -1096,7 +1103,8 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       const vw = p.width, vh = p.height
       const rMax = Math.hypot(vw, vh) * 0.8, depth = fr.travel * DEPTH.streaks.rate
       p.noStroke()
-      p.beginShape(p.TRIANGLES)
+      streakTris ??= createTris(p)
+      streakTris.begin()
       for (const s of streaks) {
         if (s.near !== front) continue
         const raw = s.seed + depth * s.v, rho = raw - Math.floor(raw)
@@ -1114,12 +1122,9 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
         const px = -dy * hw, py = dx * hw, qx = px * 0.25, qy = py * 0.25
         const hi = [235, 245, 255, 255 * a], lo = [235, 245, 255, 0]
         const quad = [[hx - px, hy - py, hi], [hx + px, hy + py, hi], [tx - qx, ty - qy, lo], [hx + px, hy + py, hi], [tx + qx, ty + qy, lo], [tx - qx, ty - qy, lo]] as const
-        for (const [x, y, c] of quad) {
-          p.fill(c[0], c[1], c[2], c[3])
-          p.vertex(x, y)
-        }
+        for (const [x, y, c] of quad) streakTris.vertex(x, y, c[0], c[1], c[2], c[3])
       }
-      p.endShape()
+      streakTris.end()
     }
 
     // an image covering the viewport, centred, `zoom` times closer than just covering it

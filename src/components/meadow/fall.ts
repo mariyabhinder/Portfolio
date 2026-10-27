@@ -242,20 +242,21 @@ void main() {
   vTexCoord = aTexCoord;
 }`
 
-export const SKY_FRAG = `
+// (with taps = 1, an unblurred read: what the blurred shader gives when uBlur is 0, for a sixth of the texture reads)
+const skyFrag = (taps: number) => `
 precision highp float;
 uniform sampler2D uTex;
 uniform vec2 uRes, uCentre, uTile, uOff;
 uniform float uRot, uBlur, uAlpha, uMask, uHole, uZoom;
 uniform vec4 uGirl;
 varying vec2 vTexCoord;
-const int TAPS = 6;
+const int TAPS = ${taps};
 void main() {
   vec2 pix = vTexCoord * uRes;
   float cr = cos(uRot), sr = sin(uRot);
   vec4 acc = vec4(0.0);
   for (int i = 0; i < TAPS; i++) {
-    float k = float(i) / float(TAPS - 1) - 0.5;
+    float k = ${taps > 1 ? 'float(i) / float(TAPS - 1) - 0.5' : '0.0'};
     vec2 d = (pix - uCentre) / (uZoom * (1.0 + uBlur * k));
     vec2 r = vec2(cr * d.x + sr * d.y, -sr * d.x + cr * d.y);
     vec2 uv = (r + uOff) / uTile + 0.5;
@@ -269,3 +270,5 @@ void main() {
   acc *= mix(1.0, smoothstep(0.55, 1.2, length(g)), uHole);
   gl_FragColor = acc;
 }`
+export const SKY_FRAG = skyFrag(6)
+export const SKY_FRAG_SHARP = skyFrag(1)

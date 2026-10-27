@@ -16,6 +16,7 @@ import startUrl from '@/assets/meadow/start.webp'
 import middleUrl from '@/assets/meadow/middle.webp'
 import endUrl from '@/assets/meadow/end.webp'
 import { paintCloud } from './cloud'
+import { gridGeometry } from './grid'
 import type { CloudSprites } from './cloud'
 import { LAND_CONFIG } from './land'
 import type { LandFrame } from './land'
@@ -272,14 +273,7 @@ export function createLanding(p: any, reduceMotion: boolean) {
       const d = skeletonDistance(LANDER.skeleton, x, y)
       verts.push([x, y, smooth(0, LANDER.looseSpan, d), x / LANDER.w, y / LANDER.h])
     }
-    geom = p.buildGeometry(() => {
-      p.beginShape(p.TRIANGLES)
-      for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
-        const a = j * (cols + 1) + i, b = a + 1, c = a + cols + 1, d = c + 1
-        for (const k of [a, b, c, b, d, c]) p.vertex(...verts[k])
-      }
-      p.endShape()
-    })
+    geom = gridGeometry(p, cols, rows, verts)
     shader = p.createShader(LAND_VERT, LAND_FRAG)
     const sh = makeShadow(html)
     shadowPad = sh.pad
@@ -295,14 +289,7 @@ export function createLanding(p: any, reduceMotion: boolean) {
         const x = Math.min(i * st, P.w), y = Math.min(j * st, P.h)
         vs.push([x, y, smooth(0, span, skeletonDistance(P.skeleton, x, y)), x / P.w, y / P.h])
       }
-      const g = p.buildGeometry(() => {
-        p.beginShape(p.TRIANGLES)
-        for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
-          const a = j * (cols + 1) + i, b = a + 1, c = a + cols + 1, d = c + 1
-          for (const q of [a, b, c, b, d, c]) p.vertex(...vs[q])
-        }
-        p.endShape()
-      })
+      const g = gridGeometry(p, cols, rows, vs)
       const sh = makeShadow(htmls[k])
       return { img: imgs[k], geom: g, shadow: imageFromCanvas(sh.cv), pad: sh.pad }
     })

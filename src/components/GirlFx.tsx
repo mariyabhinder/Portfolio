@@ -53,23 +53,32 @@ export default function GirlFx({ register }: Props) {
     const root = rootRef.current!
     const bubble = bubbleRef.current!
     // the bubble's size is read when it changes, not every frame
-    let bw = 280, bh = 70
+    let bw = 280, bh = 70, vw = 0
     const measure = () => {
       bw = bubble.offsetWidth
       bh = bubble.offsetHeight
+      vw = root.clientWidth
     }
     measure()
     const ro = new ResizeObserver(measure)
     ro.observe(bubble)
+    ro.observe(root)
 
     const set = (k: string, v: string | number) => root.style.setProperty(k, String(v))
+    // while nothing shows (before she lands) the effects are hidden and their animations paused, so they cost nothing per frame
+    const idle = (on: boolean) => {
+      if (on !== root.hasAttribute('data-idle')) root.toggleAttribute('data-idle', on)
+    }
+    idle(true)
     const update = (a: GirlAnchor | null) => {
       if (!a) {
         set('--landed', 0)
         set('--seated', 0)
+        idle(true)
         return
       }
-      const vw = root.clientWidth, hx = a.face[0], hw = a.headW
+      idle(a.landed <= 0 && a.seated <= 0)
+      const hx = a.face[0], hw = a.headW
       set('--hx', hx.toFixed(1))
       // the loops' centre sits just above her hijab
       set('--dy', (a.headTop - hw * 0.22).toFixed(1))

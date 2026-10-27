@@ -96,8 +96,12 @@ function QualityPopupContent({
 }
 
 // Alpha channel of the cloud sprite, used to hit-test against the actual cloud shape
+// (read the first time a cloud is hovered, so the sprite is not fetched and decoded while the page loads)
 let cloudAlpha: { data: Uint8ClampedArray; w: number; h: number } | null = null
-if (typeof window !== 'undefined') {
+let cloudAlphaLoading = false
+function loadCloudAlpha() {
+  if (cloudAlphaLoading || typeof window === 'undefined') return
+  cloudAlphaLoading = true
   const img = new Image()
   img.onload = () => {
     const canvas = document.createElement('canvas')
@@ -114,6 +118,7 @@ if (typeof window !== 'undefined') {
 // True when the point lies on an opaque pixel of the rendered cloud <img>
 function isOverCloud(imgEl: HTMLImageElement | null, clientX: number, clientY: number) {
   if (!imgEl) return false
+  loadCloudAlpha()
   if (!cloudAlpha) return true // sprite not decoded yet — fall back to the box
   const r = imgEl.getBoundingClientRect()
   const x = Math.floor(((clientX - r.left) / r.width) * cloudAlpha.w)

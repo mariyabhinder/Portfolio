@@ -70,6 +70,9 @@ export default function DreamLanding() {
     let landDistance = 1
     let leaveDistance = 1
     let touchDistance = 1
+    // the camera's size (it is pinned to the viewport), and the --about last written, so a scroll only touches the DOM when something changes
+    let camW = 0, camH = 0
+    let about = ''
 
     const state: MeadowState = { zoom: 0, dream: 0, fall: 0, land: 0, leave: 0, touch: 0, bag }
     // The meadow (and p5) load after first paint; the poster stands in until its first frame is up
@@ -83,6 +86,8 @@ export default function DreamLanding() {
     })
 
     const measure = () => {
+      camW = camera.clientWidth
+      camH = camera.clientHeight
       sectionStart = section.getBoundingClientRect().top + window.scrollY
       // the section is (FALL_VH + landing + leave + touchdown) vh tall: the fall keeps the scroll length it always had, then the rest in order
       const vh = section.offsetHeight / (FALL_VH + LAND_CONFIG.scrollVh + LEAVE_CONFIG.scrollVh + TOUCH_CONFIG.scrollVh)
@@ -92,42 +97,51 @@ export default function DreamLanding() {
       touchDistance = Math.max(1, TOUCH_CONFIG.scrollVh * vh)
     }
 
+    // a hotspot is clickable only while its thing is on screen (startBag also switches the bag's off directly)
+    const showHotspot = (btn: HTMLButtonElement, on: boolean) => {
+      const events = on ? 'auto' : 'none', vis = on ? 'visible' : 'hidden'
+      if (btn.style.pointerEvents !== events) btn.style.pointerEvents = events
+      if (btn.style.visibility !== vis) btn.style.visibility = vis
+    }
+
     // The scene (736 x 920) covers the viewport, centred (meadow.ts applyCamera at zoom 0); the phone sits at (496, 318), tilted 0.25 rad
     const PHONE = { x: 496, y: 318, w: 30, h: 48, rot: 0.25 }
-    const placePhone = () => {
+    const placePhone = (resized: boolean) => {
       const btn = phoneRef.current
       if (!btn) return
-      const vw = camera.clientWidth, vh = camera.clientHeight
-      const s = Math.max(vw / 736, vh / 920)
-      const px = (vw - 736 * s) / 2 + PHONE.x * s, py = (vh - 920 * s) / 2 + PHONE.y * s
-      btn.style.width = `${PHONE.w * s}px`
-      btn.style.height = `${PHONE.h * s}px`
-      btn.style.transform = `translate(${px - (PHONE.w * s) / 2}px, ${py - (PHONE.h * s) / 2}px) rotate(${PHONE.rot}rad)`
+      if (resized) {
+        const vw = camW, vh = camH
+        const s = Math.max(vw / 736, vh / 920)
+        const px = (vw - 736 * s) / 2 + PHONE.x * s, py = (vh - 920 * s) / 2 + PHONE.y * s
+        btn.style.width = `${PHONE.w * s}px`
+        btn.style.height = `${PHONE.h * s}px`
+        btn.style.transform = `translate(${px - (PHONE.w * s) / 2}px, ${py - (PHONE.h * s) / 2}px) rotate(${PHONE.rot}rad)`
+      }
       // only while the camera is still out and she is awake on the grass
       const on = window.scrollY - sectionStart < window.innerHeight * 0.15
-      btn.style.pointerEvents = on ? 'auto' : 'none'
-      btn.style.visibility = on ? 'visible' : 'hidden'
+      showHotspot(btn, on)
     }
 
     // The bag lies at (BAG_PLACE) on the same scene; its hotspot is a box over it, turned with it
     const BAG_BOX = { w: 76, h: 84 }
-    const placeBag = () => {
+    const placeBag = (resized: boolean) => {
       const btn = bagRef.current
       if (!btn) return
-      const vw = camera.clientWidth, vh = camera.clientHeight
-      const s = Math.max(vw / 736, vh / 920)
-      const px = (vw - 736 * s) / 2 + BAG_PLACE.x * s, py = (vh - 920 * s) / 2 + BAG_PLACE.y * s
-      btn.style.width = `${BAG_BOX.w * s}px`
-      btn.style.height = `${BAG_BOX.h * s}px`
-      btn.style.transform = `translate(${px - (BAG_BOX.w * s) / 2}px, ${py - (BAG_BOX.h * s) / 2}px) rotate(${BAG_PLACE.rot}rad)`
+      if (resized) {
+        const vw = camW, vh = camH
+        const s = Math.max(vw / 736, vh / 920)
+        const px = (vw - 736 * s) / 2 + BAG_PLACE.x * s, py = (vh - 920 * s) / 2 + BAG_PLACE.y * s
+        btn.style.width = `${BAG_BOX.w * s}px`
+        btn.style.height = `${BAG_BOX.h * s}px`
+        btn.style.transform = `translate(${px - (BAG_BOX.w * s) / 2}px, ${py - (BAG_BOX.h * s) / 2}px) rotate(${BAG_PLACE.rot}rad)`
+      }
       const on = !bagPlaying.current && window.scrollY - sectionStart < window.innerHeight * 0.15
-      btn.style.pointerEvents = on ? 'auto' : 'none'
-      btn.style.visibility = on ? 'visible' : 'hidden'
+      showHotspot(btn, on)
     }
 
-    const update = () => {
-      placePhone()
-      placeBag()
+    const update = (resized = false) => {
+      placePhone(resized)
+      placeBag(resized)
       const scrolled = window.scrollY - sectionStart
       const progress = Math.max(0, Math.min(1, scrolled / scrollDistance))
       state.zoom = Math.min(progress / ZOOM_END, 1)
@@ -138,12 +152,14 @@ export default function DreamLanding() {
       state.touch = Math.max(0, Math.min(1, (scrolled - scrollDistance - landDistance - leaveDistance) / touchDistance))
       // the About Me page comes in while she settles (touch 0.5 - 0.8): its own 0-1, read by AboutMe's CSS
       const a = Math.max(0, Math.min(1, (state.touch - 0.5) / 0.3))
-      camera.style.setProperty('--about', (a * a * (3 - 2 * a)).toFixed(3))
+      const next = (a * a * (3 - 2 * a)).toFixed(3)
+      if (next !== about) camera.style.setProperty('--about', (about = next))
     }
+    const onScroll = () => update()
 
     const onResize = () => {
       measure()
-      update()
+      update(true)
     }
 
     const resizeObserver = new ResizeObserver(onResize)
@@ -153,16 +169,16 @@ export default function DreamLanding() {
       meadow?.setVisible(visible)
     })
     visibility.observe(section)
-    window.addEventListener('scroll', update, { passive: true })
+    window.addEventListener('scroll', onScroll, { passive: true })
     measure()
-    update()
+    update(true)
     return () => {
       resizeObserver.disconnect()
       visibility.disconnect()
       cancelled = true
       bagStop.current?.()
       meadow?.dispose()
-      window.removeEventListener('scroll', update)
+      window.removeEventListener('scroll', onScroll)
     }
   }, [])
 

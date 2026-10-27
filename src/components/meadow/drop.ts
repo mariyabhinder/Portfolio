@@ -16,6 +16,7 @@ import jump11Url from '@/assets/meadow/jump11.webp'
 import jump22Url from '@/assets/meadow/jump22.webp'
 import jump33Url from '@/assets/meadow/jump33.webp'
 import { JUMP_POSES } from './jump'
+import { createTris } from './tris'
 
 /** the About Me section's plain background: the canvas veil and the section below it both use this */
 export const ABOUT_BG: [number, number, number] = [248, 245, 238]
@@ -143,6 +144,7 @@ export function createDrop(p: any) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let imgs: any[] | null = null
   let disposed = false
+  const tris = createTris(p)
 
   async function load() {
     const out = await Promise.all(DROP_POSES.map((P) => p.loadImage(P.url)))
@@ -159,13 +161,10 @@ export function createDrop(p: any) {
     const x0 = -vw, x1 = vw * 2
     const steps = 8
     p.noStroke()
-    p.beginShape(p.TRIANGLES)
+    tris.begin()
     const quad = (ya: number, yb: number, aa: number, ab: number) => {
       const A = [r, g, b, 255 * aa], B = [r, g, b, 255 * ab]
-      for (const [x, y, c] of [[x0, ya, A], [x1, ya, A], [x0, yb, B], [x1, ya, A], [x1, yb, B], [x0, yb, B]] as const) {
-        p.fill(c[0], c[1], c[2], c[3])
-        p.vertex(x, y)
-      }
+      for (const [x, y, c] of [[x0, ya, A], [x1, ya, A], [x0, yb, B], [x1, ya, A], [x1, yb, B], [x0, yb, B]] as const) tris.vertex(x, y, c[0], c[1], c[2], c[3])
     }
     for (let i = 0; i < steps; i++) {
       const a = i / steps, c = (i + 1) / steps
@@ -173,7 +172,7 @@ export function createDrop(p: any) {
     }
     // solid beyond the band, down past the bottom of the frame
     quad(toCam(f.veilEdge + f.veilBand), toCam(vh * 3), 1, 1)
-    p.endShape()
+    tris.end()
   }
 
   /** fine lines flowing up past her hands, sleeves, hijab tails and dress edges: behind her, never over her face */
@@ -184,7 +183,7 @@ export function createDrop(p: any) {
     const mixC = smooth(0.35, 0.9, f.cover)
     const col = [lerp(238, 120, mixC), lerp(246, 145, mixC), lerp(255, 175, mixC)]
     p.noStroke()
-    p.beginShape(p.TRIANGLES)
+    tris.begin()
     LINES.forEach((L, i) => {
       const raw = (i * 0.37 + f.travel * L.v) % 1
       const rho = raw - Math.floor(raw)
@@ -199,12 +198,9 @@ export function createDrop(p: any) {
       const hw = Math.max(0.6, base * 2.2) * (0.6 + 0.5 * f.speed)
       const hi = [col[0], col[1], col[2], 255 * a], lo = [col[0], col[1], col[2], 0]
       // a tapered ribbon: opaque at its lower (leading) end, fading to nothing above
-      for (const [x, y, c] of [[cx - hw, cy, hi], [cx + hw, cy, hi], [cx, cy - len, lo], [cx - hw, cy, hi], [cx + hw, cy, hi], [cx, cy + len * 0.15, lo]] as const) {
-        p.fill(c[0], c[1], c[2], c[3])
-        p.vertex(x, y)
-      }
+      for (const [x, y, c] of [[cx - hw, cy, hi], [cx + hw, cy, hi], [cx, cy - len, lo], [cx - hw, cy, hi], [cx + hw, cy, hi], [cx, cy + len * 0.15, lo]] as const) tris.vertex(x, y, c[0], c[1], c[2], c[3])
     })
-    p.endShape()
+    tris.end()
   }
 
   /** draws her for frame f: every picture on the same face point, rolled a touch about it */
@@ -228,5 +224,5 @@ export function createDrop(p: any) {
     p.pop()
   }
 
-  return { load, draw, drawLines, drawVeil, get ready() { return !!imgs }, dispose() { disposed = true } }
+  return { load, draw, drawLines, drawVeil, get ready() { return !!imgs }, dispose() { disposed = true; tris.dispose() } }
 }
