@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import cc1 from '@/assets/meadow/cc1.webp'
 import cc2 from '@/assets/meadow/cc2.webp'
 import cc3 from '@/assets/meadow/cc3.webp'
@@ -468,7 +468,41 @@ function Charm({ src, box: { w, h, top }, animation }: { src: string; box: { w: 
 
 const TABS: [string, string][] = [['Library', ICON.library], ['For You', ICON.forYou], ['Albums', ICON.albums], ['Search', ICON.search]]
 
-export default function PhoneGallery({ onClose }: { onClose: () => void }) {
+/** where her phone lies face down on the grass (DreamLanding): its centre and height on screen (px), and how it is turned (radians) */
+export interface PhoneSpot { x: number; y: number; h: number; rot: number }
+
+// The pick-up: the phone rises a little off the grass, then flies to the middle of the screen on a slight arc, turning the
+// short way round to upright and tipping its top towards you on the way, as a phone does when it is picked up; laying it
+// down is the same flight backwards. Its shadow is cast in the phone's own turned frame, so each pose turns it back to
+// fall straight down the screen, and lengthens it as the phone rises.
+const FLIGHT = { open: 780, close: 760, openEase: 'cubic-bezier(.32,.72,0,1)', closeEase: 'cubic-bezier(.45,0,.2,1)', perspective: 1100 }
+const BACKDROP = { color: 'rgba(0, 0, 0, 0.55)', blur: 'blur(6px)' }
+
+function flightFrames(at: PhoneSpot, phone: HTMLElement): Keyframe[] {
+  // the phone is laid out in the middle of the screen at full size; the flight is measured from there
+  const dx = at.x - window.innerWidth / 2, dy = at.y - window.innerHeight / 2, k = at.h / phone.offsetHeight
+  // its turn on the grass, the short way round from upright (degrees, clockwise)
+  let a = ((at.rot * 180) / Math.PI) % 360
+  if (a > 180) a -= 360
+  if (a < -180) a += 360
+  const pose = (t: number, rise: number, tilt: number, scale: number, shadow: number, offset?: number) => {
+    const turn = a * (1 - t), r = (turn * Math.PI) / 180
+    const d = shadow / scale
+    return {
+      transform: `translate(${dx * (1 - t)}px, ${dy * (1 - t) - rise}px) rotate(${turn}deg) perspective(${FLIGHT.perspective}px) rotateX(${tilt}deg) scale(${scale})`,
+      filter: `drop-shadow(${d * Math.sin(r)}px ${d * Math.cos(r)}px ${d * 2}px rgba(0, 0, 0, 0.35))`,
+      ...(offset === undefined ? {} : { offset }),
+    }
+  }
+  return [
+    pose(0, 0, 0, k, 2),
+    pose(0.08, 8, 10, k * 1.25, 8, 0.15),
+    pose(0.65, 40, 24, k + (1 - k) * 0.55, 30, 0.55),
+    pose(1, 0, 0, 1, 24),
+  ]
+}
+
+export default function PhoneGallery({ spot, onClose }: { spot: () => PhoneSpot | null; onClose: () => void }) {
   const [album, setAlbum] = useState<Album | null>(null)
   const [viewing, setViewing] = useState<number | null>(null)
   // showing the back of the phone, its case and charm: it opens this way round, then turns over to the screen on its own
@@ -480,6 +514,36 @@ export default function PhoneGallery({ onClose }: { onClose: () => void }) {
   }, [])
   // a flip by hand cancels the automatic one
   const flip = (to: boolean) => { clearTimeout(turn.current); setFlipped(to) }
+
+  // it is picked up off the grass as it opens, and laid back down there, face down, as it closes
+  const overlay = useRef<HTMLDivElement>(null)
+  const phone = useRef<HTMLDivElement>(null)
+  const closing = useRef(false)
+  useLayoutEffect(() => {
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches
+    const at = spot()
+    overlay.current!.animate([{ background: 'transparent', backdropFilter: 'blur(0px)' }, { background: BACKDROP.color, backdropFilter: BACKDROP.blur }], { duration: reduce ? 200 : 600, easing: 'ease-out' })
+    if (at && !reduce) phone.current!.animate(flightFrames(at, phone.current!), { duration: FLIGHT.open, easing: FLIGHT.openEase })
+    else phone.current!.animate([{ opacity: 0, transform: 'scale(0.96)' }, { opacity: 1, transform: 'none' }], { duration: 200, easing: 'ease-out' })
+    overlay.current!.querySelectorAll('[data-chrome]').forEach((el) => el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 250, delay: reduce ? 0 : FLIGHT.open - 250, fill: 'backwards' }))
+  }, [spot])
+  const close = useCallback(() => {
+    if (closing.current) return
+    closing.current = true
+    overlay.current!.style.pointerEvents = 'none'
+    // it turns back over on its way down
+    clearTimeout(turn.current)
+    setFlipped(true)
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches
+    const at = spot()
+    const time = at && !reduce ? FLIGHT.close : 200
+    overlay.current!.animate([{ background: BACKDROP.color, backdropFilter: BACKDROP.blur }, { background: 'transparent', backdropFilter: 'blur(0px)' }], { duration: time, easing: 'ease-in', fill: 'forwards' })
+    overlay.current!.querySelectorAll('[data-chrome]').forEach((el) => el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 150, fill: 'forwards' }))
+    const frames = at && !reduce
+      ? flightFrames(at, phone.current!).reverse().map((f) => (f.offset === undefined ? f : { ...f, offset: 1 - (f.offset as number) }))
+      : [{ opacity: 1 }, { opacity: 0 }]
+    phone.current!.animate(frames, { duration: time, easing: at && !reduce ? FLIGHT.closeEase : 'ease-in', fill: 'forwards' }).finished.then(onClose, onClose)
+  }, [spot, onClose])
   // the photo viewer with its chrome hidden: black, with a white status bar
   const [immersive, setImmersive] = useState(false)
   useEffect(() => { if (viewing === null) setImmersive(false) }, [viewing])
@@ -493,17 +557,18 @@ export default function PhoneGallery({ onClose }: { onClose: () => void }) {
         setViewing(step(e.key === 'ArrowRight' ? 1 : -1))
         return
       }
-      if (e.key === 'Escape') viewing !== null ? setViewing(null) : album ? setAlbum(null) : onClose()
+      if (e.key === 'Escape') viewing !== null ? setViewing(null) : album ? setAlbum(null) : close()
     }
     // the neighbouring photo in the open album, stopping at the first and last
     const step = (d: number) => Math.max(0, Math.min(countOf(album!) - 1, viewing! + d))
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [album, viewing, onClose])
+  }, [album, viewing, close])
 
   return (
-    <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/55 p-4" onClick={onClose}>
+    <div ref={overlay} className="fixed inset-0 z-[1000] flex items-center justify-center p-4" style={{ background: BACKDROP.color, backdropFilter: BACKDROP.blur }} onClick={close}>
       <div
+        ref={phone}
         className="relative"
         style={{ '--w': 'min(375px, 92vw, calc(90vh * 1800 / 3629.83))', width: 'var(--w)', height: u(3629.83), filter: 'drop-shadow(0 24px 48px rgba(0,0,0,0.35))', perspective: '2400px' } as React.CSSProperties}
         onClick={(e) => e.stopPropagation()}
@@ -541,11 +606,11 @@ export default function PhoneGallery({ onClose }: { onClose: () => void }) {
           </div>
         </div>
       </div>
-      <button onClick={(e) => { e.stopPropagation(); flip(!flipped) }} aria-label="Flip phone" className="absolute left-5 top-5 flex items-center gap-2 rounded-full bg-white/15 px-4 py-2 text-sm font-medium text-white backdrop-blur-md transition-colors hover:bg-white/25 cursor-pointer">
+      <button data-chrome onClick={(e) => { e.stopPropagation(); flip(!flipped) }} aria-label="Flip phone" className="absolute left-5 top-5 flex items-center gap-2 rounded-full bg-white/15 px-4 py-2 text-sm font-medium text-white backdrop-blur-md transition-colors hover:bg-white/25 cursor-pointer">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0115.5-6.2L21 8M21 3v5h-5M21 12a9 9 0 01-15.5 6.2L3 16M3 21v-5h5" /></svg>
         {flipped ? 'Front' : 'Flip'}
       </button>
-      <button onClick={onClose} aria-label="Close" className="absolute right-5 top-5 text-3xl leading-none text-white cursor-pointer">×</button>
+      <button data-chrome onClick={(e) => { e.stopPropagation(); close() }} aria-label="Close" className="absolute right-5 top-5 text-3xl leading-none text-white cursor-pointer">×</button>
     </div>
   )
 }

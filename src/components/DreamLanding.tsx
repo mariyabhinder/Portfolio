@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import PhoneGallery from './PhoneGallery'
+import PhoneGallery, { type PhoneSpot } from './PhoneGallery'
 import type { GirlAnchor, MeadowHandle, MeadowState } from './meadow/meadow'
 import GirlFx from './GirlFx'
 import AboutMe from './AboutMe'
 import { LAND_CONFIG } from './meadow/land'
 import { LEAVE_CONFIG } from './meadow/leave'
 import { TOUCH_CONFIG } from './meadow/touch'
-import { BAG_PLACE } from './meadow/props'
+import { BAG_PLACE, PHONE_PLACE } from './meadow/props'
 import { createBagReveal, playBagReveal } from './meadow/bagItems'
 import { createWear, playWear, GLASSES_WEAR, HAT_WEAR, type WearConfig, type WearState } from './meadow/wear'
 // Scroll progress (0-1): the camera closes in on her face until ZOOM_END, she falls asleep, the dream wave
@@ -26,9 +26,29 @@ export default function DreamLanding() {
   // the function GirlFx gives us to move its effects, called by the scene each frame with where her head is
   const fxRef = useRef<((a: GirlAnchor | null) => void) | null>(null)
   const registerFx = useCallback((fn: ((a: GirlAnchor | null) => void) | null) => { fxRef.current = fn }, [])
-  // her phone lies on the meadow at the top of the page: a hotspot over it opens the Photos gallery
+  // her phone lies face down on the meadow at the top of the page: a hotspot over it lifts it off the grass into the Photos
+  // gallery, and the meadow leaves it out until the gallery has laid it back down
   const phoneRef = useRef<HTMLButtonElement>(null)
+  const phone = useRef({ up: false }).current
   const [galleryOpen, setGalleryOpen] = useState(false)
+  // where the phone lies on screen right now (viewport px): the gallery flies it from here, and back here when it closes
+  const phoneSpot = useCallback((): PhoneSpot | null => {
+    const btn = phoneRef.current, camera = cameraRef.current
+    if (!btn || !camera) return null
+    const r = btn.getBoundingClientRect()
+    const s = Math.max(camera.clientWidth / 736, camera.clientHeight / 920)
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2, h: PHONE_PLACE.h * s, rot: PHONE_PLACE.rot }
+  }, [])
+  const openPhone = useCallback(() => {
+    phone.up = true
+    setGalleryOpen(true)
+  }, [phone])
+  const closePhone = useCallback(() => {
+    phone.up = false
+    setGalleryOpen(false)
+    // the hotspot comes back with the next scroll update
+    window.dispatchEvent(new Event('scroll'))
+  }, [phone])
   // her tote lies on the meadow too: clicking it plays the bag reveal (meadow/bagItems.ts). The hotspot is placed like the phone's.
   const bagRef = useRef<HTMLButtonElement>(null)
   const bag = useRef(createBagReveal()).current
@@ -92,7 +112,7 @@ export default function DreamLanding() {
     let camW = 0, camH = 0
     let about = ''
 
-    const state: MeadowState = { zoom: 0, dream: 0, fall: 0, land: 0, leave: 0, touch: 0, bag, glasses, hat }
+    const state: MeadowState = { zoom: 0, dream: 0, fall: 0, land: 0, leave: 0, touch: 0, bag, glasses, hat, phone }
     // The meadow (and p5) load after first paint; the poster stands in until its first frame is up
     let meadow: MeadowHandle | null = null
     let visible = true
@@ -122,21 +142,22 @@ export default function DreamLanding() {
       if (btn.style.visibility !== vis) btn.style.visibility = vis
     }
 
-    // The scene (736 x 920) covers the viewport, centred (meadow.ts applyCamera at zoom 0); the phone sits at (496, 318), tilted 0.25 rad
-    const PHONE = { x: 496, y: 318, w: 30, h: 48, rot: 0.25 }
+    // The scene (736 x 920) covers the viewport, centred (meadow.ts applyCamera at zoom 0); the phone lies at PHONE_PLACE,
+    // its hotspot a box over it, turned with it
+    const PHONE_BOX = { w: 30, h: 48 }
     const placePhone = (resized: boolean) => {
       const btn = phoneRef.current
       if (!btn) return
       if (resized) {
         const vw = camW, vh = camH
         const s = Math.max(vw / 736, vh / 920)
-        const px = (vw - 736 * s) / 2 + PHONE.x * s, py = (vh - 920 * s) / 2 + PHONE.y * s
-        btn.style.width = `${PHONE.w * s}px`
-        btn.style.height = `${PHONE.h * s}px`
-        btn.style.transform = `translate(${px - (PHONE.w * s) / 2}px, ${py - (PHONE.h * s) / 2}px) rotate(${PHONE.rot}rad)`
+        const px = (vw - 736 * s) / 2 + PHONE_PLACE.x * s, py = (vh - 920 * s) / 2 + PHONE_PLACE.y * s
+        btn.style.width = `${PHONE_BOX.w * s}px`
+        btn.style.height = `${PHONE_BOX.h * s}px`
+        btn.style.transform = `translate(${px - (PHONE_BOX.w * s) / 2}px, ${py - (PHONE_BOX.h * s) / 2}px) rotate(${PHONE_PLACE.rot}rad)`
       }
-      // only while the camera is still out and she is awake on the grass
-      const on = window.scrollY - sectionStart < window.innerHeight * 0.15
+      // only while the camera is still out and she is awake on the grass, and the phone is there
+      const on = !phone.up && window.scrollY - sectionStart < window.innerHeight * 0.15
       showHotspot(btn, on)
     }
 
@@ -273,12 +294,12 @@ export default function DreamLanding() {
         ref={phoneRef}
         type="button"
         aria-label="Open her phone's photo albums"
-        onClick={() => setGalleryOpen(true)}
+        onClick={openPhone}
         className="absolute left-0 top-0 cursor-pointer"
         style={{ zIndex: 3, background: 'transparent' }}
       />
     </div>
-    {galleryOpen ? <PhoneGallery onClose={() => setGalleryOpen(false)} /> : null}
+    {galleryOpen ? <PhoneGallery spot={phoneSpot} onClose={closePhone} /> : null}
   </section>
   )
 }

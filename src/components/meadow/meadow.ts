@@ -18,7 +18,6 @@ import p5 from 'p5'
 import groundUrl from '@/assets/meadow/meadow.jpg'
 import girlUrl from '@/assets/meadow/girl.webp'
 import bagUrl from '@/assets/meadow/bag.webp'
-import wallpaperUrl from '@/assets/meadow/phone-wallpaper.webp'
 import girlShadowUrl from '@/assets/meadow/girl-shadow.webp'
 import eyesOpenUrl from '@/assets/meadow/girl-eyes-open.webp'
 import eyesDrowsyUrl from '@/assets/meadow/girl-eyes-drowsy.webp'
@@ -61,6 +60,8 @@ export interface MeadowState {
   /** her glasses and her hat (wear.ts): each on the grass, on its way, or on her face */
   glasses: WearState
   hat: WearState
+  /** her phone: up = lifted off the grass into the gallery (PhoneGallery.tsx), so the meadow leaves it and its strap out */
+  phone: { up: boolean }
 }
 
 /** where her head is on screen (viewport px) once she has landed, for the DOM effects around it (GirlFx.tsx); null while she is not on the surface */
@@ -624,7 +625,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       p.pixelDensity(Math.min(window.devicePixelRatio || 1, 2))
       p.noLoop()
 
-      const [ground, girlImg, eyesOpenImg, eyesDrowsyImg, girlShadow, fallingImg, skyPhoto, bladeData, bagImg, wallpaperImg, itemImgs, ...sprites] = await Promise.all([
+      const [ground, girlImg, eyesOpenImg, eyesDrowsyImg, girlShadow, fallingImg, skyPhoto, bladeData, bagImg, itemImgs, ...sprites] = await Promise.all([
         p.loadImage(groundUrl),
         loadHtmlImage(girlUrl),
         loadHtmlImage(eyesOpenUrl),
@@ -634,7 +635,6 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
         p.loadImage(FALL_ASSETS.sky),
         fetch(bladesUrl).then((r) => r.json()),
         loadHtmlImage(bagUrl),
-        loadHtmlImage(wallpaperUrl),
         Promise.all(BAG_ITEMS.map((it) => loadHtmlImage(it.image))),
         ...CLOUDS.flatMap((c) => [p.loadImage(c.spr), p.loadImage(c.shadow)]),
       ])
@@ -661,7 +661,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       await breathe()
       if (disposed) return
       const fromCanvas = (cv: HTMLCanvasElement) => imageFromPixels(cv.getContext('2d')!.getImageData(0, 0, cv.width, cv.height).data, cv.width, cv.height)
-      props = paintProps({ bag: bagImg, wallpaper: wallpaperImg }).map(({ sprite, shadow, ...rest }) => ({ ...rest, spr: fromCanvas(sprite), shadow: fromCanvas(shadow) }))
+      props = paintProps({ bag: bagImg }).map(({ sprite, shadow, ...rest }) => ({ ...rest, spr: fromCanvas(sprite), shadow: fromCanvas(shadow) }))
       bagItems = itemImgs.map((img, i) => {
         const { sprite, shadow, w, h } = paintPicture(img, BAG_ITEMS[i].height, 1, 0)
         return { w, h, spr: fromCanvas(sprite), shadow: fromCanvas(shadow) }
@@ -1164,7 +1164,8 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       const hovers: Record<string, number> = { bag: bagHover, glasses: glassesHover, hat: hatHover }
       const lift = (q: (typeof props)[number]) => (reduceMotion ? 0 : hovers[q.id ?? ''] ?? 0)
       // once they have been picked up, her glasses and hat are drawn over her instead (drawWorn)
-      const lying = props.filter((q) => !(q.id === 'glasses' && state.glasses.u > 0) && !(q.id === 'hat' && state.hat.u > 0))
+      // and while the gallery holds her phone, it and its strap are off the grass
+      const lying = props.filter((q) => !(q.id === 'glasses' && state.glasses.u > 0) && !(q.id === 'hat' && state.hat.u > 0) && !(state.phone.up && (q.id === 'phone' || q.id === 'strap')))
       p.tint(22, 42, 10, 120)
       for (const q of lying) draw(q.shadow, q, q.lift * 0.7 + lift(q) * 2, q.lift + lift(q) * 4, 1 + lift(q) * 0.03)
       p.noTint()

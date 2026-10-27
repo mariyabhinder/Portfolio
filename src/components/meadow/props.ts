@@ -14,7 +14,7 @@ export interface Prop {
   shadow: HTMLCanvasElement
   /** how far its shadow falls (scene px, down and to the right like the rest) */
   lift: number
-  /** set on the props something else has to find (the bag, which bagItems.ts opens) */
+  /** set on the props something else has to find (the bag, which bagItems.ts opens; the phone, which the gallery lifts) */
   id?: string
 }
 
@@ -481,22 +481,25 @@ export function paintPicture(img: CanvasImageSource & { width: number; height: n
 
 export interface PropImages {
   bag: HTMLImageElement
-  wallpaper: HTMLImageElement
 }
 
-// her phone: the same gold iPhone the gallery opens in (PhoneGallery.tsx), drawn from the mockup SVG's own paths (its
-// frame spans x 639..2439, y 120..3750), with the cat picture as the lock screen's wallpaper and the clock over it
+// her phone, lying face down: the back of the same gold iPhone the gallery opens in (PhoneGallery.tsx's PhoneBack), drawn
+// from the mockup SVG's own paths (its frame spans x 639..2439, y 120..3750) — the frosted back glass and camera plateau
+// under her clear case with its black polka dots
 const IPHONE = {
   body: 'M2139.82 120L937.844 120C781.196 120 654.207 246.989 654.207 403.637L654.207 3466.19C654.207 3622.84 781.196 3749.83 937.844 3749.83L2139.82 3749.83C2296.46 3749.83 2423.45 3622.84 2423.45 3466.19L2423.45 403.637C2423.45 246.989 2296.46 120 2139.82 120Z',
   groove: 'M2137.62 128.449L940.041 128.449C786.858 128.449 662.656 252.651 662.656 405.834L662.656 3463.91C662.656 3617.09 786.858 3741.29 940.041 3741.29L2137.62 3741.29C2290.8 3741.29 2415 3617.09 2415 3463.91L2415 405.834C2415 252.651 2290.8 128.449 2137.62 128.449ZM2406.55 3461.71C2406.55 3611.51 2285.14 3732.93 2135.34 3732.93L942.322 3732.93C792.519 3732.93 671.105 3611.51 671.105 3461.71L671.105 408.115C671.105 258.312 792.519 136.898 942.322 136.898L2135.42 136.898C2285.22 136.898 2406.64 258.312 2406.64 408.115L2406.64 3461.79L2406.55 3461.71Z',
   glass: 'M2132.72 147.713L945.027 147.713C800.978 147.713 684.203 264.488 684.203 408.537L684.203 3461.29C684.203 3605.34 800.978 3722.11 945.027 3722.11L2132.72 3722.11C2276.77 3722.11 2393.54 3605.34 2393.54 3461.29L2393.54 408.537C2393.54 264.488 2276.77 147.713 2132.72 147.713Z',
-  island: 'M1672.5 373.896L1389.87 373.896C1358.11 373.896 1332.34 348.126 1332.34 316.357C1332.34 284.589 1358.11 258.734 1389.87 258.734L1672.5 258.734C1704.27 258.734 1730.04 284.504 1730.04 316.357C1730.04 348.126 1704.27 373.896 1672.5 373.896Z',
 }
-// the side buttons: [x, width, top, bottom] — power on the right; action and volume on the left
+// the side buttons: [x, width, top, bottom] — power on the right; action and volume on the left (seen from the front)
 const IPHONE_BUTTONS = [[2423.45, 15.5, 1047.37, 1484.87], [639, 15.2, 693.53, 835.81], [639, 15.2, 955.36, 1232.5], [639, 15.2, 1303.98, 1581.11]]
-const IPHONE_BEZEL = 34
+// the case and camera, as PhoneBack lays them out: the case's clear rim, the camera plateau and its lenses, the lanyard hole
+const CASE_RIM = [698, 164, 2379, 3706, 242]
+const CAM = { x: 730, y: 190, s: 700, r: 160 }
+const LENSES = [[905, 400], [1258, 545], [905, 700]]
+const LANYARD = [2310, 232]
 
-function goldPhone(paper: HTMLImageElement) {
+function phoneBack() {
   const s = 0.25
   const cv = document.createElement('canvas')
   cv.width = Math.ceil(1800 * s)
@@ -504,6 +507,7 @@ function goldPhone(paper: HTMLImageElement) {
   const ctx = cv.getContext('2d')!
   ctx.scale(s, s)
   ctx.translate(-639, -120)
+  // seen from behind, the buttons are on the other sides: mirrored across the frame's middle (x 1539)
   for (const [x, w, y0, y1] of IPHONE_BUTTONS) {
     const g = ctx.createLinearGradient(0, y0, 0, y1)
     g.addColorStop(0, '#6D6750')
@@ -516,41 +520,109 @@ function goldPhone(paper: HTMLImageElement) {
     g.addColorStop(1, '#64604F')
     ctx.fillStyle = g
     ctx.beginPath()
-    ctx.roundRect(x, y0, w, y1 - y0, 6)
+    ctx.roundRect(3078 - x - w, y0, w, y1 - y0, 6)
     ctx.fill()
   }
+  const body = new Path2D(IPHONE.body), glass = new Path2D(IPHONE.glass)
   ctx.fillStyle = '#E0D0AF'
-  ctx.fill(new Path2D(IPHONE.body))
+  ctx.fill(body)
   ctx.save()
   ctx.globalCompositeOperation = 'overlay'
   ctx.fillStyle = 'rgba(0, 0, 0, 0.6)'
   ctx.fill(new Path2D(IPHONE.groove), 'evenodd')
   ctx.restore()
-  ctx.fillStyle = '#1D1D1B'
-  ctx.fill(new Path2D(IPHONE.glass))
-  // the display, inside a thin black bezel: the wallpaper cover-fitted, then the date and clock in dark ink
-  const sx = 684.2 + IPHONE_BEZEL, sy = 147.7 + IPHONE_BEZEL, sw = 1709.3 - 2 * IPHONE_BEZEL, sh = 3574.4 - 2 * IPHONE_BEZEL
-  ctx.save()
+  // the frosted back glass
+  const frost = ctx.createLinearGradient(684, 148, 2393, 3722)
+  frost.addColorStop(0, '#dedad4')
+  frost.addColorStop(0.5, '#d2cdc6')
+  frost.addColorStop(1, '#c8c3bb')
+  ctx.fillStyle = frost
+  ctx.fill(glass)
+  // the camera plateau, its three lenses in silver rings, the flash and the LiDAR dot
+  const plateau = ctx.createLinearGradient(CAM.x, CAM.y, CAM.x + CAM.s, CAM.y + CAM.s)
+  plateau.addColorStop(0, '#f1efeb')
+  plateau.addColorStop(1, '#dcd8d1')
+  ctx.fillStyle = plateau
+  ctx.strokeStyle = '#c9c4bc'
+  ctx.lineWidth = 4
   ctx.beginPath()
-  ctx.roundRect(sx, sy, sw, sh, 260.8 - IPHONE_BEZEL)
-  ctx.clip()
-  const k = Math.max(sw / paper.naturalWidth, sh / paper.naturalHeight)
-  const dw = paper.naturalWidth * k, dh = paper.naturalHeight * k
-  ctx.drawImage(paper, sx + (sw - dw) / 2, sy + (sh - dh) / 2, dw, dh)
-  ctx.restore()
-  ctx.fillStyle = 'rgb(70, 58, 54)'
-  ctx.textAlign = 'center'
-  ctx.font = '600 92px -apple-system, "SF Pro Display", "Helvetica Neue", sans-serif'
-  ctx.fillText('Monday 18 October', sx + sw / 2, sy + 400)
-  ctx.font = '700 420px -apple-system, "SF Pro Display", "Helvetica Neue", sans-serif'
-  ctx.fillText('5:20', sx + sw / 2, sy + 790)
-  ctx.fillStyle = '#1D1D1B'
-  ctx.fill(new Path2D(IPHONE.island))
-  ctx.fillStyle = '#1b3a52'
-  ctx.beginPath()
-  ctx.arc(1656.53, 316.36, 16, 0, Math.PI * 2)
+  ctx.roundRect(CAM.x, CAM.y, CAM.s, CAM.s, CAM.r)
   ctx.fill()
+  ctx.stroke()
+  const disc = (x: number, y: number, r: number, fill: string | CanvasGradient) => {
+    ctx.fillStyle = fill
+    ctx.beginPath()
+    ctx.arc(x, y, r, 0, Math.PI * 2)
+    ctx.fill()
+  }
+  for (const [x, y] of LENSES) {
+    const ring = ctx.createLinearGradient(x - 132, y - 132, x + 132, y + 132)
+    ring.addColorStop(0, '#fbfbfa')
+    ring.addColorStop(0.45, '#bdbab4')
+    ring.addColorStop(0.75, '#efedea')
+    ring.addColorStop(1, '#a9a6a0')
+    disc(x, y, 132, ring)
+    disc(x, y, 104, '#0b0b0c')
+    const lens = ctx.createRadialGradient(x - 18, y - 22, 0, x - 18, y - 22, 110)
+    lens.addColorStop(0, '#5a72b8')
+    lens.addColorStop(0.3, '#1c2a55')
+    lens.addColorStop(0.7, '#070a14')
+    lens.addColorStop(1, '#000')
+    disc(x, y, 74, lens)
+    disc(x - 24, y - 26, 13, 'rgba(255, 255, 255, 0.4)')
+  }
+  disc(1258, 300, 50, '#f6f2e8')
+  disc(1258, 300, 32, '#f8e7b8')
+  disc(1258, 790, 46, '#151515')
+  // the clear case: a soft sheen over the glass, then its polka dots, in staggered rows clear of the camera
+  const sheen = ctx.createLinearGradient(684, 148, 2393, 3722)
+  sheen.addColorStop(0, 'rgba(255, 255, 255, 0.45)')
+  sheen.addColorStop(0.3, 'rgba(255, 255, 255, 0.06)')
+  sheen.addColorStop(0.65, 'rgba(255, 255, 255, 0)')
+  sheen.addColorStop(1, 'rgba(255, 255, 255, 0.18)')
+  ctx.fillStyle = sheen
+  ctx.fill(glass)
+  const [rx0, ry0, rx1, ry1, rr] = CASE_RIM
+  const rim = new Path2D()
+  rim.roundRect(rx0, ry0, rx1 - rx0, ry1 - ry0, rr)
+  ctx.save()
+  ctx.clip(rim)
+  for (let row = 0, y = 250; y < 3700; row++, y += 165) {
+    for (let x = 770 + (row % 2) * 150; x < 2360; x += 300) {
+      if (x < 1500 && y < 950) continue
+      disc(x, y, 30, '#141414')
+    }
+  }
+  ctx.restore()
+  // the case's raised surround round the camera, and its thick clear rim catching the light
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)'
+  ctx.lineWidth = 9
+  ctx.beginPath()
+  ctx.roundRect(CAM.x - 26, CAM.y - 26, CAM.s + 52, CAM.s + 52, CAM.r + 26)
+  ctx.stroke()
+  const band = new Path2D(IPHONE.body)
+  band.addPath(rim)
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.38)'
+  ctx.fill(band, 'evenodd')
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)'
+  ctx.lineWidth = 30
+  ctx.stroke(body)
+  ctx.strokeStyle = 'rgba(167, 161, 152, 0.45)'
+  ctx.lineWidth = 5
+  ctx.stroke(rim)
+  disc(LANYARD[0], LANYARD[1], 17, '#bfbab2')
   return cv
+}
+
+// a picture turned over left to right
+function mirror(cv: HTMLCanvasElement) {
+  const out = document.createElement('canvas')
+  out.width = cv.width
+  out.height = cv.height
+  const ctx = out.getContext('2d')!
+  ctx.scale(-1, 1)
+  ctx.drawImage(cv, -cv.width, 0)
+  return out
 }
 
 // ---------- her phone's beaded strap, lying in a loose loop on the grass by the phone's bottom corner ----------
@@ -1001,17 +1073,23 @@ export const BAG_PLACE = { x: 226, y: 515, rot: -1.2, h: 80 }
 export const GLASSES_PLACE = { x: 470, y: 352, rot: -0.5 }
 export const HAT_PLACE = { x: 452, y: 280, rot: 0.3 }
 
-// where each lies, in scene px: her phone on the grass between the hat and glasses, a little to their right, and her
-// tote tipped over on its side on her other side, by her left hip
+// her phone, face down on the grass between the hat and glasses, a little to their right: where it lies (scene px), how it
+// is turned (radians) and its height. It lies upside down, so the case's lanyard hole is by the strap at its bottom corner;
+// its hotspot (DreamLanding) and the gallery that lifts it off the grass (PhoneGallery) read this too
+export const PHONE_PLACE = { x: 496, y: 318, rot: 0.25 + Math.PI, h: 34 }
+
+// where each lies, in scene px: her phone and its strap, and her tote tipped over on its side on her other side, by her left hip
 export function paintProps(imgs: PropImages): Prop[] {
-  const phone = { x: 496, y: 318, rot: 0.25 }
-  const c = Math.cos(phone.rot), s = Math.sin(phone.rot)
+  const { x, y, rot, h } = PHONE_PLACE
+  // the strap, turned over to lie by the lanyard hole, is placed in the phone's frame turned the right way up
+  const c = Math.cos(rot - Math.PI), s = Math.sin(rot - Math.PI)
+  const strap = paintPhoneCharm()
   return [
     { id: 'hat', ...HAT_PLACE, ...paintHat() },
     { id: 'glasses', ...GLASSES_PLACE, ...paintGlasses() },
     // the strap first, so its clasp slips under the phone's edge
-    { x: phone.x + CHARM_BOX.x * c - CHARM_BOX.y * s, y: phone.y + CHARM_BOX.x * s + CHARM_BOX.y * c, rot: phone.rot, ...paintPhoneCharm() },
-    { ...phone, ...paintPicture(goldPhone(imgs.wallpaper), 34, 0.5, 1.2) },
+    { id: 'strap', x: x - CHARM_BOX.x * c - CHARM_BOX.y * s, y: y - CHARM_BOX.x * s + CHARM_BOX.y * c, rot: rot - Math.PI, ...strap, sprite: mirror(strap.sprite), shadow: mirror(strap.shadow) },
+    { id: 'phone', x, y, rot, ...paintPicture(phoneBack(), h, 0.5, 1.2) },
     { id: 'bag', x: BAG_PLACE.x, y: BAG_PLACE.y, rot: BAG_PLACE.rot, ...paintPicture(imgs.bag, BAG_PLACE.h, 1, 2.8) },
   ]
 }
