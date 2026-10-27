@@ -30,7 +30,8 @@ import cloud0ShadowUrl from '@/assets/meadow/cloud-0-shadow.webp'
 import cloud1ShadowUrl from '@/assets/meadow/cloud-1-shadow.webp'
 import cloud2ShadowUrl from '@/assets/meadow/cloud-2-shadow.webp'
 import bladesUrl from '@/assets/meadow/blades.json?url'
-import { paintProps } from './props'
+import { paintProps, paintPicture } from './props'
+import { BAG_ITEMS, bagCamera, itemPose, type BagReveal } from './bagItems'
 import { createLanding, LANDER } from './landing'
 import type { LandPlace } from './landing'
 import { landAt } from './land'
@@ -53,6 +54,8 @@ export interface MeadowState {
   leave: number
   /** 0→1 = the rest of the way down onto the About Me surface, the landing and the seated, confused pose (touch.ts). */
   touch: number
+  /** the bag reveal (bagItems.ts): the camera on the bag, the pointer over it, and how far out of it each item is */
+  bag: BagReveal
 }
 
 /** where her head is on screen (viewport px) once she has landed, for the DOM effects around it (GirlFx.tsx); null while she is not on the surface */
@@ -545,7 +548,11 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let skyImg: any, skyShader: any, landing: ReturnType<typeof createLanding>
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let props: { x: number; y: number; rot: number; w: number; h: number; lift: number; spr: any; shadow: any }[] = []
+    let props: { id?: string; x: number; y: number; rot: number; w: number; h: number; lift: number; spr: any; shadow: any }[] = []
+    // the things in her bag (painted once, like the props), and how far the little lift under the pointer has come
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let bagItems: { w: number; h: number; spr: any; shadow: any }[] = []
+    let bagHover = 0
     let animStart = 0, lastT = 0, shown = false
     // seconds she has spent falling asleep (runs back when the camera pulls away), her next blink, and how open
     // her eyes are in it (1 = open), which she keeps on doing as she falls
@@ -603,7 +610,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       p.pixelDensity(Math.min(window.devicePixelRatio || 1, 2))
       p.noLoop()
 
-      const [ground, girlImg, eyesOpenImg, eyesDrowsyImg, girlShadow, fallingImg, skyPhoto, bladeData, bagImg, phoneImg, wallpaperImg, ...sprites] = await Promise.all([
+      const [ground, girlImg, eyesOpenImg, eyesDrowsyImg, girlShadow, fallingImg, skyPhoto, bladeData, bagImg, phoneImg, wallpaperImg, itemImgs, ...sprites] = await Promise.all([
         p.loadImage(groundUrl),
         loadHtmlImage(girlUrl),
         loadHtmlImage(eyesOpenUrl),
@@ -615,6 +622,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
         loadHtmlImage(bagUrl),
         loadHtmlImage(phoneUrl),
         loadHtmlImage(wallpaperUrl),
+        Promise.all(BAG_ITEMS.map((it) => loadHtmlImage(it.image))),
         ...CLOUDS.flatMap((c) => [p.loadImage(c.spr), p.loadImage(c.shadow)]),
       ])
       // the poster is on screen meanwhile; let the browser breathe between the heavier steps
@@ -641,6 +649,10 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       if (disposed) return
       const fromCanvas = (cv: HTMLCanvasElement) => imageFromPixels(cv.getContext('2d')!.getImageData(0, 0, cv.width, cv.height).data, cv.width, cv.height)
       props = paintProps({ bag: bagImg, phone: phoneImg, wallpaper: wallpaperImg }).map(({ sprite, shadow, ...rest }) => ({ ...rest, spr: fromCanvas(sprite), shadow: fromCanvas(shadow) }))
+      bagItems = itemImgs.map((img, i) => {
+        const { sprite, shadow, w, h } = paintPicture(img, BAG_ITEMS[i].height, 1, 0)
+        return { w, h, spr: fromCanvas(sprite), shadow: fromCanvas(shadow) }
+      })
       await breathe()
       if (disposed) return
       ;({ blades, flowers } = unpackBlades(bladeData))
@@ -752,6 +764,13 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       const vw = p.width, vh = p.height
       const s0 = Math.max(vw / W, vh / H)
       const ox = (vw - W * s0) / 2, oy = (vh - H * s0) / 2
+      // clicked: the camera closes in on her bag instead (the page does not scroll meanwhile)
+      if (state.bag.cam > 0) {
+        const c = bagCamera(vw, vh, state.bag.cam, { w: W, h: H }, s0, ox, oy)
+        p.translate(c.tx, c.ty)
+        p.scale(c.s)
+        return
+      }
       const fx = ox + FACE.x * s0, fy = oy + FACE.y * s0
       const k = clamp(state.zoom, 0, 1)
       const maxZoom = clamp((FACE_TARGET * Math.min(vw, vh)) / (FACE.w * s0), 3, 6)
@@ -1113,18 +1132,49 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
     // ---------- her things on the grass ----------
 
     function drawProps() {
+      // the pointer over the bag lifts it a little (its shadow slips further away)
+      bagHover += (state.bag.hover - bagHover) * 0.18
+      const hover = reduceMotion ? 0 : bagHover
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const draw = (im: any, q: (typeof props)[number], dx: number, dy: number) => {
+      const draw = (im: any, q: (typeof props)[number], dx: number, dy: number, size = 1) => {
         p.push()
         p.translate(q.x + dx, q.y + dy)
         p.rotate(q.rot)
-        p.image(im, -q.w / 2, -q.h / 2, q.w, q.h)
+        p.image(im, (-q.w * size) / 2, (-q.h * size) / 2, q.w * size, q.h * size)
         p.pop()
       }
+      const lift = (q: (typeof props)[number]) => (q.id === 'bag' ? hover : 0)
       p.tint(22, 42, 10, 120)
-      for (const q of props) draw(q.shadow, q, q.lift * 0.7, q.lift)
+      for (const q of props) draw(q.shadow, q, q.lift * 0.7 + lift(q) * 2, q.lift + lift(q) * 4, 1 + lift(q) * 0.03)
       p.noTint()
-      for (const q of props) draw(q.spr, q, 0, 0)
+      drawBagItems()
+      for (const q of props) draw(q.spr, q, 0, -lift(q) * 3, 1 + lift(q) * 0.03)
+    }
+
+    // what is in her bag, floating out of it: drawn before the bag itself, so that the bag is in front while an item is still inside
+    function drawBagItems() {
+      const bag = props.find((q) => q.id === 'bag')
+      if (!bag || !bagItems.length) return
+      const poses = BAG_ITEMS.map((it, i) => ({ it, im: bagItems[i], u: state.bag.items[i] ?? 0 })).filter((o) => o.im && o.u > 0.001)
+      const place = (o: (typeof poses)[number]) => ({ o, ...itemPose(o.it, o.u, reduceMotion) })
+      const drawn = poses.map(place)
+      const at = (im: any, x: number, y: number, rot: number, w: number, h: number) => {
+        p.push()
+        p.translate(x, y)
+        p.rotate(rot)
+        p.image(im, -w / 2, -h / 2, w, h)
+        p.pop()
+      }
+      // each throws a shadow on the grass that slips away as it rises
+      for (const d of drawn) {
+        p.tint(22, 42, 10, 110 * d.alpha)
+        at(d.o.im.shadow, bag.x + d.x + 5 * d.float, bag.y + d.y + 12 * d.float, d.rot, d.o.im.w * d.scale, d.o.im.h * d.scale)
+      }
+      for (const d of drawn) {
+        p.tint(255, 255 * d.alpha)
+        at(d.o.im.spr, bag.x + d.x, bag.y + d.y, d.rot, d.o.im.w * d.scale, d.o.im.h * d.scale)
+      }
+      p.noTint()
     }
 
     // ---------- grass in the wind ----------

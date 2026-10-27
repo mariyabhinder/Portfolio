@@ -6,6 +6,8 @@ import AboutMe from './AboutMe'
 import { LAND_CONFIG } from './meadow/land'
 import { LEAVE_CONFIG } from './meadow/leave'
 import { TOUCH_CONFIG } from './meadow/touch'
+import { BAG_PLACE } from './meadow/props'
+import { createBagReveal, playBagReveal } from './meadow/bagItems'
 // Scroll progress (0-1): the camera closes in on her face until ZOOM_END, she falls asleep, the dream wave
 // crosses from DREAM_START to DREAM_END, and from there to FALL_VH she falls through the sky. The scroll after that is the
 // landing on the cloud (meadow/land.ts): LAND_CONFIG.scrollVh more viewport heights, with its own progress (state.land), then a second
@@ -26,6 +28,35 @@ export default function DreamLanding() {
   // her phone lies on the meadow at the top of the page: a hotspot over it opens the Photos gallery
   const phoneRef = useRef<HTMLButtonElement>(null)
   const [galleryOpen, setGalleryOpen] = useState(false)
+  // her tote lies on the meadow too: clicking it plays the bag reveal (meadow/bagItems.ts). The hotspot is placed like the phone's.
+  const bagRef = useRef<HTMLButtonElement>(null)
+  const bag = useRef(createBagReveal()).current
+  const bagPlaying = useRef(false)
+  const bagStop = useRef<(() => void) | null>(null)
+  const startBag = useCallback(() => {
+    if (bagPlaying.current) return
+    bagPlaying.current = true
+    bag.hover = 0
+    const btn = bagRef.current
+    if (btn) btn.style.pointerEvents = 'none'
+    // the page stays where it is while the camera is on the bag
+    const stopScroll = (e: Event) => e.preventDefault()
+    const stopKeys = (e: KeyboardEvent) => { if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(e.key)) e.preventDefault() }
+    window.addEventListener('wheel', stopScroll, { passive: false })
+    window.addEventListener('touchmove', stopScroll, { passive: false })
+    window.addEventListener('keydown', stopKeys)
+    const stop = playBagReveal(bag, matchMedia('(prefers-reduced-motion: reduce)').matches, () => finish())
+    const finish = () => {
+      window.removeEventListener('wheel', stopScroll)
+      window.removeEventListener('touchmove', stopScroll)
+      window.removeEventListener('keydown', stopKeys)
+      bagStop.current = null
+      bagPlaying.current = false
+      // the hotspot comes back with the next scroll update
+      window.dispatchEvent(new Event('scroll'))
+    }
+    bagStop.current = () => { stop(); finish() }
+  }, [bag])
 
   useEffect(() => {
     const section = sectionRef.current!
@@ -40,7 +71,7 @@ export default function DreamLanding() {
     let leaveDistance = 1
     let touchDistance = 1
 
-    const state: MeadowState = { zoom: 0, dream: 0, fall: 0, land: 0, leave: 0, touch: 0 }
+    const state: MeadowState = { zoom: 0, dream: 0, fall: 0, land: 0, leave: 0, touch: 0, bag }
     // The meadow (and p5) load after first paint; the poster stands in until its first frame is up
     let meadow: MeadowHandle | null = null
     let visible = true
@@ -78,8 +109,25 @@ export default function DreamLanding() {
       btn.style.visibility = on ? 'visible' : 'hidden'
     }
 
+    // The bag lies at (BAG_PLACE) on the same scene; its hotspot is a box over it, turned with it
+    const BAG_BOX = { w: 76, h: 84 }
+    const placeBag = () => {
+      const btn = bagRef.current
+      if (!btn) return
+      const vw = camera.clientWidth, vh = camera.clientHeight
+      const s = Math.max(vw / 736, vh / 920)
+      const px = (vw - 736 * s) / 2 + BAG_PLACE.x * s, py = (vh - 920 * s) / 2 + BAG_PLACE.y * s
+      btn.style.width = `${BAG_BOX.w * s}px`
+      btn.style.height = `${BAG_BOX.h * s}px`
+      btn.style.transform = `translate(${px - (BAG_BOX.w * s) / 2}px, ${py - (BAG_BOX.h * s) / 2}px) rotate(${BAG_PLACE.rot}rad)`
+      const on = !bagPlaying.current && window.scrollY - sectionStart < window.innerHeight * 0.15
+      btn.style.pointerEvents = on ? 'auto' : 'none'
+      btn.style.visibility = on ? 'visible' : 'hidden'
+    }
+
     const update = () => {
       placePhone()
+      placeBag()
       const scrolled = window.scrollY - sectionStart
       const progress = Math.max(0, Math.min(1, scrolled / scrollDistance))
       state.zoom = Math.min(progress / ZOOM_END, 1)
@@ -112,6 +160,7 @@ export default function DreamLanding() {
       resizeObserver.disconnect()
       visibility.disconnect()
       cancelled = true
+      bagStop.current?.()
       meadow?.dispose()
       window.removeEventListener('scroll', update)
     }
@@ -128,6 +177,16 @@ export default function DreamLanding() {
       />
       <AboutMe />
       <GirlFx register={registerFx} />
+      <button
+        ref={bagRef}
+        type="button"
+        aria-label="Open her tote bag"
+        onClick={(e) => { e.stopPropagation(); startBag() }}
+        onMouseEnter={() => { if (!bagPlaying.current) bag.hover = 1 }}
+        onMouseLeave={() => { bag.hover = 0 }}
+        className="absolute left-0 top-0 cursor-pointer"
+        style={{ zIndex: 3, background: 'transparent' }}
+      />
       <button
         ref={phoneRef}
         type="button"

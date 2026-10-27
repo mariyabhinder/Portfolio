@@ -14,6 +14,8 @@ export interface Prop {
   shadow: HTMLCanvasElement
   /** how far its shadow falls (scene px, down and to the right like the rest) */
   lift: number
+  /** set on the props something else has to find (the bag, which bagItems.ts opens) */
+  id?: string
 }
 
 export type Pt = [number, number]
@@ -437,7 +439,7 @@ export function paintFallingRing() {
 }
 
 // ---------- her bag and phone: finished pictures, trimmed to what is drawn and given the same soft shadow ----------
-function paintPicture(img: CanvasImageSource & { width: number; height: number }, h: number, soften: number, lift: number) {
+export function paintPicture(img: CanvasImageSource & { width: number; height: number }, h: number, soften: number, lift: number) {
   // the picture's own margins are transparent: find the box the drawing really fills
   const src = document.createElement('canvas')
   src.width = img.width
@@ -531,6 +533,10 @@ function wallpaperOnPhone(phone: HTMLImageElement, paper: HTMLImageElement) {
   return cv
 }
 
+// her tote, tipped over on its side: where it lies (scene px), how it is turned (radians) and its height. The bag reveal
+// (bagItems.ts), the camera that closes in on it and its hotspot (DreamLanding) all read this one place.
+export const BAG_PLACE = { x: 226, y: 515, rot: -1.2, h: 80 }
+
 // where each lies, in scene px: her phone on the grass between the hat and glasses, a little to their right, and her
 // tote tipped over on its side on her other side, by her left hip
 export function paintProps(imgs: PropImages): Prop[] {
@@ -538,6 +544,6 @@ export function paintProps(imgs: PropImages): Prop[] {
     { x: 452, y: 280, rot: 0.3, ...paintHat() },
     { x: 470, y: 352, rot: -0.5, ...paintGlasses() },
     { x: 496, y: 318, rot: 0.25, ...paintPicture(wallpaperOnPhone(imgs.phone, imgs.wallpaper), 34, 0.5, 1.2) },
-    { x: 226, y: 515, rot: -1.2, ...paintPicture(imgs.bag, 80, 1, 2.8) },
+    { id: 'bag', x: BAG_PLACE.x, y: BAG_PLACE.y, rot: BAG_PLACE.rot, ...paintPicture(imgs.bag, BAG_PLACE.h, 1, 2.8) },
   ]
 }
