@@ -259,10 +259,11 @@ function paintHat() {
 }
 
 // ---------- her glasses, folded: two round wire rims, the bridge, and the temples folded across the lenses ----------
-// (or open, as they slip off her face while she falls: the temples straight out to either side)
-function paintGlasses(open = false) {
+// (or open, as they slip off her face while she falls: the temples straight out to either side; or worn, seen from the
+// front on her face: the temples run back from the hinges and over her ears, so only their first bit shows)
+function paintGlasses(pose: 'folded' | 'open' | 'worn' = 'folded') {
   const rand = rng(5)
-  const W = open ? 48 : 34, H = 20
+  const W = pose === 'open' ? 48 : 34, H = 20
   const { cv, ctx } = canvas(W, H)
   const R = 6.4, cx = 7.3
   // the lenses: almost nothing, a breath of sky in them and a streak of light
@@ -294,9 +295,12 @@ function paintGlasses(open = false) {
     pencil(ctx, pts, closed, rand, w * 0.35, 'rgba(255, 250, 236, 0.85)')
     ctx.restore()
   }
-  if (open) {
+  if (pose === 'open') {
     // the temples, out to either side (foreshortened, as if seen a little from behind), curling down at the ends
     for (const s of [-1, 1]) wire([[s * (cx + R), -1], [s * 17, -0.6], [s * 21, 0.4], [s * 22.6, 2.2], [s * 22.8, 3.4]], false, 0.5)
+  } else if (pose === 'worn') {
+    // her ears are just past the hinges and a little lower: the temples dip back to them
+    for (const s of [-1, 1]) wire([[s * (cx + R), -1], [s * (cx + R + 0.6), 1], [s * (cx + R + 0.8), 3.4]], false, 0.45)
   } else {
     // the temples, folded in across the lenses (the far one first, partly under the near one)
     wire([[cx + R + 0.6, -0.8], [6, 0.6], [-2, 1.6], [-8.6, 2.3], [-10.8, 3.4]], false, 0.5)
@@ -397,8 +401,14 @@ function paintShoe(seed: number, side: number) {
 
 /** Her glasses, open, for the fall: the sprite, its box (scene px), and the distance between the lens centres. */
 export function paintFallingGlasses() {
-  const { w, h, sprite } = paintGlasses(true)
+  const { w, h, sprite } = paintGlasses('open')
   return { w, h, sprite, lensGap: 14.6 }
+}
+
+/** Her glasses, open, as they sit on her face (wear.ts puts them there): the sprite, its shadow and its box (scene px). */
+export function paintWornGlasses() {
+  const { w, h, sprite, shadow } = paintGlasses('worn')
+  return { w, h, sprite, shadow }
 }
 
 /** Her ring, a thin gold band with a small stone, as it sits round her finger and then tumbles off it: the sprite and its box (px). */
@@ -986,14 +996,19 @@ export function paintNameCharm(name = 'MARIYAH', d = 20) {
 // (bagItems.ts), the camera that closes in on it and its hotspot (DreamLanding) all read this one place.
 export const BAG_PLACE = { x: 226, y: 515, rot: -1.2, h: 80 }
 
+// her glasses, folded on the grass by her head, and her hat above it: where they lie (scene px) and how they are turned
+// (radians). wear.ts lifts them from here onto her face, and DreamLanding puts their hotspots here.
+export const GLASSES_PLACE = { x: 470, y: 352, rot: -0.5 }
+export const HAT_PLACE = { x: 452, y: 280, rot: 0.3 }
+
 // where each lies, in scene px: her phone on the grass between the hat and glasses, a little to their right, and her
 // tote tipped over on its side on her other side, by her left hip
 export function paintProps(imgs: PropImages): Prop[] {
   const phone = { x: 496, y: 318, rot: 0.25 }
   const c = Math.cos(phone.rot), s = Math.sin(phone.rot)
   return [
-    { x: 452, y: 280, rot: 0.3, ...paintHat() },
-    { x: 470, y: 352, rot: -0.5, ...paintGlasses() },
+    { id: 'hat', ...HAT_PLACE, ...paintHat() },
+    { id: 'glasses', ...GLASSES_PLACE, ...paintGlasses() },
     // the strap first, so its clasp slips under the phone's edge
     { x: phone.x + CHARM_BOX.x * c - CHARM_BOX.y * s, y: phone.y + CHARM_BOX.x * s + CHARM_BOX.y * c, rot: phone.rot, ...paintPhoneCharm() },
     { ...phone, ...paintPicture(goldPhone(imgs.wallpaper), 34, 0.5, 1.2) },

@@ -8,6 +8,7 @@ import { LEAVE_CONFIG } from './meadow/leave'
 import { TOUCH_CONFIG } from './meadow/touch'
 import { BAG_PLACE } from './meadow/props'
 import { createBagReveal, playBagReveal } from './meadow/bagItems'
+import { createWear, playWear, GLASSES_WEAR, HAT_WEAR, type WearConfig, type WearState } from './meadow/wear'
 // Scroll progress (0-1): the camera closes in on her face until ZOOM_END, she falls asleep, the dream wave
 // crosses from DREAM_START to DREAM_END, and from there to FALL_VH she falls through the sky. The scroll after that is the
 // landing on the cloud (meadow/land.ts): LAND_CONFIG.scrollVh more viewport heights, with its own progress (state.land), then a second
@@ -58,6 +59,23 @@ export default function DreamLanding() {
     bagStop.current = () => { stop(); finish() }
   }, [bag])
 
+  // her glasses and hat lie by her head: clicking one puts it on her face, clicking her face takes it off again (meadow/wear.ts)
+  const glassesRef = useRef<HTMLButtonElement>(null)
+  const hatRef = useRef<HTMLButtonElement>(null)
+  const glasses = useRef(createWear()).current
+  const hat = useRef(createWear()).current
+  const wearStops = useRef(new Set<() => void>()).current
+  const toggleWear = useCallback((w: WearState, cfg: WearConfig, btn: HTMLButtonElement | null) => {
+    if (w.moving) return
+    if (btn) btn.style.pointerEvents = 'none'
+    // the hotspot moves to where it now is with the next scroll update
+    const stop = playWear(w, cfg, w.u < 0.5, matchMedia('(prefers-reduced-motion: reduce)').matches, () => {
+      wearStops.delete(stop)
+      window.dispatchEvent(new Event('scroll'))
+    })
+    wearStops.add(stop)
+  }, [wearStops])
+
   useEffect(() => {
     const section = sectionRef.current!
     const camera = cameraRef.current!
@@ -74,7 +92,7 @@ export default function DreamLanding() {
     let camW = 0, camH = 0
     let about = ''
 
-    const state: MeadowState = { zoom: 0, dream: 0, fall: 0, land: 0, leave: 0, touch: 0, bag }
+    const state: MeadowState = { zoom: 0, dream: 0, fall: 0, land: 0, leave: 0, touch: 0, bag, glasses, hat }
     // The meadow (and p5) load after first paint; the poster stands in until its first frame is up
     let meadow: MeadowHandle | null = null
     let visible = true
@@ -139,9 +157,36 @@ export default function DreamLanding() {
       showHotspot(btn, on)
     }
 
+    // The glasses' and hat's hotspots: over each on the grass, or over her face once she has it on, turned with it. The hat's
+    // is over the glasses' (it is later in the page), so with both on, her face takes the hat off first
+    const wearHotspot = (w: WearState, cfg: WearConfig, box: { w: number; h: number }, labels: [string, string]) => {
+      let wasOn: boolean | null = null
+      return (btn: HTMLButtonElement | null, resized: boolean) => {
+        if (!btn) return
+        const on = w.u >= 0.5
+        if (resized || on !== wasOn) {
+          wasOn = on
+          const vw = camW, vh = camH
+          const s = Math.max(vw / 736, vh / 920)
+          const g = on ? cfg.to : { ...cfg.from, scale: 1 }
+          const bw = box.w * g.scale * s, bh = box.h * g.scale * s
+          const px = (vw - 736 * s) / 2 + g.x * s, py = (vh - 920 * s) / 2 + g.y * s
+          btn.style.width = `${bw}px`
+          btn.style.height = `${bh}px`
+          btn.style.transform = `translate(${px - bw / 2}px, ${py - bh / 2}px) rotate(${g.rot}rad)`
+          btn.setAttribute('aria-label', labels[on ? 1 : 0])
+        }
+        showHotspot(btn, !w.moving && !bagPlaying.current && window.scrollY - sectionStart < window.innerHeight * 0.15)
+      }
+    }
+    const placeGlasses = wearHotspot(glasses, GLASSES_WEAR, { w: 38, h: 24 }, ['Put on her glasses', 'Take off her glasses'])
+    const placeHat = wearHotspot(hat, HAT_WEAR, { w: 46, h: 46 }, ['Lay her hat over her face', 'Take the hat off her face'])
+
     const update = (resized = false) => {
       placePhone(resized)
       placeBag(resized)
+      placeGlasses(glassesRef.current, resized)
+      placeHat(hatRef.current, resized)
       const scrolled = window.scrollY - sectionStart
       const progress = Math.max(0, Math.min(1, scrolled / scrollDistance))
       state.zoom = Math.min(progress / ZOOM_END, 1)
@@ -177,6 +222,7 @@ export default function DreamLanding() {
       visibility.disconnect()
       cancelled = true
       bagStop.current?.()
+      wearStops.forEach((stop) => stop())
       meadow?.dispose()
       window.removeEventListener('scroll', onScroll)
     }
@@ -200,6 +246,26 @@ export default function DreamLanding() {
         onClick={(e) => { e.stopPropagation(); startBag() }}
         onMouseEnter={() => { if (!bagPlaying.current) bag.hover = 1 }}
         onMouseLeave={() => { bag.hover = 0 }}
+        className="absolute left-0 top-0 cursor-pointer"
+        style={{ zIndex: 3, background: 'transparent' }}
+      />
+      <button
+        ref={glassesRef}
+        type="button"
+        aria-label="Put on her glasses"
+        onClick={(e) => { e.stopPropagation(); toggleWear(glasses, GLASSES_WEAR, glassesRef.current) }}
+        onMouseEnter={() => { if (!glasses.moving && glasses.u <= 0) glasses.hover = 1 }}
+        onMouseLeave={() => { glasses.hover = 0 }}
+        className="absolute left-0 top-0 cursor-pointer"
+        style={{ zIndex: 3, background: 'transparent' }}
+      />
+      <button
+        ref={hatRef}
+        type="button"
+        aria-label="Lay her hat over her face"
+        onClick={(e) => { e.stopPropagation(); toggleWear(hat, HAT_WEAR, hatRef.current) }}
+        onMouseEnter={() => { if (!hat.moving && hat.u <= 0) hat.hover = 1 }}
+        onMouseLeave={() => { hat.hover = 0 }}
         className="absolute left-0 top-0 cursor-pointer"
         style={{ zIndex: 3, background: 'transparent' }}
       />

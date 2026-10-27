@@ -29,7 +29,8 @@ import cloud0ShadowUrl from '@/assets/meadow/cloud-0-shadow.webp'
 import cloud1ShadowUrl from '@/assets/meadow/cloud-1-shadow.webp'
 import cloud2ShadowUrl from '@/assets/meadow/cloud-2-shadow.webp'
 import bladesUrl from '@/assets/meadow/blades.json?url'
-import { paintProps, paintPicture } from './props'
+import { paintProps, paintPicture, paintWornGlasses } from './props'
+import { GLASSES_WEAR, HAT_WEAR, wearPose, type WearState } from './wear'
 import { BAG_ITEMS, bagCamera, itemPose, type BagReveal } from './bagItems'
 import { createLanding, LANDER } from './landing'
 import type { LandPlace } from './landing'
@@ -57,6 +58,9 @@ export interface MeadowState {
   touch: number
   /** the bag reveal (bagItems.ts): the camera on the bag, the pointer over it, and how far out of it each item is */
   bag: BagReveal
+  /** her glasses and her hat (wear.ts): each on the grass, on its way, or on her face */
+  glasses: WearState
+  hat: WearState
 }
 
 /** where her head is on screen (viewport px) once she has landed, for the DOM effects around it (GirlFx.tsx); null while she is not on the surface */
@@ -554,6 +558,11 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let bagItems: { w: number; h: number; spr: any; shadow: any }[] = []
     let bagHover = 0
+    // her glasses open, as they sit on her face (painted once), and how far the little lift under the pointer has come for
+    // the glasses and the hat
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let wornGlasses: { w: number; h: number; spr: any; shadow: any } | null = null
+    let glassesHover = 0, hatHover = 0
     let animStart = 0, lastT = 0, shown = false
     // what the last still frame was drawn from (see p.draw)
     let stillKey = ''
@@ -657,6 +666,10 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
         const { sprite, shadow, w, h } = paintPicture(img, BAG_ITEMS[i].height, 1, 0)
         return { w, h, spr: fromCanvas(sprite), shadow: fromCanvas(shadow) }
       })
+      {
+        const { sprite, shadow, w, h } = paintWornGlasses()
+        wornGlasses = { w, h, spr: fromCanvas(sprite), shadow: fromCanvas(shadow) }
+      }
       await breathe()
       if (disposed) return
       ;({ blades, flowers } = unpackBlades(bladeData))
@@ -821,6 +834,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       drawGrass(t)
       drawProps()
       drawCloth(t, eyes)
+      drawWorn()
       drawPetals(t, dt)
       for (const c of clouds) {
         // wrap so a cloud leaves fully on the right before re-entering from the left
@@ -1137,7 +1151,8 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
     function drawProps() {
       // the pointer over the bag lifts it a little (its shadow slips further away)
       bagHover += (state.bag.hover - bagHover) * 0.18
-      const hover = reduceMotion ? 0 : bagHover
+      glassesHover += (state.glasses.hover - glassesHover) * 0.18
+      hatHover += (state.hat.hover - hatHover) * 0.18
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const draw = (im: any, q: (typeof props)[number], dx: number, dy: number, size = 1) => {
         p.push()
@@ -1146,12 +1161,53 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
         p.image(im, (-q.w * size) / 2, (-q.h * size) / 2, q.w * size, q.h * size)
         p.pop()
       }
-      const lift = (q: (typeof props)[number]) => (q.id === 'bag' ? hover : 0)
+      const hovers: Record<string, number> = { bag: bagHover, glasses: glassesHover, hat: hatHover }
+      const lift = (q: (typeof props)[number]) => (reduceMotion ? 0 : hovers[q.id ?? ''] ?? 0)
+      // once they have been picked up, her glasses and hat are drawn over her instead (drawWorn)
+      const lying = props.filter((q) => !(q.id === 'glasses' && state.glasses.u > 0) && !(q.id === 'hat' && state.hat.u > 0))
       p.tint(22, 42, 10, 120)
-      for (const q of props) draw(q.shadow, q, q.lift * 0.7 + lift(q) * 2, q.lift + lift(q) * 4, 1 + lift(q) * 0.03)
+      for (const q of lying) draw(q.shadow, q, q.lift * 0.7 + lift(q) * 2, q.lift + lift(q) * 4, 1 + lift(q) * 0.03)
       p.noTint()
       drawBagItems()
-      for (const q of props) draw(q.spr, q, 0, -lift(q) * 3, 1 + lift(q) * 0.03)
+      for (const q of lying) draw(q.spr, q, 0, -lift(q) * 3, 1 + lift(q) * 0.03)
+    }
+
+    // her glasses and hat, off the grass: rising and settling on her face (wear.ts), drawn over her, the hat over the glasses.
+    // The glasses' folded picture fades into the open one on the way; the shadow of each falls further away as it rises, and
+    // once it is on her face it is a faint warm shade on her skin
+    function drawWorn() {
+      const glasses = props.find((q) => q.id === 'glasses'), hat = props.find((q) => q.id === 'hat')
+      if (glasses && wornGlasses && state.glasses.u > 0) {
+        const o = wearPose(GLASSES_WEAR, state.glasses.u)
+        drawWearing(o, [[glasses, 1 - o.open], [wornGlasses, o.open]], glasses.lift)
+      }
+      if (hat && state.hat.u > 0) drawWearing(wearPose(HAT_WEAR, state.hat.u), [[hat, 1]], hat.lift)
+    }
+
+    // pictures (and how opaque each is) of one thing at pose `o`, and its shadow; `rest` is how far its shadow falls on the grass
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    function drawWearing(o: ReturnType<typeof wearPose>, pics: (readonly [{ w: number; h: number; spr: any; shadow: any }, number])[], rest: number) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const at = (im: any, w: number, h: number, dx: number, dy: number) => {
+        p.push()
+        p.translate(o.x + dx, o.y + dy)
+        p.rotate(o.rot)
+        p.image(im, (-w * o.scale) / 2, (-h * o.scale) / 2, w * o.scale, h * o.scale)
+        p.pop()
+      }
+      const lift = lerp(rest, 0.8, o.worn) + 14 * o.float
+      const shade = [lerp(22, 110, o.worn), lerp(42, 70, o.worn), lerp(10, 45, o.worn), lerp(120, 70, o.worn) * (1 - 0.6 * o.float)]
+      for (const [q, a] of pics) {
+        if (a <= 0.001) continue
+        p.tint(shade[0], shade[1], shade[2], shade[3] * a)
+        at(q.shadow, q.w, q.h, lift * 0.7, lift)
+      }
+      for (const [q, a] of pics) {
+        if (a <= 0.001) continue
+        p.tint(255, 255 * a)
+        at(q.spr, q.w, q.h, 0, 0)
+      }
+      p.noTint()
     }
 
     // what is in her bag, floating out of it: drawn before the bag itself, so that the bag is in front while an item is still inside
