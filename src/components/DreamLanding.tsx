@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import PhoneGallery from './PhoneGallery'
 import type { GirlAnchor, MeadowHandle, MeadowState } from './meadow/meadow'
 import GirlFx from './GirlFx'
 import AboutMe from './AboutMe'
@@ -28,6 +29,9 @@ export default function DreamLanding() {
   // the function GirlFx gives us to move its effects, called by the scene each frame with where her head is
   const fxRef = useRef<((a: GirlAnchor | null) => void) | null>(null)
   const registerFx = useCallback((fn: ((a: GirlAnchor | null) => void) | null) => { fxRef.current = fn }, [])
+  // her phone lies on the meadow at the top of the page: a hotspot over it opens the Photos gallery
+  const phoneRef = useRef<HTMLButtonElement>(null)
+  const [galleryOpen, setGalleryOpen] = useState(false)
 
   useEffect(() => {
     const section = sectionRef.current!
@@ -69,7 +73,25 @@ export default function DreamLanding() {
       touchDistance = Math.max(1, TOUCH_CONFIG.scrollVh * vh)
     }
 
+    // The scene (736 x 920) covers the viewport, centred (meadow.ts applyCamera at zoom 0); the phone sits at (496, 318), tilted 0.25 rad
+    const PHONE = { x: 496, y: 318, w: 30, h: 48, rot: 0.25 }
+    const placePhone = () => {
+      const btn = phoneRef.current
+      if (!btn) return
+      const vw = camera.clientWidth, vh = camera.clientHeight
+      const s = Math.max(vw / 736, vh / 920)
+      const px = (vw - 736 * s) / 2 + PHONE.x * s, py = (vh - 920 * s) / 2 + PHONE.y * s
+      btn.style.width = `${PHONE.w * s}px`
+      btn.style.height = `${PHONE.h * s}px`
+      btn.style.transform = `translate(${px - (PHONE.w * s) / 2}px, ${py - (PHONE.h * s) / 2}px) rotate(${PHONE.rot}rad)`
+      // only while the camera is still out and she is awake on the grass
+      const on = window.scrollY - sectionStart < window.innerHeight * 0.15
+      btn.style.pointerEvents = on ? 'auto' : 'none'
+      btn.style.visibility = on ? 'visible' : 'hidden'
+    }
+
     const update = () => {
+      placePhone()
       const scrolled = window.scrollY - sectionStart
       const progress = Math.max(0, Math.min(1, scrolled / scrollDistance))
       state.zoom = Math.min(progress / ZOOM_END, 1)
@@ -140,7 +162,16 @@ export default function DreamLanding() {
       />
       <AboutMe />
       <GirlFx register={registerFx} />
+      <button
+        ref={phoneRef}
+        type="button"
+        aria-label="Open her phone's photo albums"
+        onClick={() => setGalleryOpen(true)}
+        className="absolute left-0 top-0 cursor-pointer"
+        style={{ zIndex: 3, background: 'transparent' }}
+      />
     </div>
+    {galleryOpen ? <PhoneGallery onClose={() => setGalleryOpen(false)} /> : null}
   </section>
   )
 }
