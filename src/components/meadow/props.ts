@@ -43,13 +43,13 @@ export function rng(seed: number) {
 export const rgba = (c: number[], a = 1) => `rgba(${c[0] | 0}, ${c[1] | 0}, ${c[2] | 0}, ${a})`
 const shade = (c: number[], k: number) => c.map((v) => v * k)
 
-function canvas(w: number, h: number) {
+function canvas(w: number, h: number, d = D) {
   const cv = document.createElement('canvas')
-  cv.width = Math.ceil(w * D)
-  cv.height = Math.ceil(h * D)
+  cv.width = Math.ceil(w * d)
+  cv.height = Math.ceil(h * d)
   const ctx = cv.getContext('2d')!
   // scene px, origin in the middle of the box
-  ctx.setTransform(D, 0, 0, D, (w * D) / 2, (h * D) / 2)
+  ctx.setTransform(d, 0, 0, d, (w * d) / 2, (h * d) / 2)
   ctx.lineCap = 'round'
   ctx.lineJoin = 'round'
   return { cv, ctx }
@@ -471,65 +471,514 @@ export function paintPicture(img: CanvasImageSource & { width: number; height: n
 
 export interface PropImages {
   bag: HTMLImageElement
-  phone: HTMLImageElement
   wallpaper: HTMLImageElement
 }
 
-// the cat picture as the phone's wallpaper, cover-fitted to the screen (found from the phone's own pink pixels). The
-// lock screen's clock and date are lifted off the old wallpaper (they are the unsaturated pixels on the pink) and drawn
-// back in dark ink where they were, with nothing behind them.
-function wallpaperOnPhone(phone: HTMLImageElement, paper: HTMLImageElement) {
-  const W = phone.naturalWidth, H = phone.naturalHeight
+// her phone: the same gold iPhone the gallery opens in (PhoneGallery.tsx), drawn from the mockup SVG's own paths (its
+// frame spans x 639..2439, y 120..3750), with the cat picture as the lock screen's wallpaper and the clock over it
+const IPHONE = {
+  body: 'M2139.82 120L937.844 120C781.196 120 654.207 246.989 654.207 403.637L654.207 3466.19C654.207 3622.84 781.196 3749.83 937.844 3749.83L2139.82 3749.83C2296.46 3749.83 2423.45 3622.84 2423.45 3466.19L2423.45 403.637C2423.45 246.989 2296.46 120 2139.82 120Z',
+  groove: 'M2137.62 128.449L940.041 128.449C786.858 128.449 662.656 252.651 662.656 405.834L662.656 3463.91C662.656 3617.09 786.858 3741.29 940.041 3741.29L2137.62 3741.29C2290.8 3741.29 2415 3617.09 2415 3463.91L2415 405.834C2415 252.651 2290.8 128.449 2137.62 128.449ZM2406.55 3461.71C2406.55 3611.51 2285.14 3732.93 2135.34 3732.93L942.322 3732.93C792.519 3732.93 671.105 3611.51 671.105 3461.71L671.105 408.115C671.105 258.312 792.519 136.898 942.322 136.898L2135.42 136.898C2285.22 136.898 2406.64 258.312 2406.64 408.115L2406.64 3461.79L2406.55 3461.71Z',
+  glass: 'M2132.72 147.713L945.027 147.713C800.978 147.713 684.203 264.488 684.203 408.537L684.203 3461.29C684.203 3605.34 800.978 3722.11 945.027 3722.11L2132.72 3722.11C2276.77 3722.11 2393.54 3605.34 2393.54 3461.29L2393.54 408.537C2393.54 264.488 2276.77 147.713 2132.72 147.713Z',
+  island: 'M1672.5 373.896L1389.87 373.896C1358.11 373.896 1332.34 348.126 1332.34 316.357C1332.34 284.589 1358.11 258.734 1389.87 258.734L1672.5 258.734C1704.27 258.734 1730.04 284.504 1730.04 316.357C1730.04 348.126 1704.27 373.896 1672.5 373.896Z',
+}
+// the side buttons: [x, width, top, bottom] — power on the right; action and volume on the left
+const IPHONE_BUTTONS = [[2423.45, 15.5, 1047.37, 1484.87], [639, 15.2, 693.53, 835.81], [639, 15.2, 955.36, 1232.5], [639, 15.2, 1303.98, 1581.11]]
+const IPHONE_BEZEL = 34
+
+function goldPhone(paper: HTMLImageElement) {
+  const s = 0.25
   const cv = document.createElement('canvas')
-  cv.width = W
-  cv.height = H
-  const ctx = cv.getContext('2d', { willReadFrequently: true })!
-  ctx.drawImage(phone, 0, 0)
-  const all = ctx.getImageData(0, 0, W, H).data
-  const pinkish = (i: number) => all[i + 3] > 200 && all[i] - all[i + 1] > 25
-  // the screen: the box of pink pixels
-  let x0 = W, y0 = H, x1 = 0, y1 = 0
-  for (let y = 0; y < H; y++) {
-    for (let x = 0; x < W; x++) {
-      if (pinkish((y * W + x) * 4)) {
-        x0 = Math.min(x0, x)
-        x1 = Math.max(x1, x)
-        y0 = Math.min(y0, y)
-        y1 = Math.max(y1, y)
-      }
-    }
+  cv.width = Math.ceil(1800 * s)
+  cv.height = Math.ceil(3630 * s)
+  const ctx = cv.getContext('2d')!
+  ctx.scale(s, s)
+  ctx.translate(-639, -120)
+  for (const [x, w, y0, y1] of IPHONE_BUTTONS) {
+    const g = ctx.createLinearGradient(0, y0, 0, y1)
+    g.addColorStop(0, '#6D6750')
+    g.addColorStop(0.03, '#CCC299')
+    g.addColorStop(0.08, '#2E2D1F')
+    g.addColorStop(0.15, '#B0AC9C')
+    g.addColorStop(0.85, '#B0AC9C')
+    g.addColorStop(0.94, '#2E2D1F')
+    g.addColorStop(0.98, '#A39A75')
+    g.addColorStop(1, '#64604F')
+    ctx.fillStyle = g
+    ctx.beginPath()
+    ctx.roundRect(x, y0, w, y1 - y0, 6)
+    ctx.fill()
   }
-  const sx = x0, sy = y0, sw = x1 - x0 + 1, sh = y1 - y0 + 1
-  // the clock and date: how far each pixel is from the local pink, in how pink it is
-  const tx = Math.floor(W * 0.1), ty = Math.floor(H * 0.1), tw = Math.ceil(W * 0.4), th = Math.ceil(H * 0.15)
-  const text = ctx.getImageData(tx, ty, tw, th)
-  const bg = text.data[(tw - 2) * 4] - text.data[(tw - 2) * 4 + 1] || 1
-  for (let i = 0; i < text.data.length; i += 4) {
-    const a = Math.max(0, Math.min(1, 1 - (text.data[i] - text.data[i + 1]) / bg))
-    text.data[i] = 70
-    text.data[i + 1] = 58
-    text.data[i + 2] = 54
-    text.data[i + 3] = a < 0.2 ? 0 : Math.round(a * 255)
-  }
-  const ink = document.createElement('canvas')
-  ink.width = tw
-  ink.height = th
-  ink.getContext('2d')!.putImageData(text, 0, 0)
+  ctx.fillStyle = '#E0D0AF'
+  ctx.fill(new Path2D(IPHONE.body))
   ctx.save()
-  ctx.globalCompositeOperation = 'source-atop'
+  ctx.globalCompositeOperation = 'overlay'
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.6)'
+  ctx.fill(new Path2D(IPHONE.groove), 'evenodd')
+  ctx.restore()
+  ctx.fillStyle = '#1D1D1B'
+  ctx.fill(new Path2D(IPHONE.glass))
+  // the display, inside a thin black bezel: the wallpaper cover-fitted, then the date and clock in dark ink
+  const sx = 684.2 + IPHONE_BEZEL, sy = 147.7 + IPHONE_BEZEL, sw = 1709.3 - 2 * IPHONE_BEZEL, sh = 3574.4 - 2 * IPHONE_BEZEL
+  ctx.save()
   ctx.beginPath()
-  ctx.roundRect(sx, sy, sw, sh, W * 0.1)
+  ctx.roundRect(sx, sy, sw, sh, 260.8 - IPHONE_BEZEL)
   ctx.clip()
   const k = Math.max(sw / paper.naturalWidth, sh / paper.naturalHeight)
   const dw = paper.naturalWidth * k, dh = paper.naturalHeight * k
   ctx.drawImage(paper, sx + (sw - dw) / 2, sy + (sh - dh) / 2, dw, dh)
   ctx.restore()
-  ctx.drawImage(ink, tx, ty)
-  // the notch
-  ctx.fillStyle = '#16161a'
+  ctx.fillStyle = 'rgb(70, 58, 54)'
+  ctx.textAlign = 'center'
+  ctx.font = '600 92px -apple-system, "SF Pro Display", "Helvetica Neue", sans-serif'
+  ctx.fillText('Monday 18 October', sx + sw / 2, sy + 400)
+  ctx.font = '700 420px -apple-system, "SF Pro Display", "Helvetica Neue", sans-serif'
+  ctx.fillText('5:20', sx + sw / 2, sy + 790)
+  ctx.fillStyle = '#1D1D1B'
+  ctx.fill(new Path2D(IPHONE.island))
+  ctx.fillStyle = '#1b3a52'
   ctx.beginPath()
-  ctx.roundRect(sx + sw * 0.3, sy, sw * 0.4, sh * 0.04, sh * 0.02)
+  ctx.arc(1656.53, 316.36, 16, 0, Math.PI * 2)
   ctx.fill()
+  return cv
+}
+
+// ---------- her phone's beaded strap, lying in a loose loop on the grass by the phone's bottom corner ----------
+// It hangs from a little silver clasp under the phone's edge: a smiling sun and a rainbow cloud by the clasp, then a
+// string of pearls, clear crystals and silver beads threaded with pink pixel hearts, a pink bow and a white cloud.
+// Drawn in the phone's own frame (scene px from the phone's centre, before it is turned); CHARM_BOX is where its box sits.
+const CHARM_BOX = { x: 14, y: 25, w: 30, h: 28 }
+
+// a smooth closed path through the points (Catmull-Rom), sampled evenly enough to thread beads along
+function strand(pts: Pt[], n: number): Pt[] {
+  const out: Pt[] = []
+  for (let i = 0; i < pts.length; i++) {
+    const p0 = pts[(i - 1 + pts.length) % pts.length], p1 = pts[i], p2 = pts[(i + 1) % pts.length], p3 = pts[(i + 2) % pts.length]
+    for (let k = 0; k < n; k++) {
+      const t = k / n, t2 = t * t, t3 = t2 * t
+      const f = (a: number, b: number, c: number, d: number) =>
+        0.5 * (2 * b + (c - a) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (3 * b - a - 3 * c + d) * t3)
+      out.push([f(p0[0], p1[0], p2[0], p3[0]), f(p0[1], p1[1], p2[1], p3[1])])
+    }
+  }
+  return out
+}
+
+// points every `gap` along the path, measured round it
+function spaced(path: Pt[], gap: number): Pt[] {
+  const out: Pt[] = []
+  let d = 0
+  for (let i = 0; i < path.length; i++) {
+    const a = path[i], b = path[(i + 1) % path.length]
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1])
+    for (; d < len; d += gap) out.push([a[0] + ((b[0] - a[0]) * d) / len, a[1] + ((b[1] - a[1]) * d) / len])
+    d -= len
+  }
+  return out
+}
+
+function bead(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, kind: number) {
+  const g = ctx.createRadialGradient(x - r * 0.35, y - r * 0.4, r * 0.1, x, y, r)
+  if (kind === 0) {
+    // a pearl
+    g.addColorStop(0, '#fffefa')
+    g.addColorStop(0.7, '#f1ece2')
+    g.addColorStop(1, '#cfc6b6')
+  } else if (kind === 1) {
+    // a clear faceted crystal, catching the grass and a little rainbow
+    g.addColorStop(0, 'rgba(255, 255, 255, 0.95)')
+    g.addColorStop(0.45, 'rgba(214, 236, 230, 0.75)')
+    g.addColorStop(0.8, 'rgba(230, 214, 240, 0.7)')
+    g.addColorStop(1, 'rgba(140, 160, 150, 0.8)')
+  } else {
+    // a little silver spacer
+    g.addColorStop(0, '#ffffff')
+    g.addColorStop(0.5, '#c9cbcf')
+    g.addColorStop(1, '#7c7f86')
+  }
+  ctx.fillStyle = g
+  ctx.beginPath()
+  ctx.arc(x, y, r, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.strokeStyle = 'rgba(110, 100, 90, 0.45)'
+  ctx.lineWidth = 0.08
+  ctx.stroke()
+  if (kind === 1) {
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)'
+    ctx.lineWidth = 0.07
+    ctx.beginPath()
+    ctx.moveTo(x - r * 0.6, y)
+    ctx.lineTo(x, y - r * 0.6)
+    ctx.lineTo(x + r * 0.6, y)
+    ctx.lineTo(x, y + r * 0.6)
+    ctx.closePath()
+    ctx.stroke()
+  }
+}
+
+// an alphabet bead: a little white acrylic cube, its letter printed in black, threaded so the letter stays upright
+function letterBead(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, ch: string) {
+  const g = ctx.createLinearGradient(x - s / 2, y - s / 2, x + s / 2, y + s / 2)
+  g.addColorStop(0, '#ffffff')
+  g.addColorStop(0.6, '#f4f1ec')
+  g.addColorStop(1, '#d9d3c9')
+  ctx.fillStyle = g
+  ctx.beginPath()
+  ctx.roundRect(x - s / 2, y - s / 2, s, s, s * 0.22)
+  ctx.fill()
+  ctx.strokeStyle = 'rgba(110, 100, 90, 0.5)'
+  ctx.lineWidth = 0.08
+  ctx.stroke()
+  ctx.fillStyle = '#1a1a1a'
+  ctx.font = `800 ${s * 0.72}px system-ui, -apple-system, sans-serif`
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(ch, x, y + s * 0.04)
+}
+
+// a chunky pink heart built of little squares, a paler heart set in it
+const PIXEL_HEART = ['.XX.XX.', 'XXXXXXX', 'XXXXXXX', '.XXXXX.', '..XXX..', '...X...']
+const PIXEL_HEART_IN = ['.......', '.XX.XX.', '.XXXXX.', '..XXX..', '...X...', '.......']
+function pixelHeart(ctx: CanvasRenderingContext2D, size: number) {
+  const c = size / 7
+  ctx.save()
+  ctx.translate(-size / 2, -c * 3)
+  ctx.shadowColor = 'rgba(150, 70, 100, 0.35)'
+  ctx.shadowBlur = c * 0.6
+  for (const [rows, col] of [[PIXEL_HEART, '#f6a9c4'], [PIXEL_HEART_IN, '#fbc8da']] as const) {
+    ctx.fillStyle = col
+    rows.forEach((row, j) => [...row].forEach((ch, i) => ch === 'X' && ctx.fillRect(i * c - 0.02, j * c - 0.02, c + 0.04, c + 0.04)))
+    ctx.shadowColor = 'transparent'
+  }
+  // the moulded edge: a darker line along the bottom-right of the outer squares
+  ctx.strokeStyle = 'rgba(205, 110, 150, 0.7)'
+  ctx.lineWidth = 0.1
+  PIXEL_HEART.forEach((row, j) =>
+    [...row].forEach((ch, i) => {
+      if (ch !== 'X') return
+      if (PIXEL_HEART[j + 1]?.[i] !== 'X') {
+        ctx.beginPath()
+        ctx.moveTo(i * c, (j + 1) * c)
+        ctx.lineTo((i + 1) * c, (j + 1) * c)
+        ctx.stroke()
+      }
+      if (row[i + 1] !== 'X') {
+        ctx.beginPath()
+        ctx.moveTo((i + 1) * c, j * c)
+        ctx.lineTo((i + 1) * c, (j + 1) * c)
+        ctx.stroke()
+      }
+    }),
+  )
+  ctx.restore()
+}
+
+function puff(ctx: CanvasRenderingContext2D, size: number, fill = '#fbfbf8') {
+  const r = size / 4
+  const blobs: [number, number, number][] = [[-r * 1.2, r * 0.3, r], [0, -r * 0.35, r * 1.25], [r * 1.2, r * 0.3, r], [0, r * 0.5, r]]
+  ctx.save()
+  ctx.shadowColor = 'rgba(80, 90, 100, 0.3)'
+  ctx.shadowBlur = r * 0.5
+  ctx.shadowOffsetY = r * 0.15
+  ctx.fillStyle = fill
+  ctx.beginPath()
+  for (const [x, y, rr] of blobs) {
+    ctx.moveTo(x + rr, y)
+    ctx.arc(x, y, rr, 0, Math.PI * 2)
+  }
+  ctx.fill()
+  ctx.restore()
+  // soft grey under each puff
+  ctx.strokeStyle = 'rgba(170, 175, 185, 0.6)'
+  ctx.lineWidth = 0.1
+  for (const [x, y, rr] of blobs.slice(0, 3)) {
+    ctx.beginPath()
+    ctx.arc(x, y, rr * 0.85, Math.PI * 0.2, Math.PI * 0.8)
+    ctx.stroke()
+  }
+}
+
+function sunCharm(ctx: CanvasRenderingContext2D, size: number) {
+  const r = size * 0.32
+  ctx.fillStyle = '#f7c531'
+  ctx.beginPath()
+  for (let i = 0; i < 24; i++) {
+    const a = (i / 24) * Math.PI * 2, rr = i % 2 ? r * 1.12 : r * 1.5
+    ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr)
+  }
+  ctx.closePath()
+  ctx.fill()
+  const g = ctx.createRadialGradient(-r * 0.3, -r * 0.35, r * 0.1, 0, 0, r * 1.05)
+  g.addColorStop(0, '#fff07a')
+  g.addColorStop(1, '#f9cf2e')
+  ctx.fillStyle = g
+  ctx.beginPath()
+  ctx.arc(0, 0, r, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.strokeStyle = 'rgba(200, 140, 20, 0.6)'
+  ctx.lineWidth = 0.1
+  ctx.stroke()
+  // closed happy eyes, a smile and pink cheeks
+  ctx.strokeStyle = '#5a3b1a'
+  ctx.lineWidth = 0.12
+  for (const s of [-1, 1]) {
+    ctx.beginPath()
+    ctx.arc(s * r * 0.36, -r * 0.08, r * 0.15, Math.PI * 1.1, Math.PI * 1.9)
+    ctx.stroke()
+    ctx.fillStyle = 'rgba(245, 130, 120, 0.7)'
+    ctx.beginPath()
+    ctx.ellipse(s * r * 0.58, r * 0.2, r * 0.14, r * 0.09, 0, 0, Math.PI * 2)
+    ctx.fill()
+  }
+  ctx.beginPath()
+  ctx.arc(0, r * 0.12, r * 0.22, Math.PI * 0.15, Math.PI * 0.85)
+  ctx.stroke()
+}
+
+function rainbowCharm(ctx: CanvasRenderingContext2D, size: number) {
+  const bands = ['#f5658f', '#f7a54a', '#f8e15b', '#7fd38a', '#6fb7ef', '#a98ae6']
+  const R = size * 0.42, bw = size * 0.055
+  ctx.lineCap = 'butt'
+  bands.forEach((c, i) => {
+    ctx.strokeStyle = c
+    ctx.lineWidth = bw * 1.05
+    ctx.beginPath()
+    ctx.arc(-size * 0.08, size * 0.05, R - i * bw, Math.PI, Math.PI * 1.85)
+    ctx.stroke()
+  })
+  ctx.lineCap = 'round'
+  ctx.save()
+  ctx.translate(size * 0.14, size * 0.12)
+  puff(ctx, size * 0.62)
+  ctx.restore()
+}
+
+function bowCharm(ctx: CanvasRenderingContext2D, size: number) {
+  const s = size / 2
+  const pink = '#f7b3c9', edge = 'rgba(210, 120, 155, 0.75)'
+  const parts: Pt[][] = [
+    [[0, 0], [-s * 0.5, -s * 0.55], [-s * 0.95, -s * 0.45], [-s * 0.95, s * 0.2], [-s * 0.5, s * 0.25]],
+    [[0, 0], [s * 0.5, -s * 0.55], [s * 0.95, -s * 0.45], [s * 0.95, s * 0.2], [s * 0.5, s * 0.25]],
+    [[-s * 0.12, s * 0.1], [-s * 0.45, s * 0.85], [-s * 0.22, s * 0.95], [0, s * 0.2]],
+    [[s * 0.12, s * 0.1], [s * 0.45, s * 0.85], [s * 0.22, s * 0.95], [0, s * 0.2]],
+  ]
+  for (const p of parts) {
+    trace(ctx, p, true)
+    ctx.fillStyle = pink
+    ctx.fill()
+    ctx.strokeStyle = edge
+    ctx.lineWidth = 0.1
+    ctx.stroke()
+  }
+  // the folds in each loop, and the knot
+  ctx.strokeStyle = 'rgba(255, 235, 242, 0.9)'
+  ctx.lineWidth = 0.12
+  for (const sx of [-1, 1]) {
+    ctx.beginPath()
+    ctx.moveTo(sx * s * 0.25, -s * 0.1)
+    ctx.quadraticCurveTo(sx * s * 0.55, -s * 0.3, sx * s * 0.75, -s * 0.2)
+    ctx.stroke()
+  }
+  ctx.fillStyle = '#f39dbb'
+  ctx.beginPath()
+  ctx.ellipse(0, 0, s * 0.22, s * 0.26, 0, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.strokeStyle = edge
+  ctx.stroke()
+}
+
+function paintPhoneCharm() {
+  const rand = rng(23)
+  const { w: W, h: H } = CHARM_BOX
+  const { cv, ctx } = canvas(W, H)
+  ctx.translate(-CHARM_BOX.x, -CHARM_BOX.y)
+  // the clasp: a short silver chain from under the phone's edge to a split ring
+  const clasp: Pt = [5.5, 19.6]
+  ctx.strokeStyle = '#a9adb4'
+  ctx.lineWidth = 0.22
+  for (let i = 0; i < 5; i++) {
+    const y = 14.6 + i * 0.95
+    ctx.beginPath()
+    ctx.ellipse(4.6 + i * 0.18, y, i % 2 ? 0.18 : 0.32, 0.45, 0, 0, Math.PI * 2)
+    ctx.stroke()
+  }
+  ctx.lineWidth = 0.3
+  ctx.strokeStyle = '#c3c6cc'
+  ctx.beginPath()
+  ctx.arc(clasp[0], clasp[1], 0.75, 0, Math.PI * 2)
+  ctx.stroke()
+  ctx.strokeStyle = 'rgba(90, 95, 105, 0.6)'
+  ctx.lineWidth = 0.08
+  ctx.stroke()
+  // the strap: a loose loop of beads lying flat on the grass
+  const path = strand(
+    [clasp, [4.4, 24], [5.8, 29], [10.4, 33.1], [16.5, 34.4], [22, 32.4], [24.6, 27.4], [22.6, 22.4], [17, 20.1], [11, 19.4]],
+    24,
+  )
+  ctx.strokeStyle = 'rgba(235, 235, 230, 0.8)'
+  ctx.lineWidth = 0.12
+  trace(ctx, path, true)
+  ctx.stroke()
+  // pearls mostly, a crystal every few, a silver spacer either side of it
+  const beads = spaced(path, 0.95).slice(1)
+  const pattern = [0, 0, 2, 1, 2, 0, 0, 0, 1]
+  beads.forEach(([x, y], i) => {
+    const kind = pattern[i % pattern.length]
+    bead(ctx, x, y, kind === 2 ? 0.32 : kind === 1 ? 0.5 : 0.44, kind)
+  })
+  // the charms threaded on it, each lying at its own angle; the sun and rainbow cloud hang together from the clasp
+  const at = (t: number) => path[Math.floor(t * path.length) % path.length]
+  const charms: [Pt, number, number, (c: CanvasRenderingContext2D, s: number) => void][] = [
+    [at(0.13), 4.2, 0.2, pixelHeart],
+    [at(0.27), 3.8, -0.3, bowCharm],
+    [at(0.43), 3.8, 0.1, (c, s) => puff(c, s)],
+    [at(0.58), 4.8, -0.4, pixelHeart],
+    [at(0.82), 3.6, 0.5, bowCharm],
+    [[9, 22], 4.6, 0.15, rainbowCharm],
+    [[3, 21.6], 4.4, -0.2, sunCharm],
+  ]
+  for (const [[x, y], size, rot, draw] of charms) {
+    ctx.save()
+    ctx.translate(x, y)
+    ctx.rotate(rot + (rand() - 0.5) * 0.2)
+    draw(ctx, size)
+    ctx.restore()
+  }
+  grain(cv, rand, 0.04)
+  return { w: W, h: H, sprite: cv, shadow: shadowOf(cv, 0.4), lift: 0.7 }
+}
+
+// the same strap hanging from the corner of her phone case (PhoneGallery's back view): the chain at the top, the sun and
+// rainbow cloud by the clasp, and the beads falling in a long loop below. Its box is HANGING_CHARM.w by .h, the chain's
+// top at HANGING_CHARM.top; painted `d` canvas px to each unit so it stays crisp at the size it is shown.
+export const HANGING_CHARM = { w: 16, h: 36, top: [3, 0.5] as Pt }
+export function paintHangingCharm(d = 20) {
+  const rand = rng(23)
+  const { w: W, h: H } = HANGING_CHARM
+  const { cv, ctx } = canvas(W, H, d)
+  ctx.translate(-W / 2, -H / 2)
+  const clasp: Pt = [3, 5.4]
+  ctx.strokeStyle = '#a9adb4'
+  ctx.lineWidth = 0.22
+  for (let i = 0; i < 5; i++) {
+    ctx.beginPath()
+    ctx.ellipse(3, 0.9 + i * 0.85, i % 2 ? 0.18 : 0.32, 0.45, 0, 0, Math.PI * 2)
+    ctx.stroke()
+  }
+  ctx.lineWidth = 0.3
+  ctx.strokeStyle = '#c3c6cc'
+  ctx.beginPath()
+  ctx.arc(clasp[0], clasp[1], 0.75, 0, Math.PI * 2)
+  ctx.stroke()
+  ctx.strokeStyle = 'rgba(90, 95, 105, 0.6)'
+  ctx.lineWidth = 0.08
+  ctx.stroke()
+  const path = strand(
+    [clasp, [2.5, 12], [3.1, 20], [4.8, 27], [8.2, 32.6], [11.6, 33.2], [13.2, 29], [12.8, 21], [10.6, 13.2], [6.6, 7.2]],
+    24,
+  )
+  ctx.strokeStyle = 'rgba(235, 235, 230, 0.8)'
+  ctx.lineWidth = 0.12
+  trace(ctx, path, true)
+  ctx.stroke()
+  const beads = spaced(path, 0.95).slice(1)
+  const pattern = [0, 0, 2, 1, 2, 0, 0, 0, 1]
+  beads.forEach(([x, y], i) => {
+    const kind = pattern[i % pattern.length]
+    bead(ctx, x, y, kind === 2 ? 0.32 : kind === 1 ? 0.5 : 0.44, kind)
+  })
+  const at = (t: number) => path[Math.floor(t * path.length) % path.length]
+  const charms: [Pt, number, number, (c: CanvasRenderingContext2D, s: number) => void][] = [
+    [at(0.16), 4.2, 0.1, pixelHeart],
+    [at(0.3), 3.8, -0.2, bowCharm],
+    [at(0.45), 3.8, 0.1, (c, s) => puff(c, s)],
+    [at(0.6), 4.8, -0.15, pixelHeart],
+    [at(0.8), 3.6, 0.3, bowCharm],
+    [[6.4, 8.4], 4.6, 0.15, rainbowCharm],
+    [[2, 8], 4.4, -0.2, sunCharm],
+  ]
+  for (const [[x, y], size, rot, draw] of charms) {
+    ctx.save()
+    ctx.translate(x, y)
+    ctx.rotate(rot + (rand() - 0.5) * 0.2)
+    draw(ctx, size)
+    ctx.restore()
+  }
+  grain(cv, rand, 0.04)
+  return cv
+}
+
+// a second strap from the same lanyard hole: a short chain, then a drop of beads with her name in alphabet beads down
+// the middle and a little pixel heart at the end. It hangs as a real one does, never quite straight: the thread kinks
+// left into the strap's loop and back out, and each bead tips with it. Its box is NAME_CHARM.w by .h, the chain's top at .top.
+export const NAME_CHARM = { w: 10, h: 23, top: [7, 0.3] as Pt }
+export function paintNameCharm(name = 'MARIYAH', d = 20) {
+  const rand = rng(31)
+  const { w: W, h: H } = NAME_CHARM
+  const { cv, ctx } = canvas(W, H, d)
+  ctx.translate(-W / 2, -H / 2)
+  ctx.strokeStyle = '#a9adb4'
+  ctx.lineWidth = 0.22
+  for (let i = 0; i < 4; i++) {
+    ctx.beginPath()
+    ctx.ellipse(7, 0.75 + i * 0.85, i % 2 ? 0.18 : 0.32, 0.45, 0, 0, Math.PI * 2)
+    ctx.stroke()
+  }
+  ctx.lineWidth = 0.3
+  ctx.strokeStyle = '#c3c6cc'
+  ctx.beginPath()
+  ctx.arc(7, 4.3, 0.6, 0, Math.PI * 2)
+  ctx.stroke()
+  // the thread: an open bend through these, walked by distance so the beads sit evenly along it
+  const pts: Pt[] = [[7, 4.9], [6.7, 7.2], [5.4, 9.6], [3.4, 11.6], [2.4, 14.2], [2.9, 17], [4.4, 19.4], [4.6, 21.8], [3.6, 23.6]]
+  const path = strand([pts[0], ...pts, pts[pts.length - 1]], 16).slice(16, 16 * pts.length + 1)
+  const lens = [0]
+  for (let i = 1; i < path.length; i++) lens.push(lens[i - 1] + Math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]))
+  // where the thread is `s` along it, and which way it runs there
+  const along = (s: number): [number, number, number] => {
+    let i = 1
+    while (i < path.length - 1 && lens[i] < s) i++
+    const [ax, ay] = path[i - 1], [bx, by] = path[i]
+    const k = Math.min(1, Math.max(0, (s - lens[i - 1]) / (lens[i] - lens[i - 1] || 1)))
+    return [ax + (bx - ax) * k, ay + (by - ay) * k, Math.atan2(by - ay, bx - ax) - Math.PI / 2]
+  }
+  // pearl, spacer, crystal either side of the name
+  const ends: [number, number, number][] = [[0.5, 0.44, 0], [1.25, 0.32, 2], [2.1, 0.5, 1]]
+  for (const [s, r, kind] of ends) {
+    const [x, y] = along(s)
+    bead(ctx, x, y, r, kind)
+  }
+  for (let i = 0; i < name.length; i++) {
+    const [x, y, a] = along(3.5 + i * 1.4)
+    ctx.save()
+    ctx.translate(x, y)
+    // each cube turns with the thread, and a little on its own
+    ctx.rotate(a + (rand() - 0.5) * 0.25)
+    letterBead(ctx, 0, 0, 1.3, name[i])
+    ctx.restore()
+  }
+  const after = 3.5 + (name.length - 1) * 1.4
+  // the thread runs as far as the heart's jump ring and no further
+  const tail = after + 4.4
+  ctx.strokeStyle = 'rgba(235, 235, 230, 0.8)'
+  ctx.lineWidth = 0.12
+  ctx.globalCompositeOperation = 'destination-over'
+  ctx.beginPath()
+  path.forEach(([x, y], i) => lens[i] <= tail && (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)))
+  ctx.stroke()
+  ctx.globalCompositeOperation = 'source-over'
+  for (const [s, r, kind] of ends) {
+    const [x, y] = along(after + 3.5 - s)
+    bead(ctx, x, y, r, kind)
+  }
+  const [hx, hy, ha] = along(tail)
+  ctx.save()
+  ctx.translate(hx, hy)
+  ctx.rotate(ha * 0.6 + (rand() - 0.5) * 0.2)
+  ctx.translate(0, 1.1)
+  pixelHeart(ctx, 2.6)
+  ctx.restore()
+  grain(cv, rand, 0.04)
   return cv
 }
 
@@ -540,10 +989,14 @@ export const BAG_PLACE = { x: 226, y: 515, rot: -1.2, h: 80 }
 // where each lies, in scene px: her phone on the grass between the hat and glasses, a little to their right, and her
 // tote tipped over on its side on her other side, by her left hip
 export function paintProps(imgs: PropImages): Prop[] {
+  const phone = { x: 496, y: 318, rot: 0.25 }
+  const c = Math.cos(phone.rot), s = Math.sin(phone.rot)
   return [
     { x: 452, y: 280, rot: 0.3, ...paintHat() },
     { x: 470, y: 352, rot: -0.5, ...paintGlasses() },
-    { x: 496, y: 318, rot: 0.25, ...paintPicture(wallpaperOnPhone(imgs.phone, imgs.wallpaper), 34, 0.5, 1.2) },
+    // the strap first, so its clasp slips under the phone's edge
+    { x: phone.x + CHARM_BOX.x * c - CHARM_BOX.y * s, y: phone.y + CHARM_BOX.x * s + CHARM_BOX.y * c, rot: phone.rot, ...paintPhoneCharm() },
+    { ...phone, ...paintPicture(goldPhone(imgs.wallpaper), 34, 0.5, 1.2) },
     { id: 'bag', x: BAG_PLACE.x, y: BAG_PLACE.y, rot: BAG_PLACE.rot, ...paintPicture(imgs.bag, BAG_PLACE.h, 1, 2.8) },
   ]
 }

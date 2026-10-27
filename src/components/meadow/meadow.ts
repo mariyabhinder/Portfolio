@@ -18,7 +18,6 @@ import p5 from 'p5'
 import groundUrl from '@/assets/meadow/meadow.jpg'
 import girlUrl from '@/assets/meadow/girl.webp'
 import bagUrl from '@/assets/meadow/bag.webp'
-import phoneUrl from '@/assets/meadow/phone.webp'
 import wallpaperUrl from '@/assets/meadow/phone-wallpaper.webp'
 import girlShadowUrl from '@/assets/meadow/girl-shadow.webp'
 import eyesOpenUrl from '@/assets/meadow/girl-eyes-open.webp'
@@ -616,7 +615,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       p.pixelDensity(Math.min(window.devicePixelRatio || 1, 2))
       p.noLoop()
 
-      const [ground, girlImg, eyesOpenImg, eyesDrowsyImg, girlShadow, fallingImg, skyPhoto, bladeData, bagImg, phoneImg, wallpaperImg, itemImgs, ...sprites] = await Promise.all([
+      const [ground, girlImg, eyesOpenImg, eyesDrowsyImg, girlShadow, fallingImg, skyPhoto, bladeData, bagImg, wallpaperImg, itemImgs, ...sprites] = await Promise.all([
         p.loadImage(groundUrl),
         loadHtmlImage(girlUrl),
         loadHtmlImage(eyesOpenUrl),
@@ -626,7 +625,6 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
         p.loadImage(FALL_ASSETS.sky),
         fetch(bladesUrl).then((r) => r.json()),
         loadHtmlImage(bagUrl),
-        loadHtmlImage(phoneUrl),
         loadHtmlImage(wallpaperUrl),
         Promise.all(BAG_ITEMS.map((it) => loadHtmlImage(it.image))),
         ...CLOUDS.flatMap((c) => [p.loadImage(c.spr), p.loadImage(c.shadow)]),
@@ -654,7 +652,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       await breathe()
       if (disposed) return
       const fromCanvas = (cv: HTMLCanvasElement) => imageFromPixels(cv.getContext('2d')!.getImageData(0, 0, cv.width, cv.height).data, cv.width, cv.height)
-      props = paintProps({ bag: bagImg, phone: phoneImg, wallpaper: wallpaperImg }).map(({ sprite, shadow, ...rest }) => ({ ...rest, spr: fromCanvas(sprite), shadow: fromCanvas(shadow) }))
+      props = paintProps({ bag: bagImg, wallpaper: wallpaperImg }).map(({ sprite, shadow, ...rest }) => ({ ...rest, spr: fromCanvas(sprite), shadow: fromCanvas(shadow) }))
       bagItems = itemImgs.map((img, i) => {
         const { sprite, shadow, w, h } = paintPicture(img, BAG_ITEMS[i].height, 1, 0)
         return { w, h, spr: fromCanvas(sprite), shadow: fromCanvas(shadow) }
