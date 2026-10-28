@@ -19,7 +19,7 @@ const DREAM_END = 0.1938
 // the original length of the section (viewport heights) that zoom, dream and fall are measured in: unchanged by the landing
 const FALL_VH = 1400
 
-// Debug: a corner label naming the storyboard frame (1-18) the scroll is on. Shown in dev, or with ?frames in the URL.
+// Debug: a corner label naming the storyboard frame (1-15) the scroll is on. Shown in dev, or with ?frames in the URL.
 const SHOW_FRAMES = import.meta.env.DEV || new URLSearchParams(window.location.search).has('frames')
 const FRAMES: [number, string][] = [
   [1, 'Close on her sleeping face'],
@@ -37,9 +37,6 @@ const FRAMES: [number, string][] = [
   [13, 'Contact: picture swap, camera bump'],
   [14, 'Pressing in: dent, wisps, shadow'],
   [15, 'Bounce: rebound and settle'],
-  [16, 'Eyes close, body relaxes'],
-  [17, 'Eyes open (long blink)'],
-  [18, 'Rest: camera pulls back'],
 ]
 function frameIndex(s: { zoom: number; dream: number; fall: number; land: number }) {
   const land = s.land, d = s.dream, f = s.fall, contact = LAND_CONFIG.approach.contact / LAND_CONFIG.duration
@@ -48,10 +45,7 @@ function frameIndex(s: { zoom: number; dream: number; fall: number; land: number
     if (land < contact) return 12
     if (land < contact + 0.008) return 13
     if (land < 0.37) return 14
-    if (land < 0.454) return 15
-    if (land < 0.569) return 16
-    if (land < 0.596) return 17
-    return 18
+    return 15
   }
   if (d <= 0) return 1
   if (d < 1) return d < 0.1 ? 2 : d < 0.3 ? 3 : d < 0.45 ? 4 : d < 0.65 ? 5 : 6

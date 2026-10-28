@@ -251,9 +251,10 @@ export function landAt(l: number, reduced = false): LandFrame {
     settle,
     fabric,
     limbs,
-    closed: smooth(0, 1, e),
-    open: smooth(0, 1, (tau - E.openDelay) / E.openDuration),
-    relax,
+    // frames 16-18 (eyes close, eyes open, rest) are removed: she keeps the startled picture
+    closed: 0,
+    open: 0,
+    relax: 0,
     camDy: cam.dip * knock * m,
     camZoom: (1 + cam.punch * Math.max(0, knock) * m) * (1 - cam.pullback * easeInOut(pull)),
     shadow: lerp(C.shadow.rest, C.shadow.impact, clamp(compress, 0, 1)) * smooth(0.35, 1, a) ,
