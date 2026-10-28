@@ -15,7 +15,7 @@ import eyesOpenUrl from '@/assets/meadow/girl landing eyes open.webp'
 import startUrl from '@/assets/meadow/start.webp'
 import middleUrl from '@/assets/meadow/middle.webp'
 import endUrl from '@/assets/meadow/end.webp'
-import { paintCloud } from './cloud'
+import { paintWatercolourCloud } from './cloud'
 import { gridGeometry } from './grid'
 import type { CloudSprites } from './cloud'
 import { LAND_CONFIG } from './land'
@@ -297,7 +297,7 @@ export function createLanding(p: any, reduceMotion: boolean) {
     // the heavy part (the cloud) are done later, in slices, while she is still asleep in the meadow
     const later = (fn: () => void) => new Promise<void>((r) => setTimeout(() => { if (!disposed) fn(); r() }, 60))
     await later(() => {
-      cloud = paintCloud({ width: C.cloud.px[0], height: C.cloud.px[1], seed: 11, zone: C.cloud.zone, spread: C.cloud.spread })
+      cloud = paintWatercolourCloud({ width: C.cloud.px[0], height: C.cloud.px[1], seed: 11, zone: C.cloud.zone, spread: C.cloud.spread })
     })
     await later(() => {
       cloudImgs = { body: imageFromCanvas(cloud!.body), front: imageFromCanvas(cloud!.front), hollow: imageFromCanvas(cloud!.hollow), wisps: cloud!.wisps.map(imageFromCanvas) }

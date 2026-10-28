@@ -9,10 +9,9 @@
 // could be its own mesh. The limb swing below is the closest single-image equivalent.
 
 import fallingGirlUrl from '@/assets/meadow/falling-girl.webp'
-import skyUrl from '@/assets/meadow/sky-bg.jpg'
 
 /** Asset paths: replace the files (or these imports) without touching any animation logic. */
-export const FALL_ASSETS = { girl: fallingGirlUrl, sky: skyUrl }
+export const FALL_ASSETS = { girl: fallingGirlUrl }
 
 export const FALL_CONFIG = {
   // ---- scroll mapping ----
@@ -126,10 +125,10 @@ export const PATH = {
 }
 
 /**
- * The cloud layers, far to near (the photo itself is the backdrop behind them). Per layer: `scale` size of one tile of the
- * photo (relative to covering the viewport), `speed` how fast its slices approach (x DEPTH.rate), `zFar`/`zNear` the slice's
+ * The cloud layers, far to near (the painted sky, fallSky.ts, is the backdrop behind them). Per layer: `scale` size of one tile of the
+ * painted clouds (relative to covering the viewport), `speed` how fast its slices approach (x DEPTH.rate), `zFar`/`zNear` the slice's
  * distance at the start and end of its life (apparent size = 1/z, so near layers swell much more), `slices` how many are in
- * flight, `phase` its depth offset, `alpha`, `mask` = clouds only (blue is transparent), `hole` = fades out over her body.
+ * flight, `phase` its depth offset, `alpha`, `mask` = clouds only (the painted clouds sheet), `hole` = fades out over her body.
  */
 export const SKY_LAYERS = [
   { scale: 1.45, speed: 0.4, zFar: 3.2, zNear: 0.85, slices: 2, phase: 0.0, alpha: 0.5, front: false, hole: 0 },
@@ -228,7 +227,7 @@ export function createFallDynamics() {
 }
 
 // ---- sky layer shader ----
-// One full-viewport quad per cloud slice. The photo is tiled with mirrored repeats (never a seam), magnified by `uZoom`
+// One full-viewport quad per cloud slice. The painted sky (or, masked, its clouds alone, premultiplied) is tiled with mirrored repeats (never a seam), magnified by `uZoom`
 // about the vanishing point (clouds swell and stream outward toward the edges as they approach), smeared radially for
 // zoom blur, and (for the layers in front of her) faded out over her body so bright cloud never hides her face.
 export const SKY_VERT = `
@@ -262,8 +261,7 @@ void main() {
     vec2 uv = (r + uOff) / uTile + 0.5;
     uv = 1.0 - abs(1.0 - mod(uv, 2.0));
     vec4 c = texture2D(uTex, uv);
-    float a = uMask > 0.5 ? smoothstep(0.4, 0.86, c.r) : 1.0;
-    acc += vec4(c.rgb * a, a);
+    acc += uMask > 0.5 ? c : vec4(c.rgb, 1.0);
   }
   acc *= uAlpha / float(TAPS);
   vec2 g = (pix - uGirl.xy) / uGirl.zw;

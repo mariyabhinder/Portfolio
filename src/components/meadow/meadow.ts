@@ -32,6 +32,7 @@ import { paintProps, paintPicture, paintWornGlasses } from './props'
 import { CAP_WEAR, GLASSES_WEAR, HAT_WEAR, wearPose, type WearState } from './wear'
 import { BAG_ITEMS, bagCamera, itemPose, type BagReveal } from './bagItems'
 import { createLanding, LANDER } from './landing'
+import { paintFallSky } from './fallSky'
 import type { LandPlace } from './landing'
 import { landAt } from './land'
 import { createDrop, ABOUT_BG } from './drop'
@@ -560,7 +561,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let clothShader: any, grassShader: any, grassGeom: any, flowerGeom: any, postShader: any, fb: any, fbSky: any
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let skyImg: any, skyShader: any, skySharpShader: any, landing: ReturnType<typeof createLanding>
+    let skyImg: any, skyClouds: any, skyShader: any, skySharpShader: any, landing: ReturnType<typeof createLanding>
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let props: { id?: string; x: number; y: number; rot: number; w: number; h: number; lift: number; spr: any; shadow: any }[] = []
     // the things in her bag (painted once, like the props), and how far the little lift under the pointer has come
@@ -633,14 +634,13 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       p.pixelDensity(Math.min(window.devicePixelRatio || 1, 2))
       p.noLoop()
 
-      const [ground, girlImg, eyesOpenImg, eyesDrowsyImg, girlShadow, fallingImg, skyPhoto, shotImgs, bladeData, bagImg, itemImgs, ...sprites] = await Promise.all([
+      const [ground, girlImg, eyesOpenImg, eyesDrowsyImg, girlShadow, fallingImg, shotImgs, bladeData, bagImg, itemImgs, ...sprites] = await Promise.all([
         p.loadImage(groundUrl),
         loadHtmlImage(girlUrl),
         loadHtmlImage(eyesOpenUrl),
         loadHtmlImage(eyesDrowsyUrl),
         p.loadImage(girlShadowUrl),
         p.loadImage(FALL_ASSETS.girl),
-        p.loadImage(FALL_ASSETS.sky),
         Promise.all(SHOTS.map((s) => p.loadImage(s.sprite))),
         fetch(bladesUrl).then((r) => r.json()),
         loadHtmlImage(bagUrl),
@@ -667,10 +667,17 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       })
       faller = makeFaller({ spr: fallingImg })
       shotBodies = SHOTS.map((s, i) => makeFaller({ spr: shotImgs[i] }, s))
-      skyImg = skyPhoto
       await breathe()
       if (disposed) return
       const fromCanvas = (cv: HTMLCanvasElement) => imageFromPixels(cv.getContext('2d')!.getImageData(0, 0, cv.width, cv.height).data, cv.width, cv.height)
+      // the sky she falls through, painted in watercolour: the backdrop, and its clouds alone for the layers that fly at her
+      {
+        const { sky, clouds } = paintFallSky()
+        skyImg = fromCanvas(sky)
+        skyClouds = fromCanvas(clouds)
+      }
+      await breathe()
+      if (disposed) return
       props = paintProps({ bag: bagImg }).map(({ sprite, shadow, ...rest }) => ({ ...rest, spr: fromCanvas(sprite), shadow: fromCanvas(shadow) }))
       bagItems = itemImgs.map((img, i) => {
         const { sprite, shadow, w, h } = paintPicture(img, BAG_ITEMS[i].height, 1, 0)
@@ -937,7 +944,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
 
     // ---------- the fall ----------
 
-    // In viewport px. The dream clears onto a photographic sky; she hangs unstable for a moment, then gravity takes
+    // In viewport px. The dream clears onto a painted sky; she hangs unstable for a moment, then gravity takes
     // over (fall.ts: a drag-limited acceleration), the cloud layers stream past at their own speeds, her limbs, fabric
     // and body react to the speed, and the camera shakes, tracks and rolls with her.
     function drawSky(t: number, eyes: number) {
@@ -1110,14 +1117,14 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       return [vw / 2 + Math.sin(fr.s * 0.45) * DEPTH.sway * vw, vh * DEPTH.vanishY + Math.cos(fr.s * 0.31) * vh * 0.015]
     }
 
-    // One draw of the sky shader: the photo magnified `zoom` times about the vanishing point `vp`, offset by `off` (px of tile)
+    // One draw of the sky shader: the painted sky (or, masked, its clouds alone) magnified `zoom` times about the vanishing point `vp`, offset by `off` (px of tile)
     function skyQuad(vp: number[], tileH: number, zoom: number, off: number[], rot: number, blur: number, alpha: number, mask: boolean, hole: number, girl: number[]) {
       const vw = p.width, vh = p.height
       // unblurred (the backdrop, and the whole sky once it has stopped) needs one texture read, not six
       const sh = blur > 0 ? skyShader : skySharpShader
       p.noStroke()
       p.shader(sh)
-      sh.setUniform('uTex', skyImg)
+      sh.setUniform('uTex', mask ? skyClouds : skyImg)
       sh.setUniform('uRes', [vw, vh])
       sh.setUniform('uCentre', vp)
       sh.setUniform('uTile', [(tileH * skyImg.width) / skyImg.height, tileH])
@@ -1133,7 +1140,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       p.resetShader()
     }
 
-    // The far sky and haze: the photo itself, swelling slowly as she falls (a distant horizon barely moves)
+    // The far sky and haze: the painted sky itself, swelling slowly as she falls (a distant horizon barely moves)
     function skyBackdrop(fr: FallFrame, vp: number[], deepen: number) {
       const vw = p.width, vh = p.height
       const tileH = Math.max(vh, (vw * skyImg.height) / skyImg.width) * 1.15
@@ -1141,7 +1148,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       skyQuad(vp, tileH, zoom, [0, 0], fr.camRoll, 0, 1, false, 0, [0, 0, 1, 1])
     }
 
-    // One cloud layer: `slices` copies of the photo flying toward the camera. Each slice's distance z runs far -> near
+    // One cloud layer: `slices` copies of the painted clouds flying toward the camera. Each slice's distance z runs far -> near
     // as the distance fallen grows, so its size (1/z) grows faster and faster as it nears the lens; it fades in at the far
     // end and out at the near end, and the next slice (with its own offset and angle, from a hash of its index) takes over,
     // so nothing pops or visibly repeats. Everything is computed from `fr.travel` alone, so it rewinds exactly.
