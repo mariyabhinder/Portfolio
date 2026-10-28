@@ -29,7 +29,7 @@ import cloud1ShadowUrl from '@/assets/meadow/cloud-1-shadow.webp'
 import cloud2ShadowUrl from '@/assets/meadow/cloud-2-shadow.webp'
 import bladesUrl from '@/assets/meadow/blades.json?url'
 import { paintProps, paintPicture, paintWornGlasses } from './props'
-import { GLASSES_WEAR, HAT_WEAR, wearPose, type WearState } from './wear'
+import { CAP_WEAR, GLASSES_WEAR, HAT_WEAR, wearPose, type WearState } from './wear'
 import { BAG_ITEMS, bagCamera, itemPose, type BagReveal } from './bagItems'
 import { createLanding, LANDER } from './landing'
 import type { LandPlace } from './landing'
@@ -61,6 +61,7 @@ export interface MeadowState {
   /** her glasses and her hat (wear.ts): each on the grass, on its way, or on her face */
   glasses: WearState
   hat: WearState
+  cap: WearState
   /** her phone: up = lifted off the grass into the gallery (PhoneGallery.tsx), so the meadow leaves it and its strap out */
   phone: { up: boolean }
 }
@@ -570,7 +571,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
     // the glasses and the hat
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let wornGlasses: { w: number; h: number; spr: any; shadow: any } | null = null
-    let glassesHover = 0, hatHover = 0
+    let glassesHover = 0, hatHover = 0, capHover = 0
     let animStart = 0, lastT = 0, shown = false
     // what the last still frame was drawn from (see p.draw)
     let stillKey = ''
@@ -1220,6 +1221,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       bagHover += (state.bag.hover - bagHover) * 0.18
       glassesHover += (state.glasses.hover - glassesHover) * 0.18
       hatHover += (state.hat.hover - hatHover) * 0.18
+      capHover += (state.cap.hover - capHover) * 0.18
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const draw = (im: any, q: (typeof props)[number], dx: number, dy: number, size = 1) => {
         p.push()
@@ -1228,11 +1230,11 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
         p.image(im, (-q.w * size) / 2, (-q.h * size) / 2, q.w * size, q.h * size)
         p.pop()
       }
-      const hovers: Record<string, number> = { bag: bagHover, glasses: glassesHover, hat: hatHover }
+      const hovers: Record<string, number> = { bag: bagHover, glasses: glassesHover, hat: hatHover, cap: capHover }
       const lift = (q: (typeof props)[number]) => (reduceMotion ? 0 : hovers[q.id ?? ''] ?? 0)
       // once they have been picked up, her glasses and hat are drawn over her instead (drawWorn)
       // and while the gallery holds her phone, it and its strap are off the grass
-      const lying = props.filter((q) => !(q.id === 'glasses' && state.glasses.u > 0) && !(q.id === 'hat' && state.hat.u > 0) && !(state.phone.up && (q.id === 'phone' || q.id === 'strap')))
+      const lying = props.filter((q) => !(q.id === 'glasses' && state.glasses.u > 0) && !(q.id === 'hat' && state.hat.u > 0) && !(q.id === 'cap' && state.cap.u > 0) && !(state.phone.up && (q.id === 'phone' || q.id === 'strap')))
       p.tint(22, 42, 10, 120)
       for (const q of lying) draw(q.shadow, q, q.lift * 0.7 + lift(q) * 2, q.lift + lift(q) * 4, 1 + lift(q) * 0.03)
       p.noTint()
@@ -1250,6 +1252,8 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
         drawWearing(o, [[glasses, 1 - o.open], [wornGlasses, o.open]], glasses.lift)
       }
       if (hat && state.hat.u > 0) drawWearing(wearPose(HAT_WEAR, state.hat.u), [[hat, 1]], hat.lift)
+      const cap = props.find((q) => q.id === 'cap')
+      if (cap && state.cap.u > 0) drawWearing(wearPose(CAP_WEAR, state.cap.u), [[cap, 1]], cap.lift)
     }
 
     // pictures (and how opaque each is) of one thing at pose `o`, and its shadow; `rest` is how far its shadow falls on the grass
@@ -1260,7 +1264,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
         p.push()
         p.translate(o.x + dx, o.y + dy)
         p.rotate(o.rot)
-        p.image(im, (-w * o.scale) / 2, (-h * o.scale) / 2, w * o.scale, h * o.scale)
+        p.image(im, (-w * o.scale) / 2, (-h * o.scale * o.stretch) / 2, w * o.scale, h * o.scale * o.stretch)
         p.pop()
       }
       const lift = lerp(rest, 0.8, o.worn) + 14 * o.float

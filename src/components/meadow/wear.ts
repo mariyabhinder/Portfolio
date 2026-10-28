@@ -5,13 +5,13 @@
 // Each animation is a pure function of one number, `u` (0 = on the grass, 1 = on her face), which playWear runs on the
 // clock; the meadow (meadow.ts) reads it each frame, the way it reads the bag reveal (bagItems.ts).
 
-import { GLASSES_PLACE, HAT_PLACE } from './props'
+import { CAP_PLACE, GLASSES_PLACE, HAT_PLACE } from './props'
 
 export interface WearConfig {
   /** where it lies on the grass (scene px, radians) */
   from: { x: number; y: number; rot: number }
   /** where it sits on her face (scene px, radians), and how big (1 = as on the grass) */
-  to: { x: number; y: number; rot: number; scale: number }
+  to: { x: number; y: number; rot: number; scale: number; stretch?: number }
   /** seconds to rise off the grass and settle on her face, and to come back off it */
   on: number
   off: number
@@ -46,6 +46,18 @@ export const HAT_WEAR: WearConfig = {
   off: 1,
   arc: 26,
   spin: -0.5,
+  swell: 0.16,
+}
+
+// The cap, brim towards her chin, pulled down over her whole face like the hat (turned with her head). Seen from above as she
+// lies, it reads longer than it is wide (a big round crown, a short brim), so it is stretched along her head by `stretch`
+export const CAP_WEAR: WearConfig = {
+  from: CAP_PLACE,
+  to: { x: 391, y: 302, rot: 0.34, scale: 1.48, stretch: 1.25 },
+  on: 1.2,
+  off: 1,
+  arc: 26,
+  spin: 0.5,
   swell: 0.16,
 }
 
@@ -114,5 +126,6 @@ export function wearPose(cfg: WearConfig, u: number) {
   const float = Math.sin(Math.PI * e)
   const rot = A.rot + (B.rot - A.rot) * e + cfg.spin * float
   const scale = 1 + (B.scale - 1) * e + cfg.swell * float
-  return { x, y, rot, scale, open: smooth(0.2, 0.62, e), float, worn: smooth(0.7, 1, e) }
+  const stretch = 1 + ((B.stretch ?? 1) - 1) * e
+  return { x, y, rot, scale, stretch, open: smooth(0.2, 0.62, e), float, worn: smooth(0.7, 1, e) }
 }
