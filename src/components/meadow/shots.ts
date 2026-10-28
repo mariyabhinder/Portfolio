@@ -99,7 +99,7 @@ export const WIDE_SHOT: Shot = {
       Math.sin((s / 3.6) * TAU + 0.5) * 4 * DEG +
       Math.sin((s / 1.7) * TAU + 1.9) * 1.3 * DEG
     return {
-      x: lerp(0.6, 0.5, smooth(p)) + sway,
+      x: 0.5 + sway,
       y: lerp(0.3, 0.5, fall),
       h: lerp(0.3, 0.56, grow),
       rot,

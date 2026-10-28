@@ -128,6 +128,8 @@ const CLOUDS = [
 // (the landing on the cloud is in land.ts, landing.ts, cloud.ts and face.ts)
 const easeInOut = (x: number) => (x < 0.5 ? 2 * x * x : 1 - 2 * (1 - x) * (1 - x))
 // (the falling pose, path, sky layers and physics are in fall.ts)
+/** The face close-up of the falling picture, in fall progress: centred on `mid`, in and out over `span` (full close-up within `span - ease` of mid), `zoom` x on her head at sprite px `head`, held at `y` (fraction of the viewport height), arcing `orbit` rad in yaw */
+const FACE_ZOOM = { mid: 0.5, span: 0.1, ease: 0.07, zoom: 2.4, head: [128, 88], y: 0.48, orbit: 0.45 }
 const FALL = { rush: 0.25, rise: 0.12, settle: 0.7, w: 0.9, h: 0.64, deepen: 0.06, idle: 0.6 }
 const WIND = { a: 0.22, amp: 10, k: 0.035, w: 2.6, pace: 0.35 } // direction (radians, blowing right), hem travel in px, ripple wavenumber, ripple speed, overall tempo (lower = slower, gentler breeze)
 const windDir = [Math.cos(WIND.a), Math.sin(WIND.a)]
@@ -1000,7 +1002,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       const vp = vanishPoint(fr)
       vp[0] -= cam.drift[0] * vw
       vp[1] -= cam.drift[1] * vh
-      skyBackdrop(fr, vp, (1 + FALL.deepen * fall) * cam.bgZoom)
+      skyBackdrop(fr, vp, (1 + FALL.deepen * fall) * cam.bgZoom * (1 + 0.12 * easeInOut(clamp((FACE_ZOOM.span - Math.abs(fall - FACE_ZOOM.mid)) / FACE_ZOOM.ease, 0, 1))))
       for (const L of SKY_LAYERS) if (!L.front) skyLayer(L, fr, vp, girl)
       drawStreaks(fr, vp, ...streakBody, false)
 
@@ -1024,10 +1026,20 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
         const settle = lf ? lf.settle : 0
         p.clearDepth()
         p.push()
+        // the face close-up: over FACE_ZOOM.range the camera swings round to her, pushes in on her head, holds, and pulls back to the
+        // full-body framing. A pure function of the fall progress, so it rewinds exactly.
+        const fz = FACE_ZOOM, fb = easeInOut(clamp((fz.span - Math.abs(fall - fz.mid)) / fz.ease, 0, 1))
+        if (fb > 0 && !lf) {
+          const hc = Math.cos(rot), hs = Math.sin(rot), hdx = (fz.head[0] - FALLER.w / 2) * sc2, hdy = (fz.head[1] - FALLER.h / 2) * sc2
+          const hx = gx + hc * hdx - hs * hdy, hy = gy + hs * hdx + hc * hdy
+          p.translate(hx + fb * (vw * 0.5 - hx), hy + fb * (vh * fz.y - hy))
+          p.scale(1 + fb * (fz.zoom - 1))
+          p.translate(-hx, -hy)
+        }
         p.translate(gx + (pl ? pl.offset[0] : 0), gy + (pl ? pl.offset[1] : 0))
-        // turning in 3D gives the foreshortening; it relaxes as she lands
+        // turning in 3D gives the foreshortening; it relaxes as she lands. During the close-up the camera arcs round her (a swing in yaw)
         p.rotateX(fr.pitch * (1 - settle))
-        p.rotateY(fr.yaw * (1 - settle))
+        p.rotateY(fr.yaw * (1 - settle) + (lf ? 0 : fb * fz.orbit))
         p.scale(sc2)
         p.rotate(rot)
         p.translate(-FALLER.w / 2, -FALLER.h / 2)
