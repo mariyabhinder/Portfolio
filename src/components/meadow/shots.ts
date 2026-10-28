@@ -172,7 +172,7 @@ export const SIDE_SHOT: Shot = {
 }
 
 /** The shots, in the order of the fall. The original falling picture (fall.ts) carries on after the last one. */
-export const SHOTS: Shot[] = [WIDE_SHOT, SIDE_SHOT]
+export const SHOTS: Shot[] = [WIDE_SHOT]
 
 export interface ShotState {
   shot: Shot
