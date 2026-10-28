@@ -21,6 +21,7 @@ import udp11 from '@/assets/meadow/udp11.webp'
 import udp12 from '@/assets/meadow/udp12.webp'
 import udp13 from '@/assets/meadow/udp13.webp'
 import udp14 from '@/assets/meadow/udp14.webp'
+import wallpaper from '@/assets/meadow/phone-wallpaper.webp'
 import { HANGING_CHARM, NAME_CHARM, paintHangingCharm, paintNameCharm } from '@/components/meadow/props'
 
 // The phone's Photos app, opened by clicking her phone in the hero: an Albums screen, and an album screen once one is picked.
@@ -466,7 +467,65 @@ function Charm({ src, box: { w, h, top }, animation }: { src: string; box: { w: 
   )
 }
 
-const TABS: [string, string][] = [['Library', ICON.library], ['For You', ICON.forYou], ['Albums', ICON.albums], ['Search', ICON.search]]
+// ---------- the lock screen it turns over to: her wallpaper, the clock, and a swipe up into Photos ----------
+// the clock and date take a warm brown from the wallpaper's cat, as iOS tints them to suit a light wallpaper
+const LOCK_INK = '#7a5638'
+const LOCK_ICON = {
+  open: 'M7 11V8a5 5 0 019.6-2M6 11h12v9H6z',
+  torch: 'M8 3h8v3l-2 3v12h-4V9L8 6zM8 6h8M12 13v2',
+  camera: 'M4 8h3l2-3h6l2 3h3v11H4zM12 16.5a3.5 3.5 0 100-7 3.5 3.5 0 000 7z',
+}
+
+function LockScreen({ unlocking, recognized, onUnlock }: { unlocking: boolean; recognized: boolean; onUnlock: () => void }) {
+  const root = useRef<HTMLDivElement>(null)
+  const start = useRef<number | null>(null)
+  const [dy, setDy] = useState(0)
+  const [torch, setTorch] = useState(false)
+  const [date] = useState(() => new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }))
+
+  const onDown = (e: React.PointerEvent) => { start.current = e.clientY; e.currentTarget.setPointerCapture(e.pointerId) }
+  const onMove = (e: React.PointerEvent) => { if (start.current !== null) setDy(Math.min(0, e.clientY - start.current)) }
+  const onUp = (e: React.PointerEvent) => {
+    if (start.current === null) return
+    const d = e.clientY - start.current
+    start.current = null
+    // a tap, or a swipe a little way up, opens it; a shorter drag springs back
+    if (Math.abs(d) < 6 || d < -root.current!.offsetHeight * 0.15) onUnlock()
+    setDy(0)
+  }
+  // the round torch and camera buttons keep their own taps
+  const keep = (e: React.PointerEvent) => e.stopPropagation()
+  const round = 'absolute flex items-center justify-center rounded-full backdrop-blur-md cursor-pointer transition-colors'
+
+  return (
+    <div
+      ref={root}
+      className="absolute inset-0 z-[25] touch-none select-none overflow-hidden cursor-pointer"
+      style={{ transform: unlocking ? 'translateY(-100%)' : `translateY(${dy}px)`, transition: dy && !unlocking ? 'none' : 'transform 0.45s cubic-bezier(.32,.72,0,1)' }}
+      onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}
+    >
+      <img alt="" src={wallpaper} className="pointer-events-none absolute inset-0 h-full w-full object-cover" draggable={false} />
+      <div className="absolute inset-x-0 flex flex-col items-center" style={{ top: u(STATUS + 10), color: LOCK_INK, transition: 'opacity 0.3s', opacity: unlocking ? 0 : 1 }}>
+        <span style={{ transition: 'transform 0.35s cubic-bezier(.3,1.6,.5,1)', transform: recognized ? 'translateX(12%)' : 'none' }}>
+          <Sym d={recognized ? LOCK_ICON.open : ICON.lock} size={22} />
+        </span>
+        <div className="font-semibold" style={{ marginTop: u(40), fontSize: u(84), lineHeight: 1.1, opacity: 0.85 }}>{date}</div>
+        <div className="font-bold tracking-tight" style={{ fontSize: u(500), lineHeight: 1, marginTop: u(-6), opacity: 0.9 }}>9:41</div>
+      </div>
+
+      <button onPointerDown={keep} onClick={() => setTorch(!torch)} aria-label="Torch" className={round} style={{ left: u(170), bottom: u(190), width: u(230), height: u(230), background: torch ? 'white' : 'rgba(80, 60, 45, 0.18)', color: torch ? '#1d1d1b' : LOCK_INK }}>
+        <Sym d={LOCK_ICON.torch} size={22} fill={torch} />
+      </button>
+      <button onPointerDown={keep} aria-label="Camera" className={round} style={{ right: u(170), bottom: u(190), width: u(230), height: u(230), background: 'rgba(80, 60, 45, 0.18)', color: LOCK_INK }}>
+        <Sym d={LOCK_ICON.camera} size={22} />
+      </button>
+      <div className="absolute inset-x-0 text-center text-[13px] font-medium" style={{ bottom: u(110), color: LOCK_INK, opacity: recognized ? 0.85 : 0, transition: 'opacity 0.4s', animation: 'phone-swipe-hint 1.6s ease-in-out infinite' }}>Swipe up to open</div>
+      <style>{'@keyframes phone-swipe-hint { 0%, 100% { transform: translateY(0) } 50% { transform: translateY(-4px) } }'}</style>
+    </div>
+  )
+}
+
+const TABS: [string, string][] =[['Library', ICON.library], ['For You', ICON.forYou], ['Albums', ICON.albums], ['Search', ICON.search]]
 
 /** where her phone lies face down on the grass (DreamLanding): its centre and height on screen (px), and how it is turned (radians) */
 export interface PhoneSpot { x: number; y: number; h: number; rot: number }
@@ -514,6 +573,23 @@ export default function PhoneGallery({ spot, onClose }: { spot: () => PhoneSpot 
   }, [])
   // a flip by hand cancels the automatic one
   const flip = (to: boolean) => { clearTimeout(turn.current); setFlipped(to) }
+
+  // it turns over to the lock screen; Face ID knows her a moment later, and a swipe up opens Photos
+  const [locked, setLocked] = useState(true)
+  const [recognized, setRecognized] = useState(false)
+  useEffect(() => {
+    if (flipped || !locked) return
+    const t = window.setTimeout(() => setRecognized(true), 900)
+    return () => clearTimeout(t)
+  }, [flipped, locked])
+  // the lock screen slides away, then leaves the page
+  const [unlocking, setUnlocking] = useState(false)
+  const unlock = () => {
+    if (unlocking) return
+    setRecognized(true)
+    setUnlocking(true)
+    window.setTimeout(() => setLocked(false), 450)
+  }
 
   // it is picked up off the grass as it opens, and laid back down there, face down, as it closes
   const overlay = useRef<HTMLDivElement>(null)
@@ -582,20 +658,24 @@ export default function PhoneGallery({ spot, onClose }: { spot: () => PhoneSpot 
               style={{ left: u(SCREEN.x), top: u(SCREEN.y), width: u(SCREEN.w), height: u(SCREEN.h), borderRadius: u(SCREEN.r), fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif' }}
             >
               <div className="absolute inset-x-0 top-0 z-30 grid items-center text-[15px] font-semibold" style={{ height: u(STATUS), gridTemplateColumns: `1fr ${u(420)} 1fr`, color: dark ? 'white' : 'black' }}>
-                <span className="text-center">9:41</span>
+                <span className="text-center transition-opacity duration-300" style={{ opacity: locked && !unlocking ? 0 : 1 }}>9:41</span>
                 <span />
                 <span className="flex items-center justify-center gap-1">
                   <svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1" /><rect x="4.5" y="5" width="3" height="6" rx="1" /><rect x="9" y="2.5" width="3" height="8.5" rx="1" /><rect x="13.5" y="0" width="3" height="11" rx="1" /></svg>
                   <svg width="25" height="12" viewBox="0 0 25 12" fill="none"><rect x="0.5" y="0.5" width="21" height="11" rx="3.5" stroke="currentColor" opacity="0.4" /><rect x="2" y="2" width="18" height="8" rx="2" fill="currentColor" /><path d="M23 4v4c.8-.3 1.3-1.1 1.3-2S23.8 4.3 23 4z" fill="currentColor" opacity="0.4" /></svg>
                 </span>
               </div>
-              <div className="h-full" style={{ paddingTop: u(STATUS) }}>{album ? <AlbumScreen album={album} onBack={() => setAlbum(null)} onView={setViewing} /> : <AlbumsScreen onOpen={setAlbum} />}</div>
-              <div className="absolute inset-x-0 bottom-0 flex justify-around border-t border-neutral-200 bg-white/85 pb-6 pt-1.5 backdrop-blur-xl">
-                {TABS.map(([name, d]) => (
-                  <span key={name} className="flex flex-col items-center gap-0.5 text-[10px] font-medium" style={{ color: name === 'Albums' ? BLUE : '#a3a3a3' }}><Sym d={d} size={24} />{name}</span>
-                ))}
+              {/* Photos, which zooms up into place as the lock screen slides away */}
+              <div className="absolute inset-0" style={{ transform: locked && !unlocking ? 'scale(0.9)' : 'none', opacity: locked && !unlocking ? 0 : 1, transition: 'transform 0.5s cubic-bezier(.32,.72,0,1), opacity 0.3s' }}>
+                <div className="h-full" style={{ paddingTop: u(STATUS) }}>{album ? <AlbumScreen album={album} onBack={() => setAlbum(null)} onView={setViewing} /> : <AlbumsScreen onOpen={setAlbum} />}</div>
+                <div className="absolute inset-x-0 bottom-0 flex justify-around border-t border-neutral-200 bg-white/85 pb-6 pt-1.5 backdrop-blur-xl">
+                  {TABS.map(([name, d]) => (
+                    <span key={name} className="flex flex-col items-center gap-0.5 text-[10px] font-medium" style={{ color: name === 'Albums' ? BLUE : '#a3a3a3' }}><Sym d={d} size={24} />{name}</span>
+                  ))}
+                </div>
+                {album && viewing !== null ? <PhotoViewer album={album} index={viewing} onIndex={setViewing} onClose={() => setViewing(null)} immersive={immersive} onImmersive={setImmersive} /> : null}
               </div>
-              {album && viewing !== null ? <PhotoViewer album={album} index={viewing} onIndex={setViewing} onClose={() => setViewing(null)} immersive={immersive} onImmersive={setImmersive} /> : null}
+              {locked ? <LockScreen unlocking={unlocking} recognized={recognized} onUnlock={unlock} /> : null}
               <div className="pointer-events-none absolute bottom-2 left-1/2 z-30 h-[5px] w-[36%] -translate-x-1/2 rounded-full" style={{ background: dark ? 'white' : 'black' }} />
             </div>
             <DynamicIsland />

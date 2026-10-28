@@ -1,7 +1,8 @@
 // The things she has taken off and left on the grass beside her: her round glasses, folded, by her head; her bucket
-// hat, cast off above it; and her cream ballet flats, kicked off by her feet. Each is painted once while the meadow
-// loads, the way the rest of the picture was: a watercolour wash pooling darker at its edges, a wobbly pencil line
-// over it, and the paper's grain; and each gets a soft shadow on the grass.
+// hat, cast off above it; a black cap with the Crescentic swirl stitched on it, past her right hand; and her cream
+// ballet flats, kicked off by her feet. Each is painted once while the meadow loads, the way the rest of the picture
+// was: a watercolour wash pooling darker at its edges, a wobbly pencil line over it, and the paper's grain; and each
+// gets a soft shadow on the grass.
 
 // in scene px: where it lies, how it is turned (radians), and the box it is painted in
 export interface Prop {
@@ -256,6 +257,253 @@ function paintHat() {
   ctx.restore()
   grain(cv, rand)
   return { w: W, h: H, sprite: cv, shadow: shadowOf(cv, 1.6), lift: 2.6 }
+}
+
+// ---------- a soft washed black cotton cap, sitting on the grass the right way up, seen from above ----------
+// A slim, low cricket cap, seen from overhead and a little in front, so its two big front panels face us, split
+// by the centre seam, with the button near the top of the crown and the side seams running off to either side; the
+// back is out of sight. The crown is shallow and close-fitting, softened by a couple of creases, with a row of
+// stitching round its foot; the peak juts out in front (towards +y), curving down at its sides, a band of stitching across it.
+// Seams are raised ridges, the centre one stitched twice down either side. The cotton is stone washed: mottled,
+// flecked with paler fibres and worn palest where it stands proud. The Crescentic logo is cross-stitched in orange on
+// the front panels.
+const BLACK = [46, 46, 50]
+const ORANGE = [222, 138, 34]
+function paintCap() {
+  const rand = rng(41)
+  const W = 46, H = 48
+  // painted twice as fine as the other props, so each cross stitch of the logo stays an X
+  const { cv, ctx } = canvas(W, H, D * 2)
+  // the crown's outline and the button, near its top as we look down on its front
+  const C = { x: 0, y: -3, rx: 15, ry: 11.5 }
+  const button: Pt = [0, -10.4]
+  // a point on the crown's foot, `th` round from the front (radians, positive towards +x), pulled in by `inset`
+  const rim = (th: number, inset = 0): Pt => [C.x + Math.sin(th) * (C.rx - inset), C.y + Math.cos(th) * (C.ry - inset)]
+  const crown = Array.from({ length: 64 }, (_, i) => rim((i / 64) * Math.PI * 2))
+  // the brim's edge, a rounded D in front of the crown; `inset` walks in from the edge for the stitching
+  const brimEdge = (inset: number) =>
+    Array.from({ length: 41 }, (_, i) => {
+      const t = (Math.PI * i) / 40, c = Math.cos(t)
+      return [Math.sign(c) * Math.abs(c) ** 0.8 * (13.6 - inset), 3.4 + Math.sin(t) * (15.8 - inset)] as Pt
+    })
+  const brim: Pt[] = [...brimEdge(0), [-12.6, 0.5], [12.6, 0.5]]
+  // stone washing, inside the outline: soft paler and darker clouds, a mist of short pale fibres, the twill's
+  // diagonal ribs, and the light from the top left
+  const washed = (pts: Pt[], light: [number, number]) => {
+    ctx.save()
+    trace(ctx, pts, true)
+    ctx.clip()
+    for (let i = 0; i < 44; i++) {
+      const x = -20 + rand() * 40, y = -20 + rand() * 40, r = 1.5 + rand() * 5
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r)
+      const pale = rand() < 0.6
+      g.addColorStop(0, pale ? `rgba(205, 205, 210, ${0.05 + rand() * 0.08})` : 'rgba(0, 0, 0, 0.14)')
+      g.addColorStop(1, 'rgba(0, 0, 0, 0)')
+      ctx.fillStyle = g
+      ctx.fillRect(x - r, y - r, r * 2, r * 2)
+    }
+    for (let i = 0; i < 800; i++) {
+      const x = -20 + rand() * 40, y = -20 + rand() * 40, len = 0.25 + rand() * 1.1, a = rand() * Math.PI
+      ctx.strokeStyle = `rgba(215, 215, 220, ${0.02 + rand() * 0.05})`
+      ctx.lineWidth = 0.06 + rand() * 0.12
+      ctx.beginPath()
+      ctx.moveTo(x, y)
+      ctx.lineTo(x + Math.cos(a) * len, y + Math.sin(a) * len)
+      ctx.stroke()
+    }
+    ctx.strokeStyle = 'rgba(220, 220, 225, 0.045)'
+    ctx.lineWidth = 0.12
+    for (let d = -50; d < 50; d += 0.45) {
+      ctx.beginPath()
+      ctx.moveTo(d, -24)
+      ctx.lineTo(d + 24, 24)
+      ctx.stroke()
+    }
+    const lit = ctx.createRadialGradient(light[0], light[1], 1, light[0] + 5, light[1] + 6, 24)
+    lit.addColorStop(0, 'rgba(255, 255, 255, 0.13)')
+    lit.addColorStop(0.5, 'rgba(255, 255, 255, 0.02)')
+    lit.addColorStop(1, 'rgba(0, 0, 0, 0.28)')
+    ctx.fillStyle = lit
+    ctx.fillRect(-23, -24, 46, 48)
+    ctx.restore()
+  }
+  // a pale, worn ridge along a line: a broad faint stroke with a narrower brighter one on it
+  const worn = (pts: Pt[], w: number) => {
+    pencil(ctx, pts, false, rand, w, 'rgba(205, 205, 212, 0.07)')
+    pencil(ctx, pts, false, rand, w * 0.4, 'rgba(215, 215, 220, 0.1)')
+  }
+  const stitches = (pts: Pt[], a = 0.4) => {
+    ctx.save()
+    ctx.setLineDash([0.55, 0.36])
+    pencil(ctx, pts, false, rand, 0.1, `rgba(0, 0, 0, ${a + 0.1})`)
+    ctx.translate(-0.06, -0.08)
+    pencil(ctx, pts, false, rand, 0.07, `rgba(170, 170, 176, ${a})`)
+    ctx.restore()
+  }
+  // ----- the brim -----
+  wash(ctx, brim, shade(BLACK, 1.06), rand, 0.4)
+  washed(brim, [-6, 10])
+  ctx.save()
+  trace(ctx, brim, true)
+  ctx.clip()
+  // flat on top in the middle, darkening as its sides curve down and away from the light
+  const curve = ctx.createLinearGradient(-15, 0, 15, 0)
+  curve.addColorStop(0, 'rgba(0, 0, 0, 0.3)')
+  curve.addColorStop(0.2, 'rgba(0, 0, 0, 0.04)')
+  curve.addColorStop(0.5, 'rgba(255, 255, 255, 0.04)')
+  curve.addColorStop(0.8, 'rgba(0, 0, 0, 0.07)')
+  curve.addColorStop(1, 'rgba(0, 0, 0, 0.4)')
+  ctx.fillStyle = curve
+  ctx.fillRect(-16, 0, 32, 22)
+  // the crown's shadow on it, down and to the right
+  for (let i = 0; i < 6; i++) {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.07)'
+    ctx.beginPath()
+    ctx.ellipse(C.x + 0.6, C.y + 0.6 + i * 0.5, C.rx, C.ry, 0, 0, Math.PI * 2)
+    ctx.fill()
+  }
+  // the front edge, rubbed palest of all
+  for (const [w, a] of [[3.2, 0.05], [1.8, 0.07], [0.8, 0.1]]) {
+    ctx.strokeStyle = `rgba(215, 215, 220, ${a})`
+    ctx.lineWidth = w
+    trace(ctx, brimEdge(0), false)
+    ctx.stroke()
+  }
+  ctx.restore()
+  // rows of stitching following the edge
+  for (let i = 0; i < 5; i++) stitches(brimEdge(2.6 + i * 0.62).slice(3, 38), 0.5)
+  pencil(ctx, brim, true, rand, 0.22, 'rgba(10, 10, 12, 0.6)')
+  // ----- the crown -----
+  wash(ctx, crown, BLACK, rand, 0.4)
+  washed(crown, [-7, -13])
+  ctx.save()
+  trace(ctx, crown, true)
+  ctx.clip()
+  // the dome: lit round the button, falling into shade towards its foot, most of all away from the light
+  const dome = ctx.createRadialGradient(button[0] - 2.5, button[1] - 2.5, 1, button[0], button[1] + 1, 18)
+  dome.addColorStop(0, 'rgba(225, 225, 230, 0.12)')
+  dome.addColorStop(0.55, 'rgba(225, 225, 230, 0.02)')
+  dome.addColorStop(1, 'rgba(0, 0, 0, 0.22)')
+  ctx.fillStyle = dome
+  ctx.fillRect(-18, -22, 36, 36)
+  // soft creases where the unstructured crown slouches: shallow dark folds with a paler edge above
+  for (const [x0, y0, x1, y1, bow] of [[-9.6, 3.2, -4.4, 7.6, 1.2], [10, 2.4, 5.4, 7.6, -1]]) {
+    const fold: Pt[] = [[x0, y0], [(x0 + x1) / 2 + bow, (y0 + y1) / 2], [x1, y1]]
+    for (const [w, a] of [[2.6, 0.03], [1.4, 0.04], [0.6, 0.05]]) pencil(ctx, fold, false, rand, w, `rgba(0, 0, 0, ${a})`)
+    pencil(ctx, fold.map(([x, y]) => [x - 0.6, y - 0.7] as Pt), false, rand, 1.2, 'rgba(210, 210, 215, 0.035)')
+  }
+  // the seams from the button: the centre one down between the front panels to the brim (stitched twice down either
+  // side), the front panels' edges curving out and down to the crown's foot, and the side seams running off to either
+  // side; each a fine groove between pale-worn ridges
+  const seams: [Pt[], number][] = [
+    [[button, [0.3, -1], [0, C.y + C.ry - 0.3]], 2],
+    [[button, [-8.8, -5], [-12.6, 3.2]], 1],
+    [[button, [8.8, -5], [12.6, 3.2]], 1],
+    [[button, [-8, -12.6], [-14.6, -5.6]], 1],
+    [[button, [8, -12.6], [14.6, -5.6]], 1],
+  ]
+  for (const [seam, rows] of seams) {
+    // offsets across the seam, square to its run from the button to its end
+    const [ex, ey] = seam[2], len = Math.hypot(ex - button[0], ey - button[1])
+    const nx = -(ey - button[1]) / len, ny = (ex - button[0]) / len
+    const off = (o: number) => seam.map(([x, y]) => [x + nx * o, y + ny * o] as Pt)
+    for (const s of [-1, 1]) worn(off(s * 0.6), 0.9)
+    pencil(ctx, seam, false, rand, 0.32, 'rgba(0, 0, 0, 0.5)')
+    for (const s of [-1, 1]) for (let r = 0; r < rows; r++) stitches(off(s * (0.55 + r * 0.45)))
+  }
+  // a stitched eyelet high on each front panel, and one on each side panel
+  for (const [ex, ey, sq] of [[-5.6, -6.8, 0.85], [5.6, -6.8, 0.85], [-9.2, -8.8, 0.7], [9.2, -8.8, 0.7]]) {
+    ctx.strokeStyle = 'rgba(150, 150, 156, 0.4)'
+    ctx.lineWidth = 0.32
+    ctx.beginPath()
+    ctx.ellipse(ex, ey, 0.58, 0.58 * sq, 0, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.fillStyle = 'rgba(6, 6, 8, 0.95)'
+    ctx.beginPath()
+    ctx.ellipse(ex, ey, 0.32, 0.32 * sq, 0, 0, Math.PI * 2)
+    ctx.fill()
+  }
+  // the row of stitching round the front of the crown's foot, just above the brim
+  stitches(Array.from({ length: 30 }, (_, i) => rim(-1.25 + (2.5 * i) / 29, 1.1)))
+  ctx.restore()
+  // the crease where the crown is sewn to the brim, and the crown's outline
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.45)'
+  ctx.lineWidth = 0.8
+  trace(ctx, Array.from({ length: 30 }, (_, i) => rim(-1.1 + (2.2 * i) / 29, 0.3)), false)
+  ctx.stroke()
+  pencil(ctx, crown, true, rand, 0.22, 'rgba(10, 10, 12, 0.6)')
+  // the button on top, covered in the same washed cloth
+  const bb = ctx.createRadialGradient(button[0] - 0.4, button[1] - 0.4, 0.1, button[0], button[1], 1.4)
+  bb.addColorStop(0, 'rgba(110, 110, 116, 1)')
+  bb.addColorStop(1, 'rgba(30, 30, 33, 1)')
+  ctx.fillStyle = bb
+  ctx.beginPath()
+  ctx.ellipse(button[0], button[1], 1.4, 1.1, 0, 0, Math.PI * 2)
+  ctx.fill()
+  // the logo, in the middle of the front panels, a little squashed as they lean back from us
+  ctx.save()
+  ctx.translate(0, -0.8)
+  ctx.scale(1, 0.8)
+  stitchSwirl(ctx, 4.4, rand)
+  ctx.restore()
+  grain(cv, rand, 0.08)
+  return { w: W, h: H, sprite: cv, shadow: shadowOf(cv, 2.8), lift: 2.4 }
+}
+
+// the Crescentic logo (its SVG path, in a 451 x 443 box), worked in orange cross stitch, r across from its centre to its
+// edge: a grid of little X's wherever the logo covers a square, each the under thread one way and the top thread over it
+const LOGO = {
+  w: 451,
+  h: 443,
+  d: 'M275.8 437.397C153.852 464.132 32.8404 389.114 5.53145 269.805C-21.8119 150.526 54.8798 32.1383 176.808 5.4072C221.987 -4.51268 266.997 -0.413575 307.192 14.6712C321.398 20.4148 335.008 27.4557 347.761 35.7793C305.15 12.7615 253.747 5.16121 202.999 18.3893C98.7223 45.6268 36.7741 150.372 64.5808 252.396C92.4073 354.426 199.503 415.03 303.776 387.808C395.329 363.916 454.246 280.237 448.394 191.108C454.423 230.367 449.607 269.245 435.971 304.547C408.993 369.486 351.024 420.918 275.8 437.397ZM218.743 73.4238C291.866 55.1031 366.34 98.2114 385.086 169.744C403.852 241.261 359.793 314.114 286.666 332.479C259.564 339.268 232.328 337.62 207.765 329.233C199.09 326.031 190.724 322.009 182.867 317.239C209.033 330.342 240.201 334.007 270.605 325.081C333.042 306.784 368.488 242.404 349.742 181.312C331.016 120.221 265.208 85.5524 202.797 103.873C147.943 119.961 113.964 171.552 119.13 225.25C114.792 201.668 116.926 178.11 124.508 156.525C139.587 116.831 173.609 84.7325 218.719 73.4141L218.743 73.4238ZM253.21 277.348C217.89 286.207 181.906 265.378 172.85 230.825C163.81 196.272 185.08 161.088 220.399 152.209C233.503 148.92 246.663 149.725 258.523 153.781C262.724 155.315 266.751 157.268 270.561 159.573C257.908 153.246 242.843 151.467 228.169 155.787C198.01 164.612 180.9 195.717 189.941 225.241C198.982 254.745 230.776 271.479 260.934 262.64C287.409 254.87 303.84 229.953 301.33 203.998C303.435 215.393 302.395 226.759 298.733 237.191C291.472 256.384 275.023 271.879 253.224 277.348L253.21 277.348Z',
+}
+function stitchSwirl(ctx: CanvasRenderingContext2D, r: number, rand: () => number) {
+  const logo = new Path2D(LOGO.d)
+  // a scratch context with no transform, to ask which squares the logo covers (in the SVG's own units)
+  const probe = document.createElement('canvas').getContext('2d')!
+  const k = (2 * r) / LOGO.w, cell = 15
+  // a square is stitched if the logo covers at least half of the four points round its middle
+  const covered = (u: number, v: number) =>
+    [[-0.25, -0.25], [0.25, -0.25], [-0.25, 0.25], [0.25, 0.25]].filter(([a, b]) => probe.isPointInPath(logo, u + a * cell, v + b * cell, 'evenodd')).length >= 2
+  const h = cell * k * 0.46
+  ctx.save()
+  ctx.lineCap = 'round'
+  for (let v = cell / 2; v < LOGO.h; v += cell) {
+    for (let u = cell / 2; u < LOGO.w; u += cell) {
+      if (!covered(u, v)) continue
+      const x = (u - LOGO.w / 2) * k, y = (v - LOGO.h / 2) * k
+      const tone = 0.96 + rand() * 0.12
+      const j = () => (rand() - 0.5) * h * 0.2
+      // the shadow the thread casts on the cotton, then the under stitch (/), then the top stitch (\) over it
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)'
+      ctx.lineWidth = h * 0.8
+      ctx.beginPath()
+      ctx.moveTo(x - h + 0.04, y - h + 0.06)
+      ctx.lineTo(x + h + 0.04, y + h + 0.06)
+      ctx.moveTo(x - h + 0.04, y + h + 0.06)
+      ctx.lineTo(x + h + 0.04, y - h + 0.06)
+      ctx.stroke()
+      ctx.lineWidth = h * 0.7
+      ctx.strokeStyle = rgba(shade(ORANGE, tone * 0.86))
+      ctx.beginPath()
+      ctx.moveTo(x - h + j(), y + h + j())
+      ctx.lineTo(x + h + j(), y - h + j())
+      ctx.stroke()
+      ctx.strokeStyle = rgba(shade(ORANGE, tone))
+      ctx.beginPath()
+      ctx.moveTo(x - h + j(), y - h + j())
+      ctx.lineTo(x + h + j(), y + h + j())
+      ctx.stroke()
+      // the sheen along the top thread
+      ctx.strokeStyle = 'rgba(255, 226, 160, 0.4)'
+      ctx.lineWidth = h * 0.18
+      ctx.beginPath()
+      ctx.moveTo(x - h * 0.6 - h * 0.12, y - h * 0.6 + h * 0.12)
+      ctx.lineTo(x + h * 0.4 - h * 0.12, y + h * 0.4 + h * 0.12)
+      ctx.stroke()
+    }
+  }
+  ctx.restore()
 }
 
 // ---------- her glasses, folded: two round wire rims, the bridge, and the temples folded across the lenses ----------
@@ -1073,6 +1321,9 @@ export const BAG_PLACE = { x: 226, y: 515, rot: -1.2, h: 80 }
 export const GLASSES_PLACE = { x: 470, y: 352, rot: -0.5 }
 export const HAT_PLACE = { x: 452, y: 280, rot: 0.3 }
 
+// the black cap with the orange Crescentic swirl, dropped on the grass past her right hand, its brim towards her feet
+export const CAP_PLACE = { x: 502, y: 536, rot: -0.5 }
+
 // her phone, face down on the grass between the hat and glasses, a little to their right: where it lies (scene px), how it
 // is turned (radians) and its height. It lies upside down, so the case's lanyard hole is by the strap at its bottom corner;
 // its hotspot (DreamLanding) and the gallery that lifts it off the grass (PhoneGallery) read this too
@@ -1087,6 +1338,7 @@ export function paintProps(imgs: PropImages): Prop[] {
   return [
     { id: 'hat', ...HAT_PLACE, ...paintHat() },
     { id: 'glasses', ...GLASSES_PLACE, ...paintGlasses() },
+    { id: 'cap', ...CAP_PLACE, ...paintCap() },
     // the strap first, so its clasp slips under the phone's edge
     { id: 'strap', x: x - CHARM_BOX.x * c - CHARM_BOX.y * s, y: y - CHARM_BOX.x * s + CHARM_BOX.y * c, rot: rot - Math.PI, ...strap, sprite: mirror(strap.sprite), shadow: mirror(strap.shadow) },
     { id: 'phone', x, y, rot, ...paintPicture(phoneBack(), h, 0.5, 1.2) },

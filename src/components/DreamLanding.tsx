@@ -19,10 +19,51 @@ const DREAM_END = 0.1938
 // the original length of the section (viewport heights) that zoom, dream and fall are measured in: unchanged by the landing
 const FALL_VH = 1400
 
+// Debug: a corner label naming the storyboard frame (1-18) the scroll is on. Shown in dev, or with ?frames in the URL.
+const SHOW_FRAMES = import.meta.env.DEV || new URLSearchParams(window.location.search).has('frames')
+const FRAMES: [number, string][] = [
+  [1, 'Close on her sleeping face'],
+  [2, 'Warm ring of light appears'],
+  [3, 'Ring grows, meadow bends + splits colours'],
+  [4, 'Meadow breaks into dust, sky behind'],
+  [5, 'Falling girl fades in'],
+  [6, 'Meadow gone, only sky'],
+  [7, 'Hover: shock, camera shake, big wobble'],
+  [8, 'Gravity starts, clouds begin to move'],
+  [9, 'Speeding up: blur, streaks, zoom'],
+  [10, 'Top speed: steady fall'],
+  [11, 'Cloud fades in far below'],
+  [12, 'Approach: cloud swells, sky slows'],
+  [13, 'Contact: picture swap, camera bump'],
+  [14, 'Pressing in: dent, wisps, shadow'],
+  [15, 'Bounce: rebound and settle'],
+  [16, 'Eyes close, body relaxes'],
+  [17, 'Eyes open (long blink)'],
+  [18, 'Rest: camera pulls back'],
+]
+function frameIndex(s: { zoom: number; dream: number; fall: number; land: number }) {
+  const land = s.land, d = s.dream, f = s.fall, contact = LAND_CONFIG.approach.contact / LAND_CONFIG.duration
+  if (land > 0) {
+    if (land < 0.15) return 11
+    if (land < contact) return 12
+    if (land < contact + 0.008) return 13
+    if (land < 0.37) return 14
+    if (land < 0.454) return 15
+    if (land < 0.569) return 16
+    if (land < 0.596) return 17
+    return 18
+  }
+  if (d <= 0) return 1
+  if (d < 1) return d < 0.1 ? 2 : d < 0.3 ? 3 : d < 0.45 ? 4 : d < 0.65 ? 5 : 6
+  if (f <= 0) return 6
+  return f < 0.9 / 14 ? 7 : f < 0.18 ? 8 : f < 0.37 ? 9 : 10
+}
+
 export default function DreamLanding() {
   const sectionRef = useRef<HTMLElement>(null)
   const cameraRef = useRef<HTMLDivElement>(null)
   const stageRef = useRef<HTMLDivElement>(null)
+  const framesRef = useRef<HTMLDivElement>(null)
   // the function GirlFx gives us to move its effects, called by the scene each frame with where her head is
   const fxRef = useRef<((a: GirlAnchor | null) => void) | null>(null)
   const registerFx = useCallback((fn: ((a: GirlAnchor | null) => void) | null) => { fxRef.current = fn }, [])
@@ -220,6 +261,17 @@ export default function DreamLanding() {
       const a = Math.max(0, Math.min(1, (state.touch - 0.5) / 0.3))
       const next = (a * a * (3 - 2 * a)).toFixed(3)
       if (next !== about) camera.style.setProperty('--about', (about = next))
+      const label = framesRef.current
+      if (label) {
+        const n = frameIndex(state)
+        const pct = (v: number) => `${Math.round(v * 100)}%`
+        const detail = state.leave > 0 ? `after landing · leave ${pct(state.leave)}`
+          : state.land > 0 ? `Part 3 · landing ${pct(state.land)} · ${(state.land * LAND_CONFIG.duration).toFixed(1)}s`
+          : state.fall > 0 ? `Part 2 · fall ${pct(state.fall)} · ${(state.fall * 14).toFixed(1)}s`
+          : state.dream > 0 ? `Part 1 · dream ${pct(state.dream)}`
+          : `zoom ${pct(state.zoom)}`
+        label.textContent = `Frame ${n} — ${FRAMES[n - 1][1]}\n${detail}`
+      }
     }
     const onScroll = () => update()
 
@@ -260,6 +312,13 @@ export default function DreamLanding() {
       />
       <AboutMe />
       <GirlFx register={registerFx} />
+      {SHOW_FRAMES ? (
+        <div
+          ref={framesRef}
+          className="pointer-events-none absolute left-3 top-3 whitespace-pre rounded-md bg-black/70 px-3 py-2 font-mono text-sm leading-snug text-white"
+          style={{ zIndex: 10 }}
+        />
+      ) : null}
       <button
         ref={bagRef}
         type="button"
