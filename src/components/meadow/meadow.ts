@@ -128,8 +128,8 @@ const CLOUDS = [
 // (the landing on the cloud is in land.ts, landing.ts, cloud.ts and face.ts)
 const easeInOut = (x: number) => (x < 0.5 ? 2 * x * x : 1 - 2 * (1 - x) * (1 - x))
 // (the falling pose, path, sky layers and physics are in fall.ts)
-/** The face close-up of the falling picture, in fall progress: centred on `mid`, in and out over `span` (full close-up within `span - ease` of mid), `zoom` x on her head at sprite px `head`, held at `y` (fraction of the viewport height), arcing `orbit` rad in yaw */
-const FACE_ZOOM = { mid: 0.5, span: 0.1, ease: 0.07, zoom: 2.4, head: [128, 88], y: 0.48, orbit: 0.45 }
+/** The face close-up of the falling picture, in fall progress: centred on `mid`, in and out over `span` (full close-up within `span - ease` of mid), `zoom` x on her head at sprite px `head`, held at `y` (fraction of the viewport height) */
+const FACE_ZOOM = { mid: 0.5, span: 0.1, ease: 0.07, zoom: 3.6, head: [128, 88], y: 0.48 }
 const FALL = { rush: 0.25, rise: 0.12, settle: 0.7, w: 0.9, h: 0.64, deepen: 0.06, idle: 0.6 }
 const WIND = { a: 0.22, amp: 10, k: 0.035, w: 2.6, pace: 0.35 } // direction (radians, blowing right), hem travel in px, ripple wavenumber, ripple speed, overall tempo (lower = slower, gentler breeze)
 const windDir = [Math.cos(WIND.a), Math.sin(WIND.a)]
@@ -1029,19 +1029,21 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
         // the face close-up: over FACE_ZOOM.range the camera swings round to her, pushes in on her head, holds, and pulls back to the
         // full-body framing. A pure function of the fall progress, so it rewinds exactly.
         const fz = FACE_ZOOM, fb = easeInOut(clamp((fz.span - Math.abs(fall - fz.mid)) / fz.ease, 0, 1))
+        // she squares up to the camera for the close-up: her roll, pitch and yaw ease out while it is on
+        const upright = lf ? 1 : 1 - fb, rotU = rot * upright
         if (fb > 0 && !lf) {
-          const hc = Math.cos(rot), hs = Math.sin(rot), hdx = (fz.head[0] - FALLER.w / 2) * sc2, hdy = (fz.head[1] - FALLER.h / 2) * sc2
+          const hc = Math.cos(rotU), hs = Math.sin(rotU), hdx = (fz.head[0] - FALLER.w / 2) * sc2, hdy = (fz.head[1] - FALLER.h / 2) * sc2
           const hx = gx + hc * hdx - hs * hdy, hy = gy + hs * hdx + hc * hdy
           p.translate(hx + fb * (vw * 0.5 - hx), hy + fb * (vh * fz.y - hy))
           p.scale(1 + fb * (fz.zoom - 1))
           p.translate(-hx, -hy)
         }
         p.translate(gx + (pl ? pl.offset[0] : 0), gy + (pl ? pl.offset[1] : 0))
-        // turning in 3D gives the foreshortening; it relaxes as she lands. During the close-up the camera arcs round her (a swing in yaw)
-        p.rotateX(fr.pitch * (1 - settle))
-        p.rotateY(fr.yaw * (1 - settle) + (lf ? 0 : fb * fz.orbit))
+        // turning in 3D gives the foreshortening; it relaxes as she lands. During the close-up she squares up to the camera
+        p.rotateX(fr.pitch * (1 - settle) * upright)
+        p.rotateY(fr.yaw * (1 - settle) * upright)
         p.scale(sc2)
-        p.rotate(rot)
+        p.rotate(rotU)
         p.translate(-FALLER.w / 2, -FALLER.h / 2)
         drawCloth(fr.clothT, eyes, [-Math.sin(rot), -Math.cos(rot)], fr.air, fa, fr.limbs.map((a) => a * (1 - settle)))
         p.pop()
