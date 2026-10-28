@@ -245,14 +245,14 @@ export function createLanding(p: any, reduceMotion: boolean) {
   }
 
   // the contact shadow: her own silhouette, softened and tinted the cloud's shade of blue
-  const makeShadow = (img: HTMLImageElement) => {
+  const makeShadow = (img: HTMLImageElement, w = img.naturalWidth, h = img.naturalHeight) => {
     const pad = 24
     const cv = document.createElement('canvas')
-    cv.width = img.naturalWidth + pad * 2
-    cv.height = img.naturalHeight + pad * 2
+    cv.width = w + pad * 2
+    cv.height = h + pad * 2
     const g = cv.getContext('2d')!
     if ('filter' in g) g.filter = 'blur(7px)'
-    g.drawImage(img, pad, pad)
+    g.drawImage(img, pad, pad, w, h)
     g.filter = 'none'
     g.globalCompositeOperation = 'source-in'
     g.fillStyle = 'rgb(112,142,204)'
@@ -275,7 +275,7 @@ export function createLanding(p: any, reduceMotion: boolean) {
     }
     geom = gridGeometry(p, cols, rows, verts)
     shader = p.createShader(LAND_VERT, LAND_FRAG)
-    const sh = makeShadow(html)
+    const sh = makeShadow(html, LANDER.w, LANDER.h)
     shadowPad = sh.pad
     shadowImg = imageFromCanvas(sh.cv)
     // the rise's pictures: each a mesh (fabric looseness by distance from her body) with its own contact shadow
