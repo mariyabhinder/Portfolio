@@ -1,6 +1,5 @@
 import { useState, useCallback, useRef } from 'react'
 import DreamLanding from '@/components/DreamLanding'
-import { ABOUT_BG_CSS } from '@/components/meadow/drop'
 
 // Light mode hero assets (Desktop3)
 import imgFlowers from '@/imports/Desktop3/2182658c973ab1a52c76c51bb6d97abfd86a119b.png'
@@ -1036,9 +1035,8 @@ export default function App() {
   return (
     <div className="w-full min-h-screen bg-white">
       {/* Dream scroll landing */}
+      {/* the whole page is this one pinned scene: its last scroll (waking up in the meadow) is the last screen */}
       <DreamLanding />
-      {/* About Me: the dream's last scroll ends on this plain background; the section's content goes here */}
-      <section id="about" className="min-h-screen w-full" style={{ background: ABOUT_BG_CSS }} />
     </div>
   )
 }

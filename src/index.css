@@ -401,3 +401,16 @@
 @media (prefers-reduced-motion: reduce) {
   .strand-letter, .strand-letter::before, .strand-path, .strands-complete { transition: none !important; animation: none !important; }
 }
+
+/* waking up: once the wave has taken the About Me page away it is out of the way (no clicks on the meadow's grass go to the word game) */
+.about-gone .about-piece,
+.about-gone .girl-fx { visibility: hidden; pointer-events: none; }
+
+/* the About Me page and her effects share this layer; while the wake wave crosses, it is masked away inside the wave (as the canvas swaps
+   to the meadow there) and bent by the displacement filter. DreamLanding sets --wr (wave radius) and --ws (viewport diagonal). */
+.about-layer { position: absolute; inset: 0; pointer-events: none; }
+.about-layer.waking {
+  filter: url(#about-warp);
+  -webkit-mask-image: radial-gradient(circle at 50% 50%, transparent calc(var(--wr) - var(--ws) * 0.2), #000 var(--wr));
+  mask-image: radial-gradient(circle at 50% 50%, transparent calc(var(--wr) - var(--ws) * 0.2), #000 var(--wr));
+}

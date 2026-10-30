@@ -7,6 +7,7 @@ import { LAND_CONFIG } from './meadow/land'
 import { LEAVE_CONFIG } from './meadow/leave'
 import { WINDOW_CONFIG, launchProgress } from './meadow/window'
 import { TOUCH_CONFIG } from './meadow/touch'
+import { WAKE_CONFIG, wakeWave, wakeZoom } from './meadow/wake'
 import { BAG_PLACE, PHONE_PLACE } from './meadow/props'
 import { createBagReveal, playBagReveal } from './meadow/bagItems'
 import { createWear, playWear, CAP_WEAR, GLASSES_WEAR, HAT_WEAR, type WearConfig, type WearState } from './meadow/wear'
@@ -66,6 +67,8 @@ export default function DreamLanding() {
   const cameraRef = useRef<HTMLDivElement>(null)
   const stageRef = useRef<HTMLDivElement>(null)
   const framesRef = useRef<HTMLDivElement>(null)
+  const layerRef = useRef<HTMLDivElement>(null)
+  const dispRef = useRef<SVGFEDisplacementMapElement>(null)
   // the function GirlFx gives us to move its effects, called by the scene each frame with where her head is
   const fxRef = useRef<((a: GirlAnchor | null) => void) | null>(null)
   // the word game on the About Me page tells us when every word is found: she changes pose (eased over 0.7 s, read by the scene each frame)
@@ -170,11 +173,12 @@ export default function DreamLanding() {
     let windowDistance = 1
     let leaveDistance = 1
     let touchDistance = 1
+    let wakeDistance = 1
     // the camera's size (it is pinned to the viewport), and the --about last written, so a scroll only touches the DOM when something changes
     let camW = 0, camH = 0
     let about = ''
 
-    const state: MeadowState = { zoom: 0, dream: 0, fall: 0, land: 0, window: 0, leave: 0, touch: 0, get remembered() { return rememberedRef.current }, bag, glasses, hat, cap, phone }
+    const state: MeadowState = { zoom: 0, dream: 0, fall: 0, land: 0, window: 0, leave: 0, touch: 0, about: 0, wake: 0, get remembered() { return rememberedRef.current }, bag, glasses, hat, cap, phone }
     // The meadow (and p5) load after first paint; the poster stands in until its first frame is up
     let meadow: MeadowHandle | null = null
     let visible = true
@@ -190,12 +194,13 @@ export default function DreamLanding() {
       camH = camera.clientHeight
       sectionStart = section.getBoundingClientRect().top + window.scrollY
       // the section is (FALL_VH + landing + leave + touchdown) vh tall: the fall keeps the scroll length it always had, then the rest in order
-      const vh = section.offsetHeight / (FALL_VH + LAND_CONFIG.scrollVh + WINDOW_CONFIG.scrollVh + LEAVE_CONFIG.scrollVh + TOUCH_CONFIG.scrollVh)
+      const vh = section.offsetHeight / (FALL_VH + LAND_CONFIG.scrollVh + WINDOW_CONFIG.scrollVh + LEAVE_CONFIG.scrollVh + TOUCH_CONFIG.scrollVh + WAKE_CONFIG.scrollVh)
       scrollDistance = Math.max(1, FALL_VH * vh - window.innerHeight)
       landDistance = Math.max(1, LAND_CONFIG.scrollVh * vh)
       windowDistance = Math.max(1, WINDOW_CONFIG.scrollVh * vh)
       leaveDistance = Math.max(1, LEAVE_CONFIG.scrollVh * vh)
       touchDistance = Math.max(1, TOUCH_CONFIG.scrollVh * vh)
+      wakeDistance = Math.max(1, WAKE_CONFIG.scrollVh * vh)
     }
 
     // a hotspot is clickable only while its thing is on screen (startBag also switches the bag's off directly)
@@ -283,9 +288,29 @@ export default function DreamLanding() {
       state.window = Math.max(0, Math.min(1, (scrolled - scrollDistance - landDistance) / windowDistance))
       state.leave = Math.max(0, Math.min(1, (scrolled - scrollDistance - landDistance - windowDistance) / leaveDistance))
       state.touch = Math.max(0, Math.min(1, (scrolled - scrollDistance - landDistance - windowDistance - leaveDistance) / touchDistance))
-      // the About Me page comes in while she settles (touch 0.5 - 0.8): its own 0-1, read by AboutMe's CSS
+      state.wake = Math.max(0, Math.min(1, (scrolled - scrollDistance - landDistance - windowDistance - leaveDistance - touchDistance) / wakeDistance))
+      // waking, the camera is on her face again and pulls back out (the hero's zoom, run the other way)
+      if (state.wake > 0) state.zoom = wakeZoom(state.wake)
+      // the About Me page comes in while she settles (touch 0.5 - 0.8): its own 0-1, read by AboutMe's CSS; the wake wave carries it away again
+      const wave = wakeWave(state.wake)
       const a = Math.max(0, Math.min(1, (state.touch - 0.5) / 0.3))
-      const next = (a * a * (3 - 2 * a)).toFixed(3)
+      // the page itself is taken by the same wave as the canvas (meadow.ts drawDream): masked away inside the wave's radius, and bent
+      // by the displacement filter around its front. The canvas has fully swapped by wave 0.87
+      const layer = layerRef.current, disp = dispRef.current
+      const waking = wave > 0 && wave < 0.87
+      if (layer && disp) {
+        if (waking) {
+          const span = Math.hypot(camW, camH)
+          layer.style.setProperty('--wr', `${wave * (span / 2) * 1.62}px`)
+          layer.style.setProperty('--ws', `${span}px`)
+          disp.setAttribute('scale', (Math.pow(Math.sin(Math.PI * wave), 1.15) * span * 0.06).toFixed(1))
+        }
+        if (waking !== layer.classList.contains('waking')) layer.classList.toggle('waking', waking)
+      }
+      const gone = wave >= 0.87
+      if (gone !== camera.classList.contains('about-gone')) camera.classList.toggle('about-gone', gone)
+      state.about = a * a * (3 - 2 * a)
+      const next = state.about.toFixed(3)
       if (next !== about) camera.style.setProperty('--about', (about = next))
       const label = framesRef.current
       if (label) {
@@ -328,7 +353,7 @@ export default function DreamLanding() {
   }, [])
 
   return (
-  <section ref={sectionRef} className="dream-section" style={{ height: `${FALL_VH + LAND_CONFIG.scrollVh + WINDOW_CONFIG.scrollVh + LEAVE_CONFIG.scrollVh + TOUCH_CONFIG.scrollVh}vh` }}>
+  <section ref={sectionRef} className="dream-section" style={{ height: `${FALL_VH + LAND_CONFIG.scrollVh + WINDOW_CONFIG.scrollVh + LEAVE_CONFIG.scrollVh + TOUCH_CONFIG.scrollVh + WAKE_CONFIG.scrollVh}vh` }}>
     <div ref={cameraRef} className="dream-camera">
       <div
         ref={stageRef}
@@ -336,8 +361,17 @@ export default function DreamLanding() {
         role="img"
         aria-label="A girl lying asleep in a hand-drawn meadow, who dreams she is falling through the dawn sky and lands safely on a soft cloud, then drifts out of the dream onto her About Me page"
       />
-      <AboutMe onRemembered={onRemembered} />
-      <GirlFx register={registerFx} remembered={remembered} />
+      {/* the About Me page and her effects in one layer, so the wake wave can take them all (see .about-layer in index.css) */}
+      <div ref={layerRef} className="about-layer">
+        <AboutMe onRemembered={onRemembered} />
+        <GirlFx register={registerFx} remembered={remembered} />
+      </div>
+      <svg width="0" height="0" className="absolute" aria-hidden="true">
+        <filter id="about-warp" x="0" y="0" width="100%" height="100%" colorInterpolationFilters="sRGB">
+          <feTurbulence type="fractalNoise" baseFrequency="0.012 0.02" numOctaves="2" seed="4" result="n" />
+          <feDisplacementMap ref={dispRef} in="SourceGraphic" in2="n" scale="0" xChannelSelector="R" yChannelSelector="G" />
+        </filter>
+      </svg>
       {SHOW_FRAMES ? (
         <div
           ref={framesRef}

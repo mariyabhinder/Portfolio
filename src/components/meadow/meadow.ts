@@ -39,6 +39,8 @@ import { createDrop, ABOUT_BG } from './drop'
 import { leaveFrame } from './leave'
 import { SHUTTER_BOX, launchProgress, shutterStrips, windowAt, windowUrls } from './window'
 import { createTouch, touchAt, TOUCH_CONFIG } from './touch'
+import { WAKE_CONFIG, wakeWave } from './wake'
+import { ABOUT_DESIGN, RIGHT_SIDE } from './aboutDecos'
 import { createTris } from './tris'
 import { gridGeometry } from './grid'
 import type { FallFrame } from './fall'
@@ -60,6 +62,10 @@ export interface MeadowState {
   leave: number
   /** 0→1 = the rest of the way down onto the About Me surface, the landing and the seated, confused pose (touch.ts). */
   touch: number
+  /** 0→1 = how far the About Me page has come in (smoothed), for the decorations drawn in the scene (aboutDecos.ts) */
+  about: number
+  /** 0→1 = waking up, once she has settled: the wave carries the About Me page away into the meadow, she opens her eyes and the camera pulls out (wake.ts). */
+  wake: number
   /** 0→1 = she remembers who she is (the word game is solved): land3 replaces land2 */
   remembered: number
   /** the bag reveal (bagItems.ts): the camera on the bag, the pointer over it, and how far out of it each item is */
@@ -555,6 +561,8 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
   let disposeLanding: (() => void) | null = null
   let dropper: ReturnType<typeof createDrop> | null = null
   let toucher: ReturnType<typeof createTouch> | null = null
+  // the About Me decorations (aboutDecos.ts), once decoded
+  let decoImgs: any[] | null = null
   let anchored = false
 
   // p5 ships without type definitions, so the instance is untyped
@@ -718,6 +726,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       // the drop's wind lines are drawn past her as she falls onto the About Me surface (they need no pictures of their own)
       dropper = createDrop(p)
       toucher = createTouch(p)
+      Promise.all(RIGHT_SIDE.map((d) => p.loadImage(d.src))).then((imgs: any[]) => { if (!disposed) decoImgs = imgs }).catch(() => {})
       landing.load().then(() => toucher?.load())
     }
 
@@ -740,8 +749,10 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       const dream = clamp(state.dream, 0, 1)
       // Once the dream wave has passed, the frame is a pure function of the scroll and of what has loaded (only the meadow runs on
       // the clock): while none of that changes the canvas keeps the last frame (p5 preserves its drawing buffer) and nothing is redrawn
-      if (dream >= 1 && shown) {
-        const key = [state.fall, state.land, state.window, !!windowImg, state.leave, state.touch, state.remembered, p.width, p.height, !!landing?.ready, !!toucher?.ready].join()
+      const wake = clamp(state.wake, 0, 1)
+      // (waking, the meadow is back on screen and runs on the clock again)
+      if (dream >= 1 && shown && wake <= 0) {
+        const key = [state.fall, state.land, state.window, !!windowImg, state.leave, state.touch, state.remembered, p.width, p.height, !!landing?.ready, !!toucher?.ready, !!decoImgs].join()
         if (key === stillKey) return
         stillKey = key
       } else stillKey = ''
@@ -765,15 +776,29 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
 
       const leave = clamp(state.leave, 0, 1)
       let touching = false
-      const aboutFrame = () => {
+      const aboutFrame = (fade = 1) => {
         p.push()
         p.translate(-p.width / 2, -p.height / 2)
-        touching = drawAbout(leave)
+        touching = drawAbout(leave, fade)
         p.pop()
       }
 
+      // waking: the wave carries the About Me page away into the meadow, closed in on her face (the same wave as the dream, run the other way)
+      const wave = wakeWave(wake)
+      if (wake > 0 && wave < 1) {
+        fb.begin()
+        p.clear()
+        // her dizzy effects and bubble (DOM) fade out as the wave begins
+        aboutFrame(1 - easeStep(0, 0.5, wave))
+        fb.end()
+        fbSky.begin()
+        p.clear()
+        meadowFrame()
+        fbSky.end()
+        drawDream(wave)
+      } else if (wake > 0) meadowFrame()
       // once the window has opened completely the scene cuts straight to the About Me background (no liquid wave between them)
-      if (leave > 0) aboutFrame()
+      else if (leave > 0) aboutFrame()
       else if (dream <= 0) meadowFrame()
       else if (dream >= 1) skyFrame()
       else {
@@ -876,7 +901,8 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
     function eyesNow() {
       const ms = p.millis(), dt = Math.min((ms - lastMs) / 1000, 0.1), now = ms / 1000
       lastMs = ms
-      const asleep = state.zoom >= SLEEP_AT || state.dream > 0
+      // waking (wake.ts) she sleeps through the wave and opens her eyes when the scroll gets to openAt, before the camera pulls out
+      const asleep = state.wake > 0 ? state.wake < WAKE_CONFIG.openAt : state.zoom >= SLEEP_AT || state.dream > 0
       const total = SLEEP.drop + SLEEP.hold + SLEEP.shut
       if (reduceMotion) sleepS = asleep ? total : 0
       else sleepS = clamp(sleepS + (asleep ? dt : -2 * dt), 0, total)
@@ -886,7 +912,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
         if (blinkAt >= 0) {
           // falling, she is frightened: quick, frequent blinks, often a rapid flutter of two or three, her eyes
           // snapping wide in between
-          const scared = state.dream > 0
+          const scared = state.dream > 0 && state.wake <= 0
           const b = (now - blinkAt) / (scared ? 0.15 : 0.24)
           if (b >= 1) {
             blinkAt = -1
@@ -1138,7 +1164,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
     // In viewport px. The plain About Me background the second wave reveals, with her already falling into it on the right (the lines
     // flow past her as the wave crosses); then the touchdown (touch.ts) carries her down onto the surface. Returns whether she is on it,
     // having reported where her head is for the DOM effects around it.
-    function drawAbout(leave: number) {
+    function drawAbout(leave: number, fade = 1) {
       const vw = p.width, vh = p.height
       p.background(ABOUT_BG[0], ABOUT_BG[1], ABOUT_BG[2])
       if (!toucher?.ready || !dropper) return false
@@ -1148,13 +1174,37 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       p.clearDepth()
       toucher.drawSurface(tf, vw, vh)
       toucher.drawShadow(tf, vh)
+      drawDecos(vw, vh)
       dropper.drawLines({ ...df, face: tf.fallFace, speed: tf.speed, travel: tf.travel }, df.base)
       p.clearDepth()
       toucher.draw(tf)
       if (state.touch <= 0) return false
-      onAnchor?.({ face: tf.face, headTop: tf.headTop, headW: tf.headW, landed: tf.landed, seated: tf.seated })
+      onAnchor?.({ face: tf.face, headTop: tf.headTop, headW: tf.headW, landed: tf.landed * fade, seated: tf.seated * fade })
       anchored = true
       return true
+    }
+
+    // The decorations on the right of the About Me page, placed like the DOM page was: the 1440 x 1024 design fitted into the viewport and resting
+    // on its bottom right corner; each piece eases in from its `at` (fades, settles up 3% of the page height, grows from 92%)
+    function drawDecos(vw: number, vh: number) {
+      if (!decoImgs) return
+      const stageW = Math.min(vw, 1.40625 * vh), sc = stageW / ABOUT_DESIGN.w, stageH = ABOUT_DESIGN.h * sc
+      const left = vw - stageW, top = vh - stageH
+      p.noStroke()
+      RIGHT_SIDE.forEach((d, i) => {
+        const k = clamp((clamp(state.about, 0, 1) - d.at) * 5, 0, 1)
+        if (k <= 0.003) return
+        const im = decoImgs![i], w = d.w * sc, h = (w * im.height) / im.width
+        p.push()
+        p.translate(left + d.x * sc + w / 2, top + d.y * sc + h / 2)
+        if (d.rotate) p.rotate((d.rotate * Math.PI) / 180)
+        p.translate(0, (1 - k) * 0.03 * stageH)
+        p.scale(0.92 + 0.08 * k)
+        p.tint(255, 255 * k)
+        p.image(im, -w / 2, -h / 2, w, h)
+        p.pop()
+      })
+      p.noTint()
     }
 
     // Where the sky radiates from: a point above her centre that the camera sways around a little as she falls
