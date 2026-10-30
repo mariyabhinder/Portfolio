@@ -10,7 +10,7 @@ export const LEAVE_CONFIG = {
   /** extra scroll length for the wave, in viewport heights */
   scrollVh: 300,
   /** where her face is as the About Me background is revealed (fractions of the viewport) */
-  face: [0.78, 0.36] as [number, number],
+  face: [0.22, 0.36] as [number, number],
   /** how strong the wind lines past her are as she is revealed, already falling */
   speed: 0.3,
 }
@@ -26,7 +26,7 @@ export function leaveFrame(vw: number, vh: number): DropFrame {
   const fast = DROP_POSES[3]
   const base = (DROP_CONFIG.rest.height * vh) / (fast.h * fast.scale)
   const halfW = (fast.w * 0.5 + 10) * fast.scale * base
-  const x = clamp(C.face[0] * vw, DROP_CONFIG.minX * vw, vw * (1 - DROP_CONFIG.edge) - halfW)
+  const x = clamp(C.face[0] * vw, vw * DROP_CONFIG.edge + halfW, vw * (1 - DROP_CONFIG.minX))
   return {
     worldDy: 0, veilEdge: -vh, veilBand: 0,
     face: [x, C.face[1] * vh], base, roll: 0,

@@ -9,6 +9,7 @@ import type { GirlAnchor } from './meadow/meadow'
 // Everything is a function of the anchor (scroll-driven: where she is, whether she has landed / settled): scrolling back hides the effects.
 
 export const BUBBLE_CONFUSED = 'Wait… who am I again?'
+export const BUBBLE_REMEMBERED = 'Yes, now I remember'
 
 const STARS = [
   { r: 0.95, size: 15, dur: 7.5, at: 0.0, twinkle: 2.1 },
@@ -43,9 +44,11 @@ const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v
 interface Props {
   /** GirlFx hands DreamLanding the function that moves it; null when it unmounts */
   register: (update: ((a: GirlAnchor | null) => void) | null) => void
+  /** the word game is solved: she remembers who she is */
+  remembered?: boolean
 }
 
-export default function GirlFx({ register }: Props) {
+export default function GirlFx({ register, remembered = false }: Props) {
   const rootRef = useRef<HTMLDivElement>(null)
   const bubbleRef = useRef<HTMLDivElement>(null)
 
@@ -103,7 +106,7 @@ export default function GirlFx({ register }: Props) {
   }, [register])
 
   return (
-    <div ref={rootRef} className="girl-fx">
+    <div ref={rootRef} className={`girl-fx${remembered ? " is-remembered" : ""}`}>
       {/* the cartoon dizzy effect: loops and stars */}
       <div className="girl-dizzy" aria-hidden="true">
         <svg className="girl-loops" viewBox="0 0 200 100">
@@ -126,7 +129,7 @@ export default function GirlFx({ register }: Props) {
 
       {/* the thought bubble */}
       <div ref={bubbleRef} className="girl-bubble" role="status">
-        <p className="girl-bubble-text">{BUBBLE_CONFUSED}</p>
+        <p className="girl-bubble-text">{remembered ? BUBBLE_REMEMBERED : BUBBLE_CONFUSED}</p>
         <i className="girl-bubble-dot girl-bubble-dot-1" />
         <i className="girl-bubble-dot girl-bubble-dot-2" />
         <i className="girl-bubble-dot girl-bubble-dot-3" />

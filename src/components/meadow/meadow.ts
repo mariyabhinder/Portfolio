@@ -34,9 +34,10 @@ import { BAG_ITEMS, bagCamera, itemPose, type BagReveal } from './bagItems'
 import { createLanding, LANDER } from './landing'
 import { paintFallSky } from './fallSky'
 import type { LandPlace } from './landing'
-import { landAt } from './land'
+import { landAt, launchAt } from './land'
 import { createDrop, ABOUT_BG } from './drop'
 import { leaveFrame } from './leave'
+import { SHUTTER_BOX, launchProgress, shutterStrips, windowAt, windowUrls } from './window'
 import { createTouch, touchAt, TOUCH_CONFIG } from './touch'
 import { createTris } from './tris'
 import { gridGeometry } from './grid'
@@ -53,10 +54,14 @@ export interface MeadowState {
   fall: number
   /** 0→1 = the landing on the cloud, once the fall is over (land.ts). */
   land: number
+  /** 0→1 = once she sits at the cloud's edge, she and the cloud drift to the bottom-left while an arched window grows behind them (window.ts). */
+  window: number
   /** 0→1 = a second dream wave carries the cloud scene away into the About Me background, once the landing is over (LEAVE_CONFIG). */
   leave: number
   /** 0→1 = the rest of the way down onto the About Me surface, the landing and the seated, confused pose (touch.ts). */
   touch: number
+  /** 0→1 = she remembers who she is (the word game is solved): land3 replaces land2 */
+  remembered: number
   /** the bag reveal (bagItems.ts): the camera on the bag, the pointer over it, and how far out of it each item is */
   bag: BagReveal
   /** her glasses and her hat (wear.ts): each on the grass, on its way, or on her face */
@@ -556,6 +561,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sketch = (p: any) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let windowImg: { frame: any; left: any; right: any } | null = null
     let groundImg: any, cloth: any, faller: any, shotBodies: any[] = [], clouds: any[] = [], petals: any[] = []
     let blades: Blade[] = [], flowers: Flower[] = []
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -651,6 +657,8 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       const breathe = () => new Promise((r) => setTimeout(r, 0))
       if (disposed) return
       groundImg = ground
+      // the window is drawn from code (window.ts); its picture is rasterised by the browser, off the critical path
+      Promise.all(Object.values(windowUrls()).map((u) => p.loadImage(u))).then(([frame, left, right]: any[]) => { if (!disposed) windowImg = { frame, left, right } }).catch(() => {})
       const cloudImgs = sprites
       clouds = CLOUDS.map((c, i) => ({ ...c, spr: featherEdges(cloudImgs[i * 2], 24), shadow: featherEdges(cloudImgs[i * 2 + 1], 16) }))
       const box = girlBox()
@@ -733,7 +741,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       // Once the dream wave has passed, the frame is a pure function of the scroll and of what has loaded (only the meadow runs on
       // the clock): while none of that changes the canvas keeps the last frame (p5 preserves its drawing buffer) and nothing is redrawn
       if (dream >= 1 && shown) {
-        const key = [state.fall, state.land, state.leave, state.touch, p.width, p.height, !!landing?.ready, !!toucher?.ready].join()
+        const key = [state.fall, state.land, state.window, !!windowImg, state.leave, state.touch, state.remembered, p.width, p.height, !!landing?.ready, !!toucher?.ready].join()
         if (key === stillKey) return
         stillKey = key
       } else stillKey = ''
@@ -764,19 +772,9 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
         p.pop()
       }
 
-      if (leave >= 1) aboutFrame()
-      else if (leave > 0) {
-        // the second wave carries the cloud scene away into the About Me background, through the same two buffers
-        fb.begin()
-        p.clear()
-        skyFrame()
-        fb.end()
-        fbSky.begin()
-        p.clear()
-        aboutFrame()
-        fbSky.end()
-        drawDream(leave)
-      } else if (dream <= 0) meadowFrame()
+      // once the window has opened completely the scene cuts straight to the About Me background (no liquid wave between them)
+      if (leave > 0) aboutFrame()
+      else if (dream <= 0) meadowFrame()
       else if (dream >= 1) skyFrame()
       else {
         // the wave carries the meadow away into the sky: both are drawn, and mixed behind the front
@@ -965,6 +963,8 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       // Once the fall is over the landing (land.ts) takes the same clock on: the sky runs on at the speed the fall left it,
       // then slows to a stop as she meets the cloud
       const lf = state.land > 0 ? landAt(clamp(state.land, 0, 1), reduceMotion) : null
+      // she sits through the window's opening; her launch plays once it is fully open
+      if (lf && state.window > 0) lf.launch = launchAt(launchProgress(clamp(state.window, 0, 1)), reduceMotion)
       const fr = dynamics.at(lf ? 1 + lf.skyExtra : fall)
       if (lf) {
         fr.u *= lf.skySpeed
@@ -1020,9 +1020,49 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       let pl: LandPlace | null = null
       if (lf && landing?.ready) pl = landing.place(lf, { vw, vh, fall: { gx, gy, scale: sc2, rot } })
       const fa = enter * cam.rest * (pl && lf ? 1 - easeStep(0.35, 1, lf.cross) : 1)
+      // The window (window.ts): one shared scroll progress grows it out of the middle of the sky while the girl and cloud, as one
+      // group, drift to the bottom-left. It is behind the group and in front of the sky.
+      const wf = state.window > 0 && lf ? windowAt(clamp(state.window, 0, 1), vw, vh) : null
+      if (wf && windowImg && wf.alpha > 0.003) {
+        p.clearDepth()
+        p.push()
+        p.noStroke()
+        p.tint(255, 255 * wf.alpha)
+        const u = wf.h / 800, ox = wf.x - (600 * u) / 2, oy = wf.y - wf.h / 2
+        // the frame stands still; only the two shutters turn, each about its own hinge, swinging outward toward us to lie beside the
+        // frame. Shut, each is one picture; swung, it is drawn in thin slices (shutterStrips) so the edge nearer to us is the bigger one
+        p.image(windowImg.frame, ox, oy, 600 * u, wf.h)
+        p.clearDepth()
+        const B = SHUTTER_BOX
+        const shut = wf.swing < 0.002
+        if (shut) {
+          p.image(windowImg.left, ox + B.x * u, oy + B.y * u, B.w * u, B.h * u)
+          p.image(windowImg.right, ox + (600 - B.x - B.w) * u, oy + B.y * u, B.w * u, B.h * u)
+        } else {
+          const strips = shutterStrips(wf.swing, 48)
+          for (const side of ['left', 'right'] as const) {
+            const img = windowImg[side], iw = img.width, ih = img.height
+            for (const s of strips) {
+              // the right shutter is the left one mirrored about the middle (its picture has its hinge on the right)
+              const lo = Math.min(s.x0, s.x1), hi = Math.max(s.x0, s.x1)
+              const xa = side === 'left' ? lo : 600 - hi, xb = side === 'left' ? hi : 600 - lo
+              const sa = side === 'left' ? s.s0 : 1 - s.s1, sb = side === 'left' ? s.s1 : 1 - s.s0
+              // a hair of overlap so the slices leave no seams
+              p.image(img, ox + xa * u, oy + s.y0 * u, (xb - xa) * u + 0.6, (s.y1 - s.y0) * u, sa * iw, 0, (sb - sa) * iw, ih)
+            }
+          }
+        }
+        p.noTint()
+        p.pop()
+      }
       p.push()
+      if (wf) {
+        p.translate(vw / 2 + wf.dx, vh / 2 + wf.dy)
+        p.scale(wf.scale)
+        p.translate(-vw / 2, -vh / 2)
+      }
       if (lf && pl) {
-        p.translate(vw / 2, vh / 2 + lf.camDy * vh)
+        p.translate(vw / 2, vh / 2 + lf.camDy * vh - pl.pan)
         p.scale(lf.camZoom)
         p.translate(-vw / 2, -vh / 2)
         p.clearDepth()
@@ -1072,6 +1112,12 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
         p.pop()
       })
       if (lf && pl) landing.drawFront(lf, pl, { vw, vh, fall: { gx, gy, scale: sc2, rot } })
+      // once she lifts off to jump, the cloud's near lobes must not lie over her dress and legs: she is drawn again over them, fading in with the lift (she stays opaque, only the overlap goes)
+      // (and through the window scene before it: her dress must not sink into the cloud there)
+      if (lf && pl && state.window > 0) {
+        const over = Math.max(easeStep(0, 0.08, state.window), easeStep(0, 0.5, Math.max(lf.launch.lift, lf.launch.push)))
+        if (over > 0.003) { p.clearDepth(); landing.drawGirl(lf, pl, over) }
+      }
       p.pop()
       // the nearest wisps rush past the edges of the frame, in front of her but faded out over her body
       p.clearDepth()
@@ -1098,7 +1144,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       if (!toucher?.ready || !dropper) return false
       const df = leaveFrame(vw, vh)
       df.travel = 1.5 * leave
-      const tf = touchAt(clamp(state.touch, 0, 1), df, TOUCH_CONFIG.surface * vh, vw * 0.97, vh, reduceMotion)
+      const tf = touchAt(clamp(state.touch, 0, 1), df, TOUCH_CONFIG.surface * vh, vw * 0.97, vh, reduceMotion, clamp(state.remembered, 0, 1))
       p.clearDepth()
       toucher.drawSurface(tf, vw, vh)
       toucher.drawShadow(tf, vh)

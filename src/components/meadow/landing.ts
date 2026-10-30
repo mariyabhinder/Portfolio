@@ -12,6 +12,11 @@
 import landingGirlUrl from '@/assets/meadow/landing-girl.webp'
 import eyesCloseUrl from '@/assets/meadow/girl landing eyes close.webp'
 import eyesOpenUrl from '@/assets/meadow/girl landing eyes open.webp'
+import sitFlow from '@/assets/meadow/sit-flow.json'
+import position2Url from '@/assets/meadow/position2.webp'
+import position5Url from '@/assets/meadow/position5.webp'
+import position6Url from '@/assets/meadow/position6.webp'
+import jump11Url from '@/assets/meadow/jump11.webp'
 import startUrl from '@/assets/meadow/start.webp'
 import middleUrl from '@/assets/meadow/middle.webp'
 import endUrl from '@/assets/meadow/end.webp'
@@ -61,6 +66,48 @@ export const LANDER = {
     { from: [206, 320], to: [264, 396], r: 40 },
   ],
 }
+
+/**
+ * Her sitting-up pictures, in their own px: [landing-girl.webp (drawn in the landing sprite's 364 x 427 px), position2.webp, position5.webp, position6.webp].
+ * `hip` is her belt, the point her body pivots about (and the point that stays on the cloud), `s` is landing px per picture px (each picture is drawn
+ * at its own scale, never stretched to fit another; chosen so her head is the same size on all of them), and `marks` are the same 14 landmarks on every picture
+ * (see SIT_GROUP) that the morph lines up, so her arms and legs travel from one pose to the next instead of ghosting. marks[3] is the hip.
+ */
+const K0 = 364 / 1145
+export const SIT_POSES = [
+  { w: 364, h: 427, face: [382 * K0, 190 * K0], s: 1, hip: [470 * K0, 520 * K0],
+    marks: [[382, 190], [755, 310], [150, 675], [470, 520], [985, 1130], [1000, 880], [815, 215], [40, 705], [800, 1235], [330, 65], [250, 390], [420, 400], [600, 300], [350, 990]].map(([x, y]) => [x * K0, y * K0]) },
+  { w: 1322, h: 1190, face: [410, 268], s: 0.25, hip: [520, 580],
+    marks: [[410, 268], [860, 470], [205, 760], [520, 580], [1130, 1030], [1250, 880], [985, 525], [320, 825], [1175, 1080], [320, 105], [200, 440], [440, 480], [700, 310], [480, 950]] },
+  { w: 1324, h: 1188, face: [570, 165], s: 0.235, hip: [530, 640],
+    marks: [[570, 165], [830, 680], [250, 830], [530, 640], [1050, 1090], [1190, 950], [970, 725], [95, 830], [1030, 1050], [470, 28], [300, 400], [520, 480], [655, 320], [520, 990]] },
+  { w: 1268, h: 1240, face: [570, 170], s: 0.25, hip: [450, 590],
+    marks: [[570, 170], [705, 625], [440, 785], [450, 590], [950, 1175], [1000, 970], [825, 665], [340, 830], [1040, 1110], [460, 20], [300, 450], [480, 430], [595, 300], [700, 1185]] },
+]
+// the baked dense alignment between neighbouring pictures (scripts/bake-sit-flow.cjs): per picture, a G x G grid of residuals (1/8 px of that picture) toward the next and the previous picture
+const decodeFlow = (b64: string | null) => {
+  if (!b64) return null
+  const bin = atob(b64), u8 = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i)
+  return new Int16Array(u8.buffer)
+}
+const FLOWS = (sitFlow as { fields: { fwd: string | null; bwd: string | null }[] }).fields.map((f) => ({ fwd: decodeFlow(f.fwd), bwd: decodeFlow(f.bwd) }))
+const flowOf = (k: number, dir: 'fwd' | 'bwd') => FLOWS[k][dir]
+/** the residual at (u, v) of a picture (0-1), bilinear, in the picture's px; none: zero */
+function sampleFlow(f: Int16Array | null, u: number, v: number): [number, number] {
+  if (!f) return [0, 0]
+  const G = sitFlow.G, x = clamp(u, 0, 1) * (G - 1), y = clamp(v, 0, 1) * (G - 1)
+  const x0 = Math.min(G - 2, Math.floor(x)), y0 = Math.min(G - 2, Math.floor(y)), fx = x - x0, fy = y - y0
+  const at = (i: number, j: number, c: number) => f[(j * G + i) * 2 + c] / sitFlow.scale
+  const lerp2 = (c: number) => (at(x0, y0, c) * (1 - fx) + at(x0 + 1, y0, c) * fx) * (1 - fy) + (at(x0, y0 + 1, c) * (1 - fx) + at(x0 + 1, y0 + 1, c) * fx) * fy
+  return [lerp2(0), lerp2(1)]
+}
+
+/** jump11.webp (241 x 389): where her face point is on it, the picture she launches into */
+const JUMP_PIC = { w: 241, h: 389, face: [118, 63] as [number, number] }
+
+/** which part of her each landmark belongs to (land.ts sit.timing): they move with their own timing, and head and torso points travel on arcs about her hips */
+const SIT_GROUP = ['head', 'hands', 'hands', 'hips', 'legs', 'hem', 'hands', 'hands', 'legs', 'head', 'torso', 'torso', 'torso', 'hem'] as const
 
 const LAND_VERT = `
 precision highp float;
@@ -164,6 +211,52 @@ void main() {
   gl_FragColor = vec4(c.rgb * c.a, c.a) * uAlpha;
 }`
 
+// the sit-up morph: the rise's vertex shader (landmark warp) with the landing's fragment (her blue ambient tint)
+// the landmark warp for the sit-up: each picture is pulled onto where the 14 landmarks are between it and the next
+const SIT_VERT = `
+precision highp float;
+attribute vec3 aPosition;
+attribute vec2 aTexCoord;
+attribute vec4 aVertexColor; // not a colour: the baked residual (sit-flow.json) at this vertex, in picture px: xy toward the next picture, zw toward the previous one
+uniform mat4 uModelViewMatrix, uProjectionMatrix;
+uniform vec4 uM0, uM1, uM2, uM3, uM4, uM5, uM6, uM7, uM8, uM9, uM10, uM11, uM12, uM13; // xy where it is on this picture, zw where the morph wants it
+uniform vec2 uResK; // how much of the residual toward the next picture and toward the previous one to apply (0-1)
+varying vec2 vTexCoord;
+
+// inverse-distance blend of the landmarks' displacements (exact at each landmark)
+void pull(vec2 p, vec4 M, inout vec2 acc, inout float ws) {
+  vec2 d = p - M.xy;
+  float d2 = dot(d, d);
+  float w = 1.0 / (d2 * d2 + 1.0);
+  acc += (M.zw - M.xy) * w;
+  ws += w;
+}
+
+void main() {
+  vec2 p = aPosition.xy;
+  vec2 acc = vec2(0.0);
+  float ws = 0.0;
+  pull(p, uM0, acc, ws); pull(p, uM1, acc, ws); pull(p, uM2, acc, ws); pull(p, uM3, acc, ws);
+  pull(p, uM4, acc, ws); pull(p, uM5, acc, ws); pull(p, uM6, acc, ws); pull(p, uM7, acc, ws);
+  pull(p, uM8, acc, ws); pull(p, uM9, acc, ws); pull(p, uM10, acc, ws); pull(p, uM11, acc, ws); pull(p, uM12, acc, ws); pull(p, uM13, acc, ws);
+  p += acc / ws;
+  // on top of the landmarks, the dense alignment of her drawing onto the next picture's (or the previous one's): outlines, sleeves, hem
+  p += aVertexColor.xy * uResK.x + aVertexColor.zw * uResK.y;
+  gl_Position = uProjectionMatrix * uModelViewMatrix * vec4(p, 0.0, 1.0);
+  vTexCoord = aTexCoord;
+}`
+
+const SIT_FRAG = `
+precision mediump float;
+uniform sampler2D uSprite;
+uniform float uAlpha;
+uniform vec3 uCool;
+varying vec2 vTexCoord;
+void main() {
+  vec4 c = texture2D(uSprite, vTexCoord);
+  gl_FragColor = vec4(c.rgb * uCool * c.a, c.a) * uAlpha;
+}`
+
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t
 const smooth = (a: number, b: number, x: number) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t) }
@@ -198,6 +291,8 @@ export interface LandPlace {
   cloudK: number
   /** her height in px (for effect distances) */
   height: number
+  /** how far the camera has moved down the cloud with her (px) while she slides to its edge */
+  pan: number
 }
 
 export interface LandingInput {
@@ -221,6 +316,12 @@ export function createLanding(p: any, reduceMotion: boolean) {
   let riseImgs: { img: any; geom: any; shadow: any; pad: number }[] | null = null
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let riseShader: any = null
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let sitImgs: { img: any; geom: any; shadow: any; pad: number }[] | null = null
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let sitShader: any = null
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let jumpImg: any = null
   let disposed = false
   const wispRand = mulberry(31)
   const wisps = Array.from({ length: C.wisps.count }, (_, i) => ({
@@ -245,13 +346,13 @@ export function createLanding(p: any, reduceMotion: boolean) {
   }
 
   // the contact shadow: her own silhouette, softened and tinted the cloud's shade of blue
-  const makeShadow = (img: HTMLImageElement, w = img.naturalWidth, h = img.naturalHeight) => {
-    const pad = 24
+  const makeShadow = (img: HTMLImageElement, w = img.naturalWidth, h = img.naturalHeight, blur = 7) => {
+    const pad = Math.round(blur * 3.4)
     const cv = document.createElement('canvas')
     cv.width = w + pad * 2
     cv.height = h + pad * 2
     const g = cv.getContext('2d')!
-    if ('filter' in g) g.filter = 'blur(7px)'
+    if ('filter' in g) g.filter = `blur(${blur}px)`
     g.drawImage(img, pad, pad, w, h)
     g.filter = 'none'
     g.globalCompositeOperation = 'source-in'
@@ -302,6 +403,32 @@ export function createLanding(p: any, reduceMotion: boolean) {
     await later(() => {
       cloudImgs = { body: imageFromCanvas(cloud!.body), front: imageFromCanvas(cloud!.front), hollow: imageFromCanvas(cloud!.hollow), wisps: cloud!.wisps.map(imageFromCanvas) }
     })
+    // the sit-up pictures come last (she is not sitting up for a good while after she lands): the landing's own mesh for the first, a plain grid (no loose fabric: the morph moves it all) for the other two
+    const sitUrls = [position2Url, position5Url, position6Url]
+    const [sitHtml, sitP5] = await Promise.all([Promise.all(sitUrls.map(loadHtml)), Promise.all(sitUrls.map((u) => p.loadImage(u)))])
+    if (disposed) return
+    // each picture is a grid mesh (no loose fabric here: the morph moves it all) carrying its baked residuals, one pair per vertex
+    const sitMesh = (k: number, st: number) => {
+      const P = SIT_POSES[k], cols = Math.ceil(P.w / st), rows = Math.ceil(P.h / st), vs: number[][] = [], vc: number[] = []
+      const fw = flowOf(k, 'fwd'), bw = flowOf(k, 'bwd')
+      for (let j = 0; j <= rows; j++) for (let i = 0; i <= cols; i++) {
+        const x = Math.min(i * st, P.w), y = Math.min(j * st, P.h)
+        vs.push([x, y, 0, x / P.w, y / P.h])
+        vc.push(...sampleFlow(fw, x / P.w, y / P.h), ...sampleFlow(bw, x / P.w, y / P.h))
+      }
+      const g = gridGeometry(p, cols, rows, vs)
+      g.vertexColors = vc
+      return g
+    }
+    sitImgs = [{ img: sprite, geom: sitMesh(0, 6), shadow: shadowImg, pad: shadowPad }]
+    SIT_POSES.slice(1).forEach((P, i) => {
+      // her shadow softened by the same 7 landing px as the first picture's
+      const sh = makeShadow(sitHtml[i], P.w, P.h, 7 / P.s)
+      sitImgs!.push({ img: sitP5[i], geom: sitMesh(i + 1, 22), shadow: imageFromCanvas(sh.cv), pad: sh.pad })
+    })
+    sitShader = p.createShader(SIT_VERT, SIT_FRAG)
+    const jump = await p.loadImage(jump11Url)
+    if (!disposed) jumpImg = jump
   }
 
   /** the girl's placement for this frame; the falling picture is moved by `offset`, the landing picture goes at `anchor` */
@@ -331,7 +458,7 @@ export function createLanding(p: any, reduceMotion: boolean) {
     // the cloud's landing zone sits under her body at contact
     const zone: [number, number] = [restCentre[0], restCentre[1] + 0.12 * gh - C.impact.restSink * gh]
     const cloudK = (C.cloud.width * LANDER.w * sc) / C.cloud.px[0]
-    return { offset, anchor, rot, scale: sc, zone, cloudK, height: gh }
+    return { offset, anchor, rot, scale: sc, zone, cloudK, height: gh, pan: f.sit.pan * gh }
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -340,7 +467,8 @@ export function createLanding(p: any, reduceMotion: boolean) {
   // the cloud's transform: its landing zone at `zone` (shifted up by the rise and by `lift`), `k * scale` px per cloud px
   function cloudTransform(f: LandFrame, pl: LandPlace, input: LandingInput, lift = 0, grow = 1) {
     const rise = f.cloudRise * input.vh
-    p.translate(pl.zone[0], pl.zone[1] + rise - lift * pl.height)
+    // while she lowers her legs the cloud does not rise with the camera's pan: it slides sideways (left) instead, so she ends up on its right end
+    p.translate(pl.zone[0] - f.sit.edge * C.sit.edge.slide * pl.height, pl.zone[1] + rise - lift * pl.height + pl.pan + f.launch.drop * pl.height)
     p.scale(pl.cloudK * f.cloudScale * grow)
     p.translate(-cloud!.zone.x, -cloud!.zone.y)
   }
@@ -361,14 +489,67 @@ export function createLanding(p: any, reduceMotion: boolean) {
     {
       const zw = C.cloud.zone * C.cloud.px[0] * 1.5
       p.push()
-      p.translate(pl.zone[0], pl.zone[1] + f.cloudRise * input.vh)
+      // while she slides to the cloud's edge the dent goes with the cloud (it slides and pans like it) and fades: it never drifts over the cloud as a pale patch
+      p.translate(pl.zone[0] - f.sit.edge * C.sit.edge.slide * pl.height, pl.zone[1] + f.cloudRise * input.vh + pl.pan + f.launch.drop * pl.height)
       p.scale(pl.cloudK * f.cloudScale * (1 + C.cloud.hollowGrow * cmax))
-      p.tint(255, 255 * f.cloudAlpha * clamp(0.22 + 0.9 * cmax + 0.4 * f.closeness * (f.tau > 0 ? 1 : 0), 0, 1) * hollowK)
+      p.tint(255, 255 * f.cloudAlpha * clamp(0.22 + 0.9 * cmax + 0.4 * f.closeness * (f.tau > 0 ? 1 : 0), 0, 1) * hollowK * (1 - smooth(0, 0.5, f.sit.edge)))
       img(cloudImgs.hollow, -zw / 2, -zw * 0.33, zw, zw * 0.66)
       p.pop()
     }
-    // her shadow on the cloud: faint and far while she is high, close and dark when she touches
-    if (f.shadow > 0.001) {
+    // her planted hand presses into the cloud while she pushes herself up (the hollow sprite, small, under the hand)
+    if (f.sit.pose > 0.02) {
+      const rel = sitMarks(f), S = f.sit, c = Math.cos(S.rot), s = Math.sin(S.rot)
+      const press = smooth(0.2, 1.1, S.pose) * 0.55 * f.cloudAlpha * (1 - smooth(0, 0.4, S.edge))
+      const zw = C.cloud.zone * C.cloud.px[0] * 1.5, size = 0.3
+      // between her wrist and fingertips (the far hand, planted on the cloud)
+      const lx = (rel[2][0] + rel[7][0]) / 2 * S.scale, ly = (rel[2][1] + rel[7][1]) / 2 * S.scale
+      const [vx, vy] = landToView(pl, S.hip[0] + lx * c - ly * s, S.hip[1] + lx * s + ly * c)
+      p.push()
+      p.translate(vx, vy + f.cloudRise * input.vh)
+      p.scale(pl.cloudK * f.cloudScale * (1 + C.cloud.hollowGrow * press))
+      p.tint(255, 255 * clamp(0.15 + 0.85 * press, 0, 1) * f.cloudAlpha * 0.6)
+      img(cloudImgs.hollow, (-zw * size) / 2, (-zw * size * 0.66) / 2, zw * size, zw * size * 0.66)
+      p.pop()
+    }
+    // the launch: both palms press into the cloud while she bears weight (the first, her back hand, at once; the other once it has come down), the dents easing out as they let go
+    if (f.launch.u > 0 && f.launch.release < 0.999) {
+      const S = f.sit, LN = C.launch, rel = sitMarks(f), c = Math.cos(S.rot), s = Math.sin(S.rot)
+      const zw = C.cloud.zone * C.cloud.px[0] * 1.5, size = 0.3
+      const dent = (lx: number, ly: number, g: number) => {
+        const press = g * smooth(0.0, 0.3, g) * 0.6 * f.cloudAlpha
+        if (press <= 0.003) return
+        const [vx, vy] = landToView(pl, S.hip[0] + (lx * c - ly * s) * S.scale, S.hip[1] + (lx * s + ly * c) * S.scale)
+        p.push()
+        p.translate(vx, vy + f.cloudRise * input.vh + f.launch.drop * pl.height)
+        p.scale(pl.cloudK * f.cloudScale * (1 + C.cloud.hollowGrow * press))
+        p.tint(255, 255 * clamp(0.15 + 0.85 * press, 0, 1) * f.cloudAlpha * 0.6)
+        img(cloudImgs!.hollow, (-zw * size) / 2, (-zw * size * 0.66) / 2, zw * size, zw * size * 0.66)
+        p.pop()
+      }
+      dent((rel[2][0] + rel[7][0]) / 2, (rel[2][1] + rel[7][1]) / 2 + 4, f.launch.plant)
+      dent(LN.handTo[0], LN.handTo[1] + 4, f.launch.second)
+    }
+    // her shadow while she sits up: each picture's own, in its place, fading with the picture
+    if (f.sit.pose > 0 && sitImgs && f.shadow > 0.001) {
+      const o = C.shadow.offset
+      f.sit.alpha.forEach((a, k) => {
+        if (a <= 0.003) return
+        const P = SIT_POSES[k], R = sitImgs![k]
+        p.push()
+        p.translate(pl.anchor[0], pl.anchor[1])
+        p.rotate(pl.rot)
+        p.scale(pl.scale)
+        p.translate(-LANDER.face[0] + o[0] * LANDER.h, -LANDER.face[1] + o[1] * LANDER.h)
+        p.translate(f.sit.hip[0], f.sit.hip[1])
+        p.rotate(f.sit.rot)
+        p.scale(P.s * f.sit.scale)
+        p.translate(-P.hip[0], -P.hip[1])
+        p.tint(255, 255 * clamp(f.shadow * a * (1 - C.sit.edge.shadow * f.sit.edge) * (1 - f.launch.push), 0, 1) * f.cloudAlpha)
+        img(R.shadow, -R.pad, -R.pad, P.w + R.pad * 2, P.h + R.pad * 2)
+        p.pop()
+      })
+    } else if (f.shadow > 0.001) {
+      // faint and far while she is high, close and dark when she touches
       const o = C.shadow.offset, far = 1 + (1 - f.closeness) * 3.2
       p.push()
       p.translate(pl.anchor[0], pl.anchor[1])
@@ -433,6 +614,7 @@ export function createLanding(p: any, reduceMotion: boolean) {
   /** her landing picture, cross-fading to her eyes-closed and then her eyes-open pictures (drawn between the cloud's back and front) */
   function drawGirl(f: LandFrame, pl: LandPlace, alpha: number) {
     if (!sprite || !shader || !geom || alpha <= 0) return
+    const sitting = f.sit.pose > 0 && !!sitImgs && !!sitShader
     p.push()
     p.translate(pl.anchor[0], pl.anchor[1])
     p.rotate(pl.rot)
@@ -444,6 +626,11 @@ export function createLanding(p: any, reduceMotion: boolean) {
     p.scale(1 + f.squash * 0.5, 1 - f.squash)
     p.translate(-px, -py)
     p.noStroke()
+    if (sitting) {
+      drawSit(f, alpha)
+      p.pop()
+      return
+    }
     p.shader(shader)
     const L = LANDER.limbs
     shader.setUniform('uLimb0', [...L[0].from, ...L[0].to])
@@ -479,6 +666,87 @@ export function createLanding(p: any, reduceMotion: boolean) {
       p.noTint()
     }
     p.pop()
+  }
+
+  /**
+   * Where each landmark is between the two pictures she is in, relative to her hips, in landing px (before her tilt and breath). Each part of her has its own timing
+   * (land.ts sit.timing) so she moves in sequence, and head and torso points travel on an arc about her hips (she rises about them) and not along a straight line.
+   */
+  function sitMarks(f: LandFrame): number[][] {
+    const S = f.sit, A = SIT_POSES[S.from], B = SIT_POSES[S.to], T = C.sit.timing
+    const rel = A.marks.map((a, i) => {
+      const b = B.marks[i], g = SIT_GROUP[i]
+      const ax = (a[0] - A.hip[0]) * A.s, ay = (a[1] - A.hip[1]) * A.s
+      const bx = (b[0] - B.hip[0]) * B.s, by = (b[1] - B.hip[1]) * B.s
+      const [w0, w1] = g === 'hips' ? [0, 1] : T[g]
+      const u = smooth(w0, w1, S.mix)
+      if (g === 'head' || g === 'torso') {
+        let d = Math.atan2(by, bx) - Math.atan2(ay, ax)
+        d -= Math.round(d / (2 * Math.PI)) * 2 * Math.PI
+        const ang = Math.atan2(ay, ax) + d * u, r = lerp(Math.hypot(ax, ay), Math.hypot(bx, by), u)
+        return [r * Math.cos(ang), r * Math.sin(ang)]
+      }
+      return [lerp(ax, bx, u), lerp(ay, by, u)]
+    })
+    // on the last movement her feet and hem swing out in an arc as her legs lower, not in a straight line: a bulge that is 0 at both pictures
+    const bulge = Math.sin(Math.PI * S.mix) * (S.from === SIT_POSES.length - 2 ? 1 : 0)
+    for (const i of [4, 5, 8]) { rel[i][0] += C.sit.edge.arc[0] * bulge; rel[i][1] += C.sit.edge.arc[1] * bulge }
+    return rel
+  }
+
+  /** how far her whole body has moved from where she sat (landing px): up as her hips lift off the cloud, and away in the push-off */
+  const launchShift = (f: LandFrame): [number, number] => [f.launch.away[0], f.launch.away[1] - C.launch.liftBy * f.launch.lift]
+
+  /** the sit-up: her pictures, each warped onto the landmarks' in-between places and dissolved briefly (drawn in the landing sprite's frame, as drawGirl set it up) */
+  function drawSit(f: LandFrame, alpha: number) {
+    const S = f.sit, L = f.launch, rel = sitMarks(f), O = launchShift(f)
+    // the launch moves her as one piece (no warping, so nothing is squeezed): she leans forward about her hips and drops away
+    const R = S.rot + L.lean
+    const cool = 0.045 * f.closeness
+    // position6 gives way to jump11 (which fades in over it, then it fades off)
+    const oldA = 1 - smooth(0.35, 0.85, L.jump)
+    const layer = (k: number, a: number) => {
+      a *= oldA
+      if (a <= 0.003) return
+      const P = SIT_POSES[k], M = sitImgs![k]
+      p.push()
+      // the picture is placed so its own hips are at her hips: they stay where they are, and everything else turns about them (and in the launch, travel with her body)
+      p.translate(S.hip[0] + O[0], S.hip[1] + O[1])
+      p.rotate(R)
+      p.scale(P.s * S.scale)
+      p.translate(-P.hip[0], -P.hip[1])
+      p.shader(sitShader)
+      sitShader.setUniform('uSprite', M.img)
+      sitShader.setUniform('uAlpha', alpha * a)
+      sitShader.setUniform('uCool', [1 - cool, 1 - cool * 0.5, 1])
+      // the old picture is moved toward the next one's drawing as the movement goes on, the new one is still moved toward the old one's and settles into its own
+      sitShader.setUniform('uResK', k === S.from ? [S.mix, 0] : [0, 1 - S.mix])
+      for (let i = 0; i < 14; i++) {
+        const m = P.marks[i]
+        sitShader.setUniform(`uM${i}`, [m[0], m[1], P.hip[0] + rel[i][0] / P.s, P.hip[1] + rel[i][1] / P.s])
+      }
+      p.model(M.geom)
+      p.resetShader()
+      p.pop()
+    }
+    // the next picture fades in underneath, then the old one fades off it from on top: where they overlap that is a true cross-fade (she stays opaque), and only the
+    // edges that belong to one picture alone go briefly faint
+    layer(S.to, S.alpha[S.to])
+    layer(S.from, S.alpha[S.from])
+    // jump11, airborne: lined up on her face (turned toward us as position6 fades), at the scale that matches her head
+    const jumpA = smooth(0, 0.6, L.jump)
+    if (jumpImg && jumpA > 0.003) {
+      const LN = C.launch, c = Math.cos(R), s = Math.sin(R)
+      const fx = S.hip[0] + O[0] + (rel[0][0] * c - rel[0][1] * s) * S.scale, fy = S.hip[1] + O[1] + (rel[0][0] * s + rel[0][1] * c) * S.scale
+      p.push()
+      p.translate(fx, fy)
+      p.rotate(R + LN.jumpTilt * L.jump)
+      p.scale(LN.jumpScale * S.scale)
+      p.tint(255 * (1 - cool), 255 * (1 - cool * 0.5), 255, 255 * jumpA * alpha)
+      p.image(jumpImg, -JUMP_PIC.face[0], -JUMP_PIC.face[1], JUMP_PIC.w, JUMP_PIC.h)
+      p.noTint()
+      p.pop()
+    }
   }
 
   // a point of the landing sprite's frame (where the girl is drawn) in the viewport

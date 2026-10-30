@@ -5,6 +5,7 @@ import GirlFx from './GirlFx'
 import AboutMe from './AboutMe'
 import { LAND_CONFIG } from './meadow/land'
 import { LEAVE_CONFIG } from './meadow/leave'
+import { WINDOW_CONFIG, launchProgress } from './meadow/window'
 import { TOUCH_CONFIG } from './meadow/touch'
 import { BAG_PLACE, PHONE_PLACE } from './meadow/props'
 import { createBagReveal, playBagReveal } from './meadow/bagItems'
@@ -37,15 +38,22 @@ const FRAMES: [number, string][] = [
   [13, 'Contact: picture swap, camera bump'],
   [14, 'Pressing in: dent, wisps, shadow'],
   [15, 'Bounce: rebound and settle'],
+  [16, 'Reacts: recoils onto her elbow, then pushes herself up'],
+  [17, 'Rises upright, then turns her hips and knees toward the cloud edge'],
+  [18, 'Lowers her legs over the cloud edge and sits there'],
+  [19, 'Launch: hands on the cloud, hips lift, push-off, jump11'],
 ]
-function frameIndex(s: { zoom: number; dream: number; fall: number; land: number }) {
+function frameIndex(s: { zoom: number; dream: number; fall: number; land: number; window: number }) {
   const land = s.land, d = s.dream, f = s.fall, contact = LAND_CONFIG.approach.contact / LAND_CONFIG.duration
   if (land > 0) {
     if (land < 0.15) return 11
     if (land < contact) return 12
     if (land < contact + 0.008) return 13
     if (land < 0.37) return 14
-    return 15
+    if (land < LAND_CONFIG.sit.segments[0][0] / LAND_CONFIG.duration) return 15
+    if (land < LAND_CONFIG.sit.segments[1][0] / LAND_CONFIG.duration) return 16
+    if (land < LAND_CONFIG.sit.segments[2][0] / LAND_CONFIG.duration) return 17
+    return s.window > 0 && launchProgress(s.window) > 0 ? 19 : 18
   }
   if (d <= 0) return 1
   if (d < 1) return d < 0.1 ? 2 : d < 0.3 ? 3 : d < 0.45 ? 4 : d < 0.65 ? 5 : 6
@@ -60,6 +68,22 @@ export default function DreamLanding() {
   const framesRef = useRef<HTMLDivElement>(null)
   // the function GirlFx gives us to move its effects, called by the scene each frame with where her head is
   const fxRef = useRef<((a: GirlAnchor | null) => void) | null>(null)
+  // the word game on the About Me page tells us when every word is found: she changes pose (eased over 0.7 s, read by the scene each frame)
+  // and the bubble changes what it says
+  const rememberedRef = useRef(0)
+  const rememberAnim = useRef(0)
+  const [remembered, setRemembered] = useState(false)
+  const onRemembered = useCallback((done: boolean) => {
+    setRemembered(done)
+    cancelAnimationFrame(rememberAnim.current)
+    const from = rememberedRef.current, to = done ? 1 : 0, t0 = performance.now()
+    const step = (now: number) => {
+      const k = Math.min(1, (now - t0) / 700)
+      rememberedRef.current = from + (to - from) * k
+      if (k < 1) rememberAnim.current = requestAnimationFrame(step)
+    }
+    rememberAnim.current = requestAnimationFrame(step)
+  }, [])
   const registerFx = useCallback((fn: ((a: GirlAnchor | null) => void) | null) => { fxRef.current = fn }, [])
   // her phone lies face down on the meadow at the top of the page: a hotspot over it lifts it off the grass into the Photos
   // gallery, and the meadow leaves it out until the gallery has laid it back down
@@ -143,13 +167,14 @@ export default function DreamLanding() {
     // the length of the zoom + dream + fall part of the scroll, and of the landing part (px)
     let scrollDistance = 1
     let landDistance = 1
+    let windowDistance = 1
     let leaveDistance = 1
     let touchDistance = 1
     // the camera's size (it is pinned to the viewport), and the --about last written, so a scroll only touches the DOM when something changes
     let camW = 0, camH = 0
     let about = ''
 
-    const state: MeadowState = { zoom: 0, dream: 0, fall: 0, land: 0, leave: 0, touch: 0, bag, glasses, hat, cap, phone }
+    const state: MeadowState = { zoom: 0, dream: 0, fall: 0, land: 0, window: 0, leave: 0, touch: 0, get remembered() { return rememberedRef.current }, bag, glasses, hat, cap, phone }
     // The meadow (and p5) load after first paint; the poster stands in until its first frame is up
     let meadow: MeadowHandle | null = null
     let visible = true
@@ -165,9 +190,10 @@ export default function DreamLanding() {
       camH = camera.clientHeight
       sectionStart = section.getBoundingClientRect().top + window.scrollY
       // the section is (FALL_VH + landing + leave + touchdown) vh tall: the fall keeps the scroll length it always had, then the rest in order
-      const vh = section.offsetHeight / (FALL_VH + LAND_CONFIG.scrollVh + LEAVE_CONFIG.scrollVh + TOUCH_CONFIG.scrollVh)
+      const vh = section.offsetHeight / (FALL_VH + LAND_CONFIG.scrollVh + WINDOW_CONFIG.scrollVh + LEAVE_CONFIG.scrollVh + TOUCH_CONFIG.scrollVh)
       scrollDistance = Math.max(1, FALL_VH * vh - window.innerHeight)
       landDistance = Math.max(1, LAND_CONFIG.scrollVh * vh)
+      windowDistance = Math.max(1, WINDOW_CONFIG.scrollVh * vh)
       leaveDistance = Math.max(1, LEAVE_CONFIG.scrollVh * vh)
       touchDistance = Math.max(1, TOUCH_CONFIG.scrollVh * vh)
     }
@@ -254,8 +280,9 @@ export default function DreamLanding() {
       state.dream = Math.max(0, Math.min(1, (progress - DREAM_START) / (DREAM_END - DREAM_START)))
       state.fall = Math.max(0, Math.min(1, (progress - DREAM_END) / (1 - DREAM_END)))
       state.land = Math.max(0, Math.min(1, (scrolled - scrollDistance) / landDistance))
-      state.leave = Math.max(0, Math.min(1, (scrolled - scrollDistance - landDistance) / leaveDistance))
-      state.touch = Math.max(0, Math.min(1, (scrolled - scrollDistance - landDistance - leaveDistance) / touchDistance))
+      state.window = Math.max(0, Math.min(1, (scrolled - scrollDistance - landDistance) / windowDistance))
+      state.leave = Math.max(0, Math.min(1, (scrolled - scrollDistance - landDistance - windowDistance) / leaveDistance))
+      state.touch = Math.max(0, Math.min(1, (scrolled - scrollDistance - landDistance - windowDistance - leaveDistance) / touchDistance))
       // the About Me page comes in while she settles (touch 0.5 - 0.8): its own 0-1, read by AboutMe's CSS
       const a = Math.max(0, Math.min(1, (state.touch - 0.5) / 0.3))
       const next = (a * a * (3 - 2 * a)).toFixed(3)
@@ -301,7 +328,7 @@ export default function DreamLanding() {
   }, [])
 
   return (
-  <section ref={sectionRef} className="dream-section" style={{ height: `${FALL_VH + LAND_CONFIG.scrollVh + LEAVE_CONFIG.scrollVh + TOUCH_CONFIG.scrollVh}vh` }}>
+  <section ref={sectionRef} className="dream-section" style={{ height: `${FALL_VH + LAND_CONFIG.scrollVh + WINDOW_CONFIG.scrollVh + LEAVE_CONFIG.scrollVh + TOUCH_CONFIG.scrollVh}vh` }}>
     <div ref={cameraRef} className="dream-camera">
       <div
         ref={stageRef}
@@ -309,8 +336,8 @@ export default function DreamLanding() {
         role="img"
         aria-label="A girl lying asleep in a hand-drawn meadow, who dreams she is falling through the dawn sky and lands safely on a soft cloud, then drifts out of the dream onto her About Me page"
       />
-      <AboutMe />
-      <GirlFx register={registerFx} />
+      <AboutMe onRemembered={onRemembered} />
+      <GirlFx register={registerFx} remembered={remembered} />
       {SHOW_FRAMES ? (
         <div
           ref={framesRef}

@@ -64,13 +64,13 @@
 .about-stage {
   position: absolute;
   bottom: 0;
-  left: 50%;
-  translate: -50% 0;
+  right: 0;
   width: min(100vw, 140.625vh);
   aspect-ratio: 1440 / 1024;
   container-type: size;
   z-index: 1;
   pointer-events: none;
+  overflow: clip;
 }
 
 /* each piece eases in from --at: --p is its own 0-1 progress, so it settles up from below as it fades in */
@@ -81,6 +81,31 @@
   opacity: var(--p);
   transform: translateY(calc((1 - var(--p)) * 3cqh)) scale(calc(0.92 + 0.08 * var(--p)));
   user-select: none;
+}
+
+/* heading, top centre of the page; sizes are in cqw so it scales with the stage */
+.about-title {
+  --s: min(100vw, 140.625vh);
+  left: 0;
+  top: calc(var(--s) * 0.03);
+  width: 100%;
+  z-index: 1;
+  text-align: center;
+  pointer-events: none;
+  color: #000;
+  font-family: Inter, "Helvetica Neue", Arial, sans-serif;
+}
+.about-title h2 {
+  margin: 0;
+  font-size: calc(var(--s) * 0.045);
+  font-weight: 900;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+.about-title p {
+  margin: calc(var(--s) * 0.012) 0 0;
+  font-size: calc(var(--s) * 0.021);
+  font-weight: 400;
 }
 
 /* ===== Girl effects: dizzy loops and stars, thought bubble (components/GirlFx.tsx) ===== */
@@ -102,7 +127,9 @@
   height: calc(var(--hw) * 0.8px);
   translate: -50% -50%;
   opacity: var(--landed);
+  transition: opacity 0.5s ease;
 }
+.girl-fx.is-remembered .girl-dizzy { opacity: 0; }
 
 .girl-loops {
   position: absolute;
@@ -220,4 +247,157 @@
 
 @media (prefers-reduced-motion: reduce) {
   .girl-loops path, .girl-orbit, .girl-star-pos, .girl-star { animation: none; }
+}
+
+/* ===== Strands word game (components/StrandsGame.tsx) ===== */
+/* Sits under the heading on the left of the about stage; the board is 800 x 640 and everything inside scales with its width (cqw). */
+
+.about-game {
+  --s: min(100vw, 140.625vh);
+  width: calc(var(--s) * 0.5);
+  left: calc(50% - var(--s) * 0.25);
+  top: calc(var(--s) * 0.215);
+  z-index: 2;
+  pointer-events: auto;
+}
+
+.strands-game {
+  --blue: #aedcef;
+  --yellow: #f6cf3a;
+  --grey: #e2e2e2;
+  --ink: #171717;
+  position: relative;
+  width: 100%;
+  aspect-ratio: 800 / 640;
+  border-radius: 4.4cqw;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.07);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.06);
+  color: var(--ink);
+  font-family: Inter, Helvetica, Arial, sans-serif;
+  container-type: inline-size;
+}
+.strands-game *, .strands-game *::before { box-sizing: border-box; }
+
+.strands-game__top {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 11%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 6.5cqw;
+  z-index: 30;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.strands-btn {
+  appearance: none;
+  border: 1.5px solid #1f5fae;
+  background: #fff;
+  padding: 1cqw 2cqw;
+  border-radius: 100px;
+  font: inherit;
+  font-size: 1.6cqw;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  color: #1f5fae;
+  box-shadow: 0 2px 0 rgba(31, 95, 174, 0.25);
+  transition: background 0.2s ease, color 0.2s ease, transform 0.1s ease, box-shadow 0.1s ease;
+}
+.strands-btn:hover:not(:disabled) { background: #1f5fae; color: #fff; }
+.strands-btn:active:not(:disabled) { transform: translateY(2px); box-shadow: none; }
+.strands-btn:disabled { opacity: 0.45; cursor: default; }
+
+.strands-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 3;
+  pointer-events: none;
+}
+.strand-path {
+  fill: none;
+  stroke-width: 20;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: stroke 0.45s ease, opacity 0.35s ease;
+}
+.strand-path--live { stroke: var(--grey); }
+.strand-path--blue { stroke: var(--blue); }
+.strand-path--yellow { stroke: var(--yellow); }
+.strand-path.is-fading { opacity: 0; }
+
+.strands-grid {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  touch-action: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.strand-letter {
+  position: absolute;
+  width: 8%;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: translate(-50%, -50%);
+  font-size: 3.3cqw;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--ink);
+  user-select: none;
+  pointer-events: none;
+}
+.strand-letter::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: 50%;
+  background: var(--grey);
+  opacity: 0;
+  transform: scale(0.5);
+  transition: transform 0.32s cubic-bezier(.2, .8, .2, 1), opacity 0.28s ease, background-color 0.45s ease;
+  transition-delay: var(--d, 0s);
+}
+.strand-letter.is-selected::before,
+.strand-letter.is-solved::before { opacity: 1; transform: scale(1); }
+.strand-letter.is-selected { animation: letter-pop 0.28s cubic-bezier(.2, .8, .2, 1); }
+.strand-letter.is-blue::before { background: var(--blue); }
+.strand-letter.is-yellow::before { background: var(--yellow); }
+
+@keyframes letter-pop {
+  0% { transform: translate(-50%, -50%) scale(1); }
+  50% { transform: translate(-50%, -50%) scale(1.1); }
+  100% { transform: translate(-50%, -50%) scale(1); }
+}
+
+.strands-complete {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, calc(-50% + 8px));
+  opacity: 0;
+  display: flex;
+  align-items: center;
+  gap: 1cqw;
+  font-size: 1.6cqw;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+  transition: opacity 0.7s ease, transform 0.7s ease;
+}
+.strands-complete.is-visible { opacity: 1; transform: translate(-50%, -50%); }
+.strands-complete strong { font-size: 1.9cqw; }
+
+@media (prefers-reduced-motion: reduce) {
+  .strand-letter, .strand-letter::before, .strand-path, .strands-complete { transition: none !important; animation: none !important; }
 }

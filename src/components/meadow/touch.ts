@@ -15,6 +15,7 @@
 
 import land1Url from '@/assets/meadow/land1.webp'
 import land2Url from '@/assets/meadow/land2.webp'
+import land3Url from '@/assets/meadow/land3.webp'
 import { DROP_POSES, ABOUT_BG } from './drop'
 import type { DropFrame } from './drop'
 import { createTris } from './tris'
@@ -47,6 +48,8 @@ export const TOUCH_POSES = [
   { ...DROP_POSES[2], contact: 484, head: [55, 85] as [number, number] },
   { key: 'land1', url: land1Url, w: 578, h: 674, face: [240, 188], contact: 618, scale: 1.05 * 0.535, head: [112, 150] as [number, number] },
   { key: 'land2', url: land2Url, w: 429, h: 644, face: [188, 168], contact: 602, scale: 1.05 * 0.535, head: [90, 150] as [number, number] },
+  // land3: once she remembers who she is (the word game is solved) she sits the same way, calm, hand on her heart
+  { key: 'land3', url: land3Url, w: 459, h: 689, face: [203, 168], contact: 640, scale: 1.05 * 0.535, head: [88, 170] as [number, number] },
 ]
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
@@ -99,7 +102,7 @@ export interface TouchFrame {
  * The touchdown frame for progress u (0-1). `df` is the drop's last frame, `surfaceCam` where the
  * surface line goes (camera px), `rightEdge` the furthest right her seated body may reach (camera px). Pure and stateless.
  */
-export function touchAt(u: number, df: DropFrame, surfaceCam: number, rightEdge: number, vh: number, reduced = false): TouchFrame {
+export function touchAt(u: number, df: DropFrame, surfaceCam: number, rightEdge: number, vh: number, reduced = false, remembered = 0): TouchFrame {
   const C = TOUCH_CONFIG
   u = clamp(u, 0, 1)
   const k = reduced ? C.reducedMotion : 1
@@ -142,7 +145,8 @@ export function touchAt(u: number, df: DropFrame, surfaceCam: number, rightEdge:
     // the falling picture is a different shape from the seated ones, so it goes quickly (no ghost of a standing girl is left hanging above her)
     { pose: 0, alpha: 1 - smooth(0.3, 0.7, m1) },
     { pose: 1, alpha: smooth(0, 0.6, m1) * (1 - smooth(0.6, 1, m2)) },
-    { pose: 2, alpha: smooth(0, 0.7, m2) },
+    { pose: 2, alpha: smooth(0, 0.7, m2) * (1 - smooth(0.6, 1, remembered)) },
+    { pose: 3, alpha: smooth(0, 0.7, m2) * smooth(0, 0.6, remembered) },
   ]
 
   // the head follows whichever pictures are showing (their weights, normalised)

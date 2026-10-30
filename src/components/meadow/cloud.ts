@@ -63,11 +63,12 @@ export const makeCanvas = (w: number, h: number) => {
 }
 
 // the cloud's colours (sRGB): lit sky-white, its soft mid-tone, the blue of the shaded side and the deep blue of the creases
-const WHITE = [255, 252, 243]
-const WARM = [255, 244, 224]
-const MID = [234, 239, 248]
-const SHADE = [168, 197, 236]
-const DEEP = [130, 166, 218]
+const WHITE = [255, 255, 255]
+const WARM = [255, 255, 255]
+const MID = [241, 247, 255]
+const SHADE = [198, 221, 247]
+const DEEP = [160, 193, 238]
+const OUTLINE = [150, 190, 238]
 const mixc = (a: number[], b: number[], t: number, out: number[]) => {
   out[0] = a[0] + (b[0] - a[0]) * t
   out[1] = a[1] + (b[1] - a[1]) * t
@@ -180,7 +181,7 @@ function lightField(hf: Float32Array, max: number, w: number, h: number, light: 
       mixc(tmp, WARM, smooth(0.9, 1, lam) * 0.5, col)
       // the crests of tall lobes catch more light; the creases between them sit in the blue ambient
       mixc(col, WHITE, smooth(0.45, 1, t) * 0.28, tmp)
-      mixc(tmp, DEEP, cav * 0.55 * shade + (1 - smooth(0, 0.35, t)) * 0.12 * shade, col)
+      mixc(tmp, DEEP, cav * 0.55 * shade + (1 - smooth(0, 0.35, t)) * 0.3 * shade, col)
       out[o] = col[0]; out[o + 1] = col[1]; out[o + 2] = col[2]
       out[o + 3] = smooth(0.0, 0.3, t) * 255
     }
@@ -218,6 +219,11 @@ function rag(img: ImageData, rand: () => number, cell: number) {
     if (a <= 0) continue
     const v = a + (n[i] - 0.5) * 1.1 * (1 - a)
     data[o + 3] = smooth(0.3, 0.62, v) * 255
+    // the thin dashed light-blue outline round the silhouette: the rim pixels are tinted blue, in dashes broken by the grain
+    const rim = (1 - smooth(0.55, 0.95, a)) * smooth(0.35, 0.5, n[(i * 7) % n.length])
+    data[o] += (OUTLINE[0] - data[o]) * rim
+    data[o + 1] += (OUTLINE[1] - data[o + 1]) * rim
+    data[o + 2] += (OUTLINE[2] - data[o + 2]) * rim
     // clumps: darker blue in the hollows of the grain, a touch brighter on its crests
     const g = (n[i] - 0.5) * 0.16
     data[o] = clamp(data[o] * (1 + g * 0.6), 0, 255)
@@ -229,7 +235,7 @@ function rag(img: ImageData, rand: () => number, cell: number) {
 export function paintCloud(opts: CloudOptions): CloudSprites {
   const { width: W, height: H } = opts
   const rand = mulberry(opts.seed ?? 11)
-  const light: [number, number] = opts.light ?? [-0.55, -0.83]
+  const light: [number, number] = opts.light ?? [-0.25, -0.95]
   const shade = opts.shade ?? 0.9
   const [zcx, zcy] = opts.centre ?? [0.5, 0.5]
   const zr = W * (opts.zone ?? 0.2) * 0.5
@@ -240,7 +246,7 @@ export function paintCloud(opts: CloudOptions): CloudSprites {
   const domes: Dome[] = []
   const add = (x: number, y: number, r: number, hgt: number, squash = 0.9) => domes.push({ x, y, r, h: hgt, squash })
   const spread = opts.spread ?? 1, area = spread * spread
-  const cx = W / 2, cy = H * 0.5, ax = W * 0.345 * spread, ay = H * 0.3 * spread
+  const cx = W / 2, cy = H * 0.5, ax = W * 0.345 * spread, ay = H * 0.38 * spread
   for (let i = 0; i < Math.round(44 * area); i++) {
     const a = rand() * Math.PI * 2, d = Math.sqrt(rand()) * 0.8
     const r = (120 + rand() * 90) * u
@@ -273,9 +279,9 @@ export function paintCloud(opts: CloudOptions): CloudSprites {
   const { hf, max } = heightField(W, H, all, rand, 0.11)
   // fine lobes ride on top of the heap (added, not unioned, so they are never swallowed by the big domes): the cauliflower surface
   const fine: Dome[] = []
-  for (let i = 0; i < Math.round(420 * area); i++) {
+  for (let i = 0; i < Math.round(760 * area); i++) {
     const a = rand() * Math.PI * 2, d = Math.sqrt(rand()) * 1.0
-    const r = (26 + rand() * 54) * u
+    const r = (20 + rand() * 40) * u
     fine.push({ x: cx + Math.cos(a) * ax * d, y: cy + Math.sin(a) * ay * d, r, h: r * (0.55 + rand() * 0.4), squash: 0.86 + rand() * 0.1 })
   }
   const fineField = heightField(W, H, fine, rand, 0.06)
