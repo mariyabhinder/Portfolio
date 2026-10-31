@@ -3,6 +3,7 @@ import PhoneGallery, { type PhoneSpot } from './PhoneGallery'
 import type { GirlAnchor, MeadowHandle, MeadowState } from './meadow/meadow'
 import GirlFx from './GirlFx'
 import AboutMe from './AboutMe'
+import FlowerCard from './FlowerCard'
 import { LAND_CONFIG } from './meadow/land'
 import { LEAVE_CONFIG } from './meadow/leave'
 import { WINDOW_CONFIG, launchProgress } from './meadow/window'
@@ -67,6 +68,9 @@ export default function DreamLanding() {
   const cameraRef = useRef<HTMLDivElement>(null)
   const stageRef = useRef<HTMLDivElement>(null)
   const framesRef = useRef<HTMLDivElement>(null)
+  const taglineRef = useRef<HTMLDivElement>(null)
+  const heroTextRef = useRef<HTMLDivElement>(null)
+  const scrollCueRef = useRef<HTMLParagraphElement>(null)
   const layerRef = useRef<HTMLDivElement>(null)
   const dispRef = useRef<SVGFEDisplacementMapElement>(null)
   // the function GirlFx gives us to move its effects, called by the scene each frame with where her head is
@@ -309,9 +313,25 @@ export default function DreamLanding() {
       }
       const gone = wave >= 0.87
       if (gone !== camera.classList.contains('about-gone')) camera.classList.toggle('about-gone', gone)
+      // once the meadow has zoomed fully out, the pink petal flies in and turns into the contact flower (FlowerCard); scrolling back takes it away
+      const flowerOn = state.wake >= 0.995 ? true : state.wake < 0.9 ? false : camera.classList.contains('flower-on')
+      if (flowerOn !== camera.classList.contains('flower-on')) camera.classList.toggle('flower-on', flowerOn)
       state.about = a * a * (3 - 2 * a)
       const next = state.about.toFixed(3)
       if (next !== about) camera.style.setProperty('--about', (about = next))
+      // the hero text is there on arrival and fades as the camera starts closing in on her
+      const heroText = heroTextRef.current
+      if (heroText) heroText.style.opacity = state.wake > 0 ? '0' : Math.max(0, 1 - state.zoom / 0.12).toFixed(3)
+      // the scroll cue stays until the page is scrolled all the way down
+      if (scrollCueRef.current) scrollCueRef.current.style.opacity = state.wake >= 0.995 ? '0' : '1'
+      // the tagline stays put in the sky, fading in as the window grows and out as she launches
+      const tag = taglineRef.current
+      if (tag) {
+        const w = state.window
+        const k = (a: number, b: number, x: number) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t) }
+        const op = w > 0 && state.leave <= 0 ? k(0.04, 0.3, w) * (1 - k(0.5, 0.62, w)) : 0
+        tag.style.opacity = op.toFixed(3)
+      }
       const label = framesRef.current
       if (label) {
         const n = frameIndex(state)
@@ -365,6 +385,20 @@ export default function DreamLanding() {
       <div ref={layerRef} className="about-layer">
         <AboutMe onRemembered={onRemembered} />
         <GirlFx register={registerFx} remembered={remembered} />
+      </div>
+      <FlowerCard />
+      <div ref={heroTextRef} className="hero-text">
+        <h1 className="hero-text__title">Hi!<br />I am Mariyah</h1>
+        <p className="screen-cue screen-cue--left">[Click on different accessories]</p>
+      </div>
+      <p ref={scrollCueRef} className="screen-cue screen-cue--right">
+        scroll
+        <svg width="12" height="14" viewBox="0 0 12 14" fill="none" aria-hidden="true">
+          <path d="M6 1v11M1.5 7.5 6 12l4.5-4.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="square" />
+        </svg>
+      </p>
+      <div ref={taglineRef} className="cloud-tagline" aria-hidden="true">
+        <p>Imagine it.<br />Make it.<br />Put a little<br />magic into it.</p>
       </div>
       <svg width="0" height="0" className="absolute" aria-hidden="true">
         <filter id="about-warp" x="0" y="0" width="100%" height="100%" colorInterpolationFilters="sRGB">

@@ -16,6 +16,11 @@ import sitFlow from '@/assets/meadow/sit-flow.json'
 import position2Url from '@/assets/meadow/position2.webp'
 import position5Url from '@/assets/meadow/position5.webp'
 import position6Url from '@/assets/meadow/position6.webp'
+import j1Url from '@/assets/meadow/j1.webp'
+import j2Url from '@/assets/meadow/j2.webp'
+import j3Url from '@/assets/meadow/j3.webp'
+import j4Url from '@/assets/meadow/j4.webp'
+import j5Url from '@/assets/meadow/j5.webp'
 import jump11Url from '@/assets/meadow/jump11.webp'
 import startUrl from '@/assets/meadow/start.webp'
 import middleUrl from '@/assets/meadow/middle.webp'
@@ -68,7 +73,7 @@ export const LANDER = {
 }
 
 /**
- * Her sitting-up pictures, in their own px: [landing-girl.webp (drawn in the landing sprite's 364 x 427 px), position2.webp, position5.webp, position6.webp].
+ * Her sitting-up pictures, in their own px: [landing-girl.webp (drawn in the landing sprite's 364 x 427 px), position2.webp, position5.webp, position6.webp, then the launch's j1-j5.webp].
  * `hip` is her belt, the point her body pivots about (and the point that stays on the cloud), `s` is landing px per picture px (each picture is drawn
  * at its own scale, never stretched to fit another; chosen so her head is the same size on all of them), and `marks` are the same 14 landmarks on every picture
  * (see SIT_GROUP) that the morph lines up, so her arms and legs travel from one pose to the next instead of ghosting. marks[3] is the hip.
@@ -83,6 +88,17 @@ export const SIT_POSES = [
     marks: [[570, 165], [830, 680], [250, 830], [530, 640], [1050, 1090], [1190, 950], [970, 725], [95, 830], [1030, 1050], [470, 28], [300, 400], [520, 480], [655, 320], [520, 990]] },
   { w: 1268, h: 1240, face: [570, 170], s: 0.25, hip: [450, 590],
     marks: [[570, 170], [705, 625], [440, 785], [450, 590], [950, 1175], [1000, 970], [825, 665], [340, 830], [1040, 1110], [460, 20], [300, 450], [480, 430], [595, 300], [700, 1185]] },
+  // the launch (land.ts launch.pose): position6 -> j1 turns her to us -> j2 leans forward onto her hands -> j3 pushes up -> j4 hips lifted, arms swinging -> j5 airborne, which hands over to jump11
+  { w: 1269, h: 1343, face: [700, 255], s: 0.22, hip: [610, 600],
+    marks: [[700, 255], [850, 610], [528, 808], [610, 600], [880, 1180], [1000, 985], [925, 775], [490, 855], [960, 1200], [700, 58], [470, 450], [640, 540], [680, 350], [760, 1275]] },
+  { w: 1007, h: 1113, face: [645, 225], s: 0.245, hip: [520, 500],
+    marks: [[645, 225], [765, 520], [398, 608], [520, 500], [700, 980], [830, 720], [805, 605], [385, 655], [770, 960], [640, 60], [330, 380], [560, 430], [640, 300], [560, 930]] },
+  { w: 1006, h: 1056, face: [650, 215], s: 0.255, hip: [540, 470],
+    marks: [[650, 215], [690, 515], [410, 608], [540, 470], [630, 960], [750, 750], [725, 590], [395, 650], [690, 940], [640, 45], [330, 370], [560, 420], [630, 290], [540, 870]] },
+  { w: 959, h: 1014, face: [695, 180], s: 0.27, hip: [560, 520],
+    marks: [[695, 180], [715, 425], [285, 315], [560, 520], [505, 880], [715, 680], [750, 445], [225, 345], [585, 870], [650, 50], [390, 330], [520, 410], [640, 270], [600, 790]] },
+  { w: 970, h: 1014, face: [535, 185], s: 0.32, hip: [500, 520],
+    marks: [[535, 185], [645, 310], [320, 300], [500, 520], [540, 900], [700, 640], [675, 245], [300, 215], [590, 880], [520, 70], [400, 330], [480, 460], [520, 330], [500, 800]] },
 ]
 // the baked dense alignment between neighbouring pictures (scripts/bake-sit-flow.cjs): per picture, a G x G grid of residuals (1/8 px of that picture) toward the next and the previous picture
 const decodeFlow = (b64: string | null) => {
@@ -404,7 +420,7 @@ export function createLanding(p: any, reduceMotion: boolean) {
       cloudImgs = { body: imageFromCanvas(cloud!.body), front: imageFromCanvas(cloud!.front), hollow: imageFromCanvas(cloud!.hollow), wisps: cloud!.wisps.map(imageFromCanvas) }
     })
     // the sit-up pictures come last (she is not sitting up for a good while after she lands): the landing's own mesh for the first, a plain grid (no loose fabric: the morph moves it all) for the other two
-    const sitUrls = [position2Url, position5Url, position6Url]
+    const sitUrls = [position2Url, position5Url, position6Url, j1Url, j2Url, j3Url, j4Url, j5Url]
     const [sitHtml, sitP5] = await Promise.all([Promise.all(sitUrls.map(loadHtml)), Promise.all(sitUrls.map((u) => p.loadImage(u)))])
     if (disposed) return
     // each picture is a grid mesh (no loose fabric here: the morph moves it all) carrying its baked residuals, one pair per vertex
@@ -476,7 +492,7 @@ export function createLanding(p: any, reduceMotion: boolean) {
   /** the cloud, its dent, her contact shadow and the wisps behind her (drawn before her) */
   function drawBehind(f: LandFrame, pl: LandPlace, input: LandingInput, hollowK = 1) {
     if (!cloud || !cloudImgs || !sprite || f.cloudAlpha <= 0) return
-    const c = clamp(f.compress, -0.4, 1.2)
+    const c = clamp(f.compress + f.launch.dip, -0.4, 1.2)
     const cmax = Math.max(0, c)
     p.push()
     p.noStroke()
@@ -513,7 +529,7 @@ export function createLanding(p: any, reduceMotion: boolean) {
     }
     // the launch: both palms press into the cloud while she bears weight (the first, her back hand, at once; the other once it has come down), the dents easing out as they let go
     if (f.launch.u > 0 && f.launch.release < 0.999) {
-      const S = f.sit, LN = C.launch, rel = sitMarks(f), c = Math.cos(S.rot), s = Math.sin(S.rot)
+      const S = f.sit, rel = sitMarks(f), c = Math.cos(S.rot), s = Math.sin(S.rot)
       const zw = C.cloud.zone * C.cloud.px[0] * 1.5, size = 0.3
       const dent = (lx: number, ly: number, g: number) => {
         const press = g * smooth(0.0, 0.3, g) * 0.6 * f.cloudAlpha
@@ -527,7 +543,7 @@ export function createLanding(p: any, reduceMotion: boolean) {
         p.pop()
       }
       dent((rel[2][0] + rel[7][0]) / 2, (rel[2][1] + rel[7][1]) / 2 + 4, f.launch.plant)
-      dent(LN.handTo[0], LN.handTo[1] + 4, f.launch.second)
+      dent((rel[1][0] + rel[6][0]) / 2, (rel[1][1] + rel[6][1]) / 2 + 4, f.launch.second)
     }
     // her shadow while she sits up: each picture's own, in its place, fading with the picture
     if (f.sit.pose > 0 && sitImgs && f.shadow > 0.001) {
@@ -544,7 +560,7 @@ export function createLanding(p: any, reduceMotion: boolean) {
         p.rotate(f.sit.rot)
         p.scale(P.s * f.sit.scale)
         p.translate(-P.hip[0], -P.hip[1])
-        p.tint(255, 255 * clamp(f.shadow * a * (1 - C.sit.edge.shadow * f.sit.edge) * (1 - f.launch.push), 0, 1) * f.cloudAlpha)
+        p.tint(255, 255 * clamp(f.shadow * a * (1 - C.sit.edge.shadow * f.sit.edge) * (1 - Math.max(f.launch.push, f.launch.lift)), 0, 1) * f.cloudAlpha)
         img(R.shadow, -R.pad, -R.pad, P.w + R.pad * 2, P.h + R.pad * 2)
         p.pop()
       })
@@ -568,13 +584,13 @@ export function createLanding(p: any, reduceMotion: boolean) {
   /** the near lobes of the cloud and the wisps in front of her (drawn after her) */
   function drawFront(f: LandFrame, pl: LandPlace, input: LandingInput) {
     if (!cloud || !cloudImgs || f.cloudAlpha <= 0) return
-    const cmax = Math.max(0, f.compress)
+    const cmax = Math.max(0, f.compress + f.launch.dip)
     p.push()
     p.noStroke()
     p.tint(255, 255 * f.cloudAlpha)
     p.push()
     // the lobes round her lift and swell as she presses in (the cloud giving way), settling as it recovers
-    cloudTransform(f, pl, input, C.cloud.lipLift * clamp(f.compress, -0.5, 1.1), 1 + 0.025 * cmax)
+    cloudTransform(f, pl, input, C.cloud.lipLift * clamp(f.compress + f.launch.dip, -0.5, 1.1), 1 + 0.025 * cmax)
     img(cloudImgs.front, 0, 0, C.cloud.px[0], C.cloud.px[1])
     p.pop()
     drawWisps(f, pl, true)
@@ -689,13 +705,17 @@ export function createLanding(p: any, reduceMotion: boolean) {
       return [lerp(ax, bx, u), lerp(ay, by, u)]
     })
     // on the last movement her feet and hem swing out in an arc as her legs lower, not in a straight line: a bulge that is 0 at both pictures
-    const bulge = Math.sin(Math.PI * S.mix) * (S.from === SIT_POSES.length - 2 ? 1 : 0)
+    const bulge = Math.sin(Math.PI * S.mix) * (S.from === 2 ? 1 : 0)
+    // while she rises her loose fabric answers later than her body: the hem and hijab drape trail behind the movement
+    const drag = f.launch.speed
+    if (drag > 0) for (const i of [4, 5, 8, 13]) rel[i][1] += C.launch.drag[0] * drag * (i === 13 || i === 5 ? 1 : 0.5)
+    if (drag > 0) { rel[10][0] -= C.launch.drag[1] * drag; rel[10][1] += C.launch.drag[1] * 0.5 * drag }
     for (const i of [4, 5, 8]) { rel[i][0] += C.sit.edge.arc[0] * bulge; rel[i][1] += C.sit.edge.arc[1] * bulge }
     return rel
   }
 
   /** how far her whole body has moved from where she sat (landing px): up as her hips lift off the cloud, and away in the push-off */
-  const launchShift = (f: LandFrame): [number, number] => [f.launch.away[0], f.launch.away[1] - C.launch.liftBy * f.launch.lift]
+  const launchShift = (f: LandFrame): [number, number] => [f.launch.away[0], f.launch.away[1]]
 
   /** the sit-up: her pictures, each warped onto the landmarks' in-between places and dissolved briefly (drawn in the landing sprite's frame, as drawGirl set it up) */
   function drawSit(f: LandFrame, alpha: number) {

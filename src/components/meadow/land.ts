@@ -18,7 +18,8 @@
 //   8.0 - 19.6  SIT UP   she lifts her head and shoulders, props herself on her hands and turns her hips and bent knees toward the cloud's edge (position2 -> position5.webp)
 //   19.0 - 24.8 LOWER    she shifts her weight back onto her supporting hand, slides along the cloud to its edge and lowers her legs over it (position5 -> position6.webp)
 //   24.8 - 27   HOLD     position6, sitting at the edge
-//   (she then sits until the window (window.ts) has opened completely; only then does the LAUNCH below play, driven by the end of the window's scroll)
+//   (she then sits until the window (window.ts) has opened completely; only then does the LAUNCH below play, driven by the end of the window's scroll:
+//   position6 -> j1 -> j2 -> j3 -> j4 -> j5, then jump11)
 // (scrollVh and duration keep the same 50 vh per second, so the earlier stages run exactly as before)
 
 export const LAND_CONFIG = {
@@ -135,36 +136,35 @@ export const LAND_CONFIG = {
     fadeOut: [0.3, 0.72] as [number, number],
   },
 
-  // ---- the launch: position6.webp pushes herself off the cloud and becomes jump11.webp ----
+  // ---- the launch: position6 -> j1 -> j2 -> j3 -> j4 -> j5 (the sit-up's picture morph, landing.ts SIT_POSES), then j5 is handed over to jump11.webp ----
   launch: {
-    /** each part of the movement as [start, end] of the launch (0-1): the stages of the brief are 0-0.2 right hand, 0.2-0.45 second hand + lift, 0.45-0.7 push-off, 0.7-1 jump11 */
-    plant: [0.0, 0.14] as [number, number], // her back (right) hand presses into the cloud
-    second: [0.14, 0.34] as [number, number], // her other hand comes down onto the cloud beside it
-    lean: [0.06, 0.5] as [number, number], // her shoulders and head go forward over her hands
-    lift: [0.3, 0.55] as [number, number], // her hips come up off the cloud on both hands (elbows bend a little)
-    tuck: [0.36, 0.68] as [number, number], // her knees bend and her feet lift away from the cloud
-    push: [0.46, 1.0] as [number, number], // she pushes down and her body travels away (energetic: it eases in, not out)
-    release: [0.56, 0.66] as [number, number], // her hands let go of the cloud
-    dissolve: [0.6, 0.8] as [number, number], // position6 turns into jump11.webp
+    /** the five movements through her launch pictures (landing.ts SIT_POSES[4..8]), each [start, end] of the launch (0-1); they overlap so she never stops between pictures:
+     *  turns to face us (j1), leans onto her hands (j2), pushes up (j3), hips lift and arms swing back (j4), feet leave the cloud (j5) */
+    poses: [[0.0, 0.17], [0.11, 0.28], [0.2, 0.38], [0.3, 0.5], [0.4, 0.58]] as [number, number][],
+    /** how far her hips are from where she sat on each of j1..j5 (landing px, [right, down]): they stay planted through j2, then rise off the cloud and move out over its edge */
+    hip: [[2, 0], [4, -1], [6, -8], [10, -30], [14, -55]] as [number, number][],
+    /** before she gets up she leans back a hair (rad, counter-clockwise) in the first movement; before the last push she crouches (landing px, down) and rocks forward (rad) */
+    anticipation: { lean: 0.022, crouch: 7, rock: 0.035 },
+    /** each part of the movement as [start, end] of the launch (0-1) */
+    plant: [0.0, 0.1] as [number, number], // her back (right) hand presses into the cloud
+    second: [0.1, 0.26] as [number, number], // her other hand comes down onto the cloud beside it
+    release: [0.3, 0.42] as [number, number], // her hands let go of the cloud (j4: both arms are up)
+    push: [0.5, 1.0] as [number, number], // she pushes down and her body travels away (energetic: it eases in, not out)
+    dissolve: [0.6, 0.8] as [number, number], // j5 turns into jump11.webp
     drift: [0.74, 1] as [number, number], // once airborne she floats on a little further, slowing
-    /** how far each hand presses down (landing px) as she bears weight, and where the second hand lands (landing px from her hips) */
-    press: 5,
-    handTo: [34, 66] as [number, number],
-    /** the poses, in landing px (her height is 427) and rad (clockwise): lean forward, hips lift, knees tuck (how far her feet swing up, and how much closer to her hips they come) */
-    leanAngle: 0.12,
-    liftBy: 10,
-    tuckAngle: 0.2,
-    tuckIn: 0.1,
+    /** how deep the cloud is pressed under her hands (0-1, like the landing's compression) and how far it springs back after she lets go */
+    dip: 0.5,
+    rebound: -0.18,
+    /** how far the hem and the hijab's drape trail behind her while she moves (landing px at full speed) */
+    drag: [6, 5] as [number, number],
     /** how far she drops away from her seat, [right, down] (landing px): she jumps off the cloud's edge and falls out of the bottom of the frame (never up over the cloud), then the last drift */
     away: [60, 640] as [number, number],
     float: [0, 0] as [number, number],
-    /** how far the cloud sinks down the frame over the push and the dissolve (her heights): a tilt of the camera up after her, so she rises clear of the cloud and stays in frame */
+    /** how far the cloud sinks down the frame over the push and the dissolve (her heights) */
     drop: 0,
     dropSpan: [0.45, 0.95] as [number, number],
-    /** how much her dress and hijab trail behind the push (landing px, opposite to her travel) */
-    trail: 8,
-    /** jump11.webp: its face point is lined up on her face, at this many landing px per picture px (its head matches hers), turned this much (rad) */
-    jumpScale: 0.78,
+    /** jump11.webp: its face point is lined up on her face, at this many landing px per picture px (its head matches j5's), turned this much (rad) */
+    jumpScale: 0.82,
     jumpTilt: -0.08,
   },
 
@@ -257,7 +257,7 @@ export interface LandFrame {
   sit: { edge: number; pan: number; pose: number; from: number; to: number; mix: number; alpha: number[]; hip: [number, number]; rot: number; scale: number }
   /** the launch (all 0 until she starts): how hard each hand is planted on the cloud (0-1), how far each is placed, the lean (rad), the hips' lift and the legs' tuck (0-1),
    *  where her body has travelled (landing px, [right, down]), how far she has let go of the cloud (0-1), how far jump11 has taken over (0-1), and how far the cloud has sunk (her heights) */
-  launch: { drop: number; u: number; plant: number; second: number; lean: number; lift: number; tuck: number; away: [number, number]; push: number; release: number; jump: number }
+  launch: { drop: number; u: number; pose: number; speed: number; dip: number; plant: number; second: number; lean: number; lift: number; away: [number, number]; push: number; release: number; jump: number }
   /** camera knock: vertical (viewport heights) and zoom (1 = none), and pull-back zoom */
   camDy: number
   camZoom: number
@@ -325,7 +325,7 @@ export function landAt(l: number, reduced = false): LandFrame {
   const pose = S.segments.reduce((s, [a, b]) => s + smooth(a, b, t), 0)
   const last = S.hip.length - 1
   const sFrom = clamp(Math.floor(pose), 0, last - 1), sMix = clamp(pose - sFrom, 0, 1)
-  const sAlpha: number[] = S.hip.map(() => 0)
+  const sAlpha: number[] = Array(S.hip.length + C.launch.hip.length).fill(0)
   sAlpha[sFrom] = 1 - smooth(S.fadeOut[0], S.fadeOut[1], sMix)
   sAlpha[sFrom + 1] = smooth(S.fadeIn[0], S.fadeIn[1], sMix)
   if (pose <= 0) { sAlpha[0] = 1; sAlpha[1] = 0 }
@@ -378,6 +378,9 @@ export function landAt(l: number, reduced = false): LandFrame {
   }
 }
 
+/** how far through the launch pictures she is (0 = position6 .. 5 = j5) at launch progress u: the sum of the five overlapping eased movements */
+const launchPose = (u: number) => LAND_CONFIG.launch.poses.reduce((n, [a, b]) => n + smooth(a, b, u), 0)
+
 /** The launch for its own progress u (0-1), which the window's scroll supplies once the window is fully open. Pure and stateless. */
 export function launchAt(u: number, reduced = false): LandFrame['launch'] {
   const C = LAND_CONFIG
@@ -386,17 +389,48 @@ export function launchAt(u: number, reduced = false): LandFrame['launch'] {
   // the push is an ease-in (she gathers speed and is gone), the drift an ease-out (she slows as she floats)
   const pu = clamp((lu - LN.push[0]) / (LN.push[1] - LN.push[0]), 0, 1), du = clamp((lu - LN.drift[0]) / (LN.drift[1] - LN.drift[0]), 0, 1)
   const away = pu * pu // gravity: she gathers speed as she drops away
+  const pose = launchPose(lu)
+  // how fast the pictures are moving (1 at a typical pace): loose fabric trails by this much
+  const u0 = Math.max(0, lu - 0.01), u1 = Math.min(1, lu + 0.01)
+  const speed = clamp((launchPose(u1) - launchPose(u0)) / (u1 - u0) / 6, 0, 1.5) * m
+  // the cloud is pressed down under her hands while she bears weight, then springs back as she lets go
+  const dip = (LN.dip * smooth(0.5, 3.4, pose) * (1 - lwin(LN.release)) + LN.rebound * Math.sin(Math.PI * clamp((lu - LN.release[0]) / 0.3, 0, 1))) * m
   return {
     drop: LN.drop * m * lwin(LN.dropSpan),
     u: lu,
+    pose,
+    speed,
+    dip,
     plant: lwin(LN.plant) * (1 - lwin(LN.release)),
     second: lwin(LN.second) * (1 - lwin(LN.release)),
-    lean: LN.leanAngle * m * lwin(LN.lean),
-    lift: lwin(LN.lift),
-    tuck: lwin(LN.tuck),
+    lean: 0,
+    lift: smooth(2, 4, pose),
     away: [LN.away[0] * m * away + LN.float[0] * m * easeOut(du), LN.away[1] * m * away + LN.float[1] * m * easeOut(du)],
     push: lwin(LN.push),
     release: lwin(LN.release),
     jump: lwin(LN.dissolve),
   }
+}
+
+/**
+ * Her sit-up state during the launch: the morph carries on from position6 through j1-j5 (picture indices 3-8), her hips rise off the cloud, and she anticipates the
+ * movements (leans back a hair before getting up, crouches and rocks forward before the push-off). Pure, like landAt; the sit before the launch is returned as is.
+ */
+export function launchSit(sit: LandFrame['sit'], L: LandFrame['launch'], reduced = false): LandFrame['sit'] {
+  if (L.pose <= 0) return sit
+  const C = LAND_CONFIG, LN = C.launch, S = C.sit, m = reduced ? C.reducedMotion : 1
+  const base = S.hip.length - 1 // position6's index
+  const idx = base + L.pose, from = clamp(Math.floor(idx), base, base + LN.hip.length - 1), mix = clamp(idx - from, 0, 1)
+  const alpha: number[] = sit.alpha.map(() => 0)
+  alpha[from] = 1 - smooth(S.fadeOut[0], S.fadeOut[1], mix)
+  alpha[from + 1] = smooth(S.fadeIn[0], S.fadeIn[1], mix)
+  // her hips: keyed on each picture, linear in the pose number (the pose itself is already eased)
+  const keys: [number, number][] = [[0, 0], ...LN.hip]
+  const k0 = clamp(Math.floor(L.pose), 0, keys.length - 2), kf = clamp(L.pose - k0, 0, 1)
+  const ox = lerp(keys[k0][0], keys[k0 + 1][0], kf)
+  let oy = lerp(keys[k0][1], keys[k0 + 1][1], kf)
+  const A = LN.anticipation
+  oy += A.crouch * Math.sin(Math.PI * clamp(L.pose - 3, 0, 1))
+  const rot = -A.lean * Math.sin(Math.PI * clamp(L.pose, 0, 1)) + A.rock * Math.sin(Math.PI * clamp(L.pose - 3.5, 0, 1))
+  return { ...sit, from, to: from + 1, mix, alpha, hip: [sit.hip[0] + ox * m, sit.hip[1] + oy * m], rot: sit.rot + rot * m }
 }

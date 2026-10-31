@@ -33,8 +33,9 @@ import { CAP_WEAR, GLASSES_WEAR, HAT_WEAR, wearPose, type WearState } from './we
 import { BAG_ITEMS, bagCamera, itemPose, type BagReveal } from './bagItems'
 import { createLanding, LANDER } from './landing'
 import { paintFallSky } from './fallSky'
+import { paintAboutBg } from './aboutBg'
 import type { LandPlace } from './landing'
-import { landAt, launchAt } from './land'
+import { landAt, launchAt, launchSit } from './land'
 import { createDrop, ABOUT_BG } from './drop'
 import { leaveFrame } from './leave'
 import { SHUTTER_BOX, launchProgress, shutterStrips, windowAt, windowUrls } from './window'
@@ -570,6 +571,8 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
   const sketch = (p: any) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let windowImg: { frame: any; left: any; right: any } | null = null
+    // the About Me backdrop (aboutBg.ts), once painted
+    let aboutBgImg: any = null
     let groundImg: any, cloth: any, faller: any, shotBodies: any[] = [], clouds: any[] = [], petals: any[] = []
     let blades: Blade[] = [], flowers: Flower[] = []
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -691,6 +694,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
         const { sky, clouds } = paintFallSky()
         skyImg = fromCanvas(sky)
         skyClouds = fromCanvas(clouds)
+        aboutBgImg = fromCanvas(paintAboutBg())
       }
       await breathe()
       if (disposed) return
@@ -752,7 +756,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       const wake = clamp(state.wake, 0, 1)
       // (waking, the meadow is back on screen and runs on the clock again)
       if (dream >= 1 && shown && wake <= 0) {
-        const key = [state.fall, state.land, state.window, !!windowImg, state.leave, state.touch, state.remembered, p.width, p.height, !!landing?.ready, !!toucher?.ready, !!decoImgs].join()
+        const key = [state.fall, state.land, state.window, !!windowImg, !!aboutBgImg, state.leave, state.touch, state.remembered, p.width, p.height, !!landing?.ready, !!toucher?.ready, !!decoImgs].join()
         if (key === stillKey) return
         stillKey = key
       } else stillKey = ''
@@ -990,7 +994,10 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       // then slows to a stop as she meets the cloud
       const lf = state.land > 0 ? landAt(clamp(state.land, 0, 1), reduceMotion) : null
       // she sits through the window's opening; her launch plays once it is fully open
-      if (lf && state.window > 0) lf.launch = launchAt(launchProgress(clamp(state.window, 0, 1)), reduceMotion)
+      if (lf && state.window > 0) {
+        lf.launch = launchAt(launchProgress(clamp(state.window, 0, 1)), reduceMotion)
+        lf.sit = launchSit(lf.sit, lf.launch, reduceMotion)
+      }
       const fr = dynamics.at(lf ? 1 + lf.skyExtra : fall)
       if (lf) {
         fr.u *= lf.skySpeed
@@ -1167,6 +1174,12 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
     function drawAbout(leave: number, fade = 1) {
       const vw = p.width, vh = p.height
       p.background(ABOUT_BG[0], ABOUT_BG[1], ABOUT_BG[2])
+      if (aboutBgImg) {
+        // the square covers the viewport, its rings centred on it
+        const s = Math.max(vw, vh)
+        p.noStroke()
+        p.image(aboutBgImg, (vw - s) / 2, (vh - s) / 2, s, s)
+      }
       if (!toucher?.ready || !dropper) return false
       const df = leaveFrame(vw, vh)
       df.travel = 1.5 * leave
