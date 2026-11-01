@@ -21,6 +21,8 @@
 //   (she then sits until the window (window.ts) has opened completely; only then does the LAUNCH below play, driven by the end of the window's scroll)
 // (scrollVh and duration keep the same 50 vh per second, so the earlier stages run exactly as before)
 
+import { FALL_CONFIG } from './fall'
+
 export const LAND_CONFIG = {
   /** extra scroll length for the landing, in viewport heights (the fall before it is 1048 vh): longer = slower, more cinematic */
   scrollVh: 1350,
@@ -282,7 +284,7 @@ export function landAt(l: number, reduced = false): LandFrame {
   const approach = easeOut(a)
   // the sky keeps its speed at the start (continuous with the fall) and slows linearly to a stop at contact: the extra
   // fall progress is the integral of that speed
-  const skyExtra = (C.scrollVh / C.duration / C.approach.fallVh) * (a - (a * a) / 2) * tc
+  const skyExtra = (C.scrollVh / C.duration / C.approach.fallVh) * (1 - FALL_CONFIG.start) * (a - (a * a) / 2) * tc
   const skySpeed = 1 - a
   const cloudDist = lerp(C.approach.cloudFar, 1, easeOut(a))
   const [f0, f1] = C.approach.cloudFadeIn

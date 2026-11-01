@@ -946,7 +946,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
     // over (fall.ts: a drag-limited acceleration), the cloud layers stream past at their own speeds, her limbs, fabric
     // and body react to the speed, and the camera shakes, tracks and rolls with her.
     function drawSky(t: number, eyes: number) {
-      const vw = p.width, vh = p.height, fall = clamp(state.fall, 0, 1)
+      const vw = p.width, vh = p.height, fall = FALL_CONFIG.start + (1 - FALL_CONFIG.start) * clamp(state.fall, 0, 1)
       const gw = Math.min(FALL.w * vw, (FALL.h * vh * FALLER.w) / FALLER.h), sc = gw / FALLER.w
       const gh = (gw * FALLER.h) / FALLER.w
       // she is there as soon as the dream has cleared a little; the path keyframes advance with the page scroll

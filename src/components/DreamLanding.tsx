@@ -3,6 +3,7 @@ import PhoneGallery, { type PhoneSpot } from './PhoneGallery'
 import type { GirlAnchor, MeadowHandle, MeadowState } from './meadow/meadow'
 import GirlFx from './GirlFx'
 import AboutMe from './AboutMe'
+import { FALL_CONFIG } from './meadow/fall'
 import { LAND_CONFIG } from './meadow/land'
 import { LEAVE_CONFIG } from './meadow/leave'
 import { WINDOW_CONFIG, launchProgress } from './meadow/window'
@@ -44,7 +45,7 @@ const FRAMES: [number, string][] = [
   [19, 'Launch: hands on the cloud, hips lift, push-off, jump11'],
 ]
 function frameIndex(s: { zoom: number; dream: number; fall: number; land: number; window: number }) {
-  const land = s.land, d = s.dream, f = s.fall, contact = LAND_CONFIG.approach.contact / LAND_CONFIG.duration
+  const land = s.land, d = s.dream, f = FALL_CONFIG.start + (1 - FALL_CONFIG.start) * s.fall, contact = LAND_CONFIG.approach.contact / LAND_CONFIG.duration
   if (land > 0) {
     if (land < 0.15) return 11
     if (land < contact) return 12
@@ -291,9 +292,10 @@ export default function DreamLanding() {
       if (label) {
         const n = frameIndex(state)
         const pct = (v: number) => `${Math.round(v * 100)}%`
+        const f = FALL_CONFIG.start + (1 - FALL_CONFIG.start) * state.fall
         const detail = state.leave > 0 ? `after landing · leave ${pct(state.leave)}`
           : state.land > 0 ? `Part 3 · landing ${pct(state.land)} · ${(state.land * LAND_CONFIG.duration).toFixed(1)}s`
-          : state.fall > 0 ? `Part 2 · fall ${pct(state.fall)} · ${(state.fall * 14).toFixed(1)}s`
+          : state.fall > 0 ? `Part 2 · fall ${pct(f)} · ${(f * FALL_CONFIG.duration).toFixed(1)}s`
           : state.dream > 0 ? `Part 1 · dream ${pct(state.dream)}`
           : `zoom ${pct(state.zoom)}`
         label.textContent = `Frame ${n} — ${FRAMES[n - 1][1]}\n${detail}`

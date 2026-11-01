@@ -21,6 +21,11 @@ export const FALL_CONFIG = {
    * scroll back, it rewinds. Longer = slower, more relaxed fall per scroll distance.
    */
   duration: 14,
+  /**
+   * where the fall opens once the dream wave has cleared (0-1 of the fall): 0.26 skips the hover and the first pull of gravity
+   * (storyboard frames 7-8), so she is already speeding up (frame 9). The fall's scroll covers the rest, from here to 1.
+   */
+  start: 0.26,
 
   // ---- timing & acceleration (in virtual seconds) ----
   /** seconds she hangs unstable before gravity takes over (phase A) */
