@@ -1,5 +1,9 @@
 {
-  "description": "Explore personal qualities through an interactive dark mode starry sky that reveals unique traits with engaging overlays on hover or tap.",
+  "title": "Mariyah | UI/UX Design Portfolio",
+  "description": "Creating clean, creative and user - focussed digital experiences through research, wireframing, prototyping and thoughtful UI design.",
+  "openGraph": {
+    "image": "https://test.mariyab.com/og-image.webp"
+  },
   "robots": {
     "index": false
   },

@@ -102,7 +102,7 @@ export interface TouchFrame {
  * The touchdown frame for progress u (0-1). `df` is the drop's last frame, `surfaceCam` where the
  * surface line goes (camera px), `rightEdge` the furthest right her seated body may reach (camera px). Pure and stateless.
  */
-export function touchAt(u: number, df: DropFrame, surfaceCam: number, rightEdge: number, vh: number, reduced = false, remembered = 0): TouchFrame {
+export function touchAt(u: number, df: DropFrame, surfaceCam: number, rightEdge: number, vh: number, reduced = false, remembered = 0, portrait = false): TouchFrame {
   const C = TOUCH_CONFIG
   u = clamp(u, 0, 1)
   const k = reduced ? C.reducedMotion : 1
@@ -131,11 +131,14 @@ export function touchAt(u: number, df: DropFrame, surfaceCam: number, rightEdge:
   const contactY = u < uc ? feet : surfaceY - hop
 
   // her seated size, a little closer as she settles; and her x easing to where her whole seated body fits on the screen
-  const grow = 1 + C.grow * smooth(C.growSpan[0], C.growSpan[1], u)
+  // on a tall (phone) screen she is a little smaller and sits in the bottom left corner
+  // (her widest picture, land1, fills the left 46% of the screen; the decorations take the right half)
   const seat = TOUCH_POSES[1]
+  const seatK = portrait ? Math.min(0.78, (0.46 * rightEdge / 0.97) / (seat.w * seat.scale * base * (1 + C.grow))) : 1
+  const grow = (1 + C.grow * smooth(C.growSpan[0], C.growSpan[1], u)) * lerp(1, seatK, smooth(0.3, 0.55, u))
   // land1's dress reaches 305 px right of her face
-  const reach = 305 * seat.scale * base * (1 + C.grow)
-  const seatX = Math.min(face0[0], rightEdge - reach)
+  const reach = 305 * seat.scale * base * (1 + C.grow) * seatK
+  const seatX = portrait ? 225 * seat.scale * base * (1 + C.grow) * seatK : Math.min(face0[0], rightEdge - reach)
   const x = lerp(face0[0], seatX, smooth(0.3, 0.55, u))
 
   // the pictures: each new one fades in over the old, which stays whole under it until the new one is nearly opaque

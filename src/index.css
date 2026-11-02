@@ -66,6 +66,15 @@
   letter-spacing: -0.03em;
   color: #67635a;
 }
+/* on a tall (mobile) screen the window takes the top-right, so the tagline moves to the bottom-right corner */
+@media (max-aspect-ratio: 1/1) {
+  .cloud-tagline p {
+    left: auto;
+    top: auto;
+    right: 5%;
+    bottom: 16%;
+  }
+}
 
 @font-face {
   font-family: 'Indie Flower:Regular';
@@ -173,6 +182,15 @@
   margin: calc(var(--s) * 0.012) 0 0;
   font-size: calc(var(--s) * 0.021);
   font-weight: 400;
+}
+
+/* tall (phone) screens: the stage fills the screen, the heading and the word game are bigger and sit in its upper part; the decorations
+   (drawn in the scene, meadow.ts drawDecos) fill the bottom right and she sits in the bottom left */
+@media (max-aspect-ratio: 4/5) {
+  .about-stage { height: 100vh; aspect-ratio: auto; }
+  .about-title { top: 4vh; }
+  .about-title h2 { font-size: calc(var(--s) * 0.052); }
+  .about-title p { font-size: calc(var(--s) * 0.028); }
 }
 
 /* ===== Girl effects: dizzy loops and stars, thought bubble (components/GirlFx.tsx) ===== */
@@ -283,6 +301,10 @@
   translate: 0 calc((1 - var(--seated)) * 10px);
 }
 
+@media (max-aspect-ratio: 4/5) {
+  .girl-bubble { max-width: 200px; padding: 8px 14px; border-radius: 20px; font-size: 14px; }
+}
+
 .girl-bubble-text {
   margin: 0;
 }
@@ -326,6 +348,9 @@
   top: calc(var(--s) * 0.215);
   z-index: 2;
   pointer-events: auto;
+}
+@media (max-aspect-ratio: 4/5) {
+  .about-game { width: calc(var(--s) * 0.64); left: calc(var(--s) * 0.18); top: 17vh; }
 }
 
 .strands-game {

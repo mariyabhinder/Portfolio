@@ -6,7 +6,7 @@ import AboutMe from './AboutMe'
 import FlowerCard from './FlowerCard'
 import { LAND_CONFIG } from './meadow/land'
 import { LEAVE_CONFIG } from './meadow/leave'
-import { WINDOW_CONFIG, launchProgress } from './meadow/window'
+import { WINDOW_CONFIG, launchProgress, openingFit, windowAt } from './meadow/window'
 import { TOUCH_CONFIG } from './meadow/touch'
 import { WAKE_CONFIG, wakeWave, wakeZoom } from './meadow/wake'
 import { BAG_PLACE, PHONE_PLACE } from './meadow/props'
@@ -23,6 +23,8 @@ const DREAM_END = 0.1938
 const FALL_VH = 1400
 
 // Debug: a corner label naming the storyboard frame (1-15) the scroll is on. Shown in dev, or with ?frames in the URL.
+// picstory.webp is 691 x 503, cropped to cover the opening
+const PICSTORY_ASPECT = 524 / 416 // the picture covers the whole opening
 const SHOW_FRAMES = import.meta.env.DEV || new URLSearchParams(window.location.search).has('frames')
 const FRAMES: [number, string][] = [
   [1, 'Close on her sleeping face'],
@@ -69,6 +71,7 @@ export default function DreamLanding() {
   const stageRef = useRef<HTMLDivElement>(null)
   const framesRef = useRef<HTMLDivElement>(null)
   const taglineRef = useRef<HTMLDivElement>(null)
+  const picstoryRef = useRef<HTMLAnchorElement>(null)
   const heroTextRef = useRef<HTMLDivElement>(null)
   const scrollCueRef = useRef<HTMLParagraphElement>(null)
   const layerRef = useRef<HTMLDivElement>(null)
@@ -332,6 +335,21 @@ export default function DreamLanding() {
         const op = w > 0 && state.leave <= 0 ? k(0.04, 0.3, w) * (1 - k(0.5, 0.62, w)) : 0
         tag.style.opacity = op.toFixed(3)
       }
+      // the project picture in the window is a link, over the picture, live only once the shutters are fully open
+      const link = picstoryRef.current
+      if (link) {
+        const open = state.window >= WINDOW_CONFIG.phases.open[1] * (1 - WINDOW_CONFIG.launchShare) && state.leave <= 0
+        if (open) {
+          const wf = windowAt(state.window, camW, camH), f = openingFit(PICSTORY_ASPECT), u = wf.h / 800
+          link.style.width = `${f.w * u}px`
+          link.style.height = `${f.h * u}px`
+          link.style.transform = `translate(${wf.x - 300 * u + f.x * u}px, ${wf.y - wf.h / 2 + f.y * u}px)`
+        }
+        const events = open ? 'auto' : 'none'
+        if (link.style.pointerEvents !== events) link.style.pointerEvents = events
+        link.style.visibility = open ? 'visible' : 'hidden'
+        link.tabIndex = open ? 0 : -1
+      }
       const label = framesRef.current
       if (label) {
         const n = frameIndex(state)
@@ -413,6 +431,15 @@ export default function DreamLanding() {
           style={{ zIndex: 10 }}
         />
       ) : null}
+      <a
+        ref={picstoryRef}
+        href="https://picstory.mariyab.com/"
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="Open Picstory"
+        className="absolute left-0 top-0 cursor-pointer"
+        style={{ zIndex: 3, visibility: 'hidden', pointerEvents: 'none' }}
+      />
       <button
         ref={bagRef}
         type="button"
