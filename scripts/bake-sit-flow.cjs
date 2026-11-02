@@ -12,7 +12,7 @@ const root = path.resolve(__dirname, '..')
 const src = fs.readFileSync(path.join(root, 'src/components/meadow/landing.ts'), 'utf8').split('\r').join('')
 const posesText = src.match(/const K0[\s\S]*?\n\]\n/)[0].replace('export const SIT_POSES', 'const SIT_POSES')
 const poses = eval(posesText + ';SIT_POSES')
-const files = ['landing-girl', 'position2', 'position5', 'position6']
+const files = ['landing-girl', 'position2', 'position5', 'position6', 'j1', 'j2', 'j3', 'j4', 'j5']
 const pics = poses.map((p, k) => ({ url: `/src/assets/meadow/${files[k]}.webp`, w: p.w, h: p.h, s: p.s, hip: p.hip, marks: p.marks }))
 
 const chromePath = ['C:/Program Files/Google/Chrome/Application/chrome.exe', 'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe', '/usr/bin/google-chrome', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'].find((p) => fs.existsSync(p))

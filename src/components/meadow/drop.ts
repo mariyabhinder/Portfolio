@@ -19,7 +19,7 @@ import { JUMP_POSES } from './jump'
 import { createTris } from './tris'
 
 /** the About Me section's plain background: the canvas veil and the section below it both use this */
-export const ABOUT_BG: [number, number, number] = [248, 245, 238]
+export const ABOUT_BG: [number, number, number] = [240, 247, 253]
 export const ABOUT_BG_CSS = `rgb(${ABOUT_BG.join(',')})`
 
 export const DROP_CONFIG = {
