@@ -43,6 +43,7 @@ import { createTris } from './tris'
 import { gridGeometry } from './grid'
 import type { FallFrame } from './fall'
 import { SHOTS, shotsAt } from './shots'
+import { SPARKLE, drawSparkle, sparkleAt } from './sparkle'
 import { DEPTH, FALL_ASSETS, FALL_CONFIG, FALLER, PATH, SKY_FRAG, SKY_FRAG_SHARP, SKY_LAYERS, SKY_VERT, createFallDynamics } from './fall'
 
 export interface MeadowState {
@@ -582,6 +583,9 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
     let animStart = 0, lastT = 0, shown = false
     // what the last still frame was drawn from (see p.draw)
     let stillKey = ''
+    // the starry eyes in the face close-up (sparkle.ts): when they popped in (s, -1 = not showing), and whether the last frame drew them
+    // (then the canvas keeps redrawing for their twinkle, scroll or not)
+    let sparkleStart = -1, sparkleLive = false
     // seconds she has spent falling asleep (runs back when the camera pulls away), her next blink, and how open
     // her eyes are in it (1 = open), which she keeps on doing as she falls
     let sleepS = 0, lastMs = 0, nextBlink = 2, blinkAt = -1, blinkOpen = 1
@@ -740,7 +744,9 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       const dream = clamp(state.dream, 0, 1)
       // Once the dream wave has passed, the frame is a pure function of the scroll and of what has loaded (only the meadow runs on
       // the clock): while none of that changes the canvas keeps the last frame (p5 preserves its drawing buffer) and nothing is redrawn
-      if (dream >= 1 && shown) {
+      const sparkling = sparkleLive
+      sparkleLive = false
+      if (dream >= 1 && shown && !sparkling) {
         const key = [state.fall, state.land, state.window, !!windowImg, state.leave, state.touch, state.remembered, p.width, p.height, !!landing?.ready, !!toucher?.ready].join()
         if (key === stillKey) return
         stillKey = key
@@ -1094,6 +1100,15 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
         p.rotate(rotU)
         p.translate(-FALLER.w / 2, -FALLER.h / 2)
         drawCloth(fr.clothT, eyes, [-Math.sin(rot), -Math.cos(rot)], fr.air, fa, fr.limbs.map((a) => a * (1 - settle)))
+        // once the close-up has settled her eyes light up with stars (they pop in once per close-up, and go when the camera pulls away)
+        if (lf || fb < SPARKLE.rearm) sparkleStart = -1
+        else if (sparkleStart < 0 && !reduceMotion && fb >= SPARKLE.trigger) sparkleStart = p.millis() / 1000
+        if (sparkleStart >= 0) {
+          const now = p.millis() / 1000
+          p.clearDepth()
+          drawSparkle(p, sparkleAt(now - sparkleStart), fa * fb, now)
+          sparkleLive = true
+        }
         p.pop()
       }
       // each camera shot's own picture: small and diagonal, with the fabric and limbs of its own rig
