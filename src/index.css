@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@600;700;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@600;700;900&family=Lora:wght@500&display=swap');
 @import 'tailwindcss';
 
 /* The hero text over the opening meadow (DreamLanding.tsx): white Inter, the heading top left */
@@ -61,14 +61,17 @@
   text-align: left;
   font-family: Inter, "Helvetica Neue", Arial, sans-serif;
   font-weight: 900;
-  font-size: clamp(24px, 3.6vw, 62px);
+  /* as big as fits left of the open window: its left edge (shutters included) is at about 93vw - 90vh, the text starts at 5vw, and the longer line is about 14.5em wide */
+  font-size: clamp(20px, min(3.4vw, calc((88vw - 90vh) / 14.5)), 80px);
   line-height: 1.08;
   letter-spacing: -0.03em;
-  color: #67635a;
+  white-space: nowrap;
+  color: #f1f7ff; /* the cloud's soft sky-white */
 }
 /* on a tall (mobile) screen the window takes the top-right, so the tagline moves to the bottom-right corner */
 @media (max-aspect-ratio: 1/1) {
   .cloud-tagline p {
+    font-size: clamp(24px, 3.6vw, 62px);
     left: auto;
     top: auto;
     right: 5%;
@@ -293,8 +296,9 @@
   border-radius: 28px;
   box-shadow: 0 6px 18px rgba(90, 70, 30, 0.14);
   color: #4b3d27;
-  font-family: 'Indie Flower:Regular', 'Indie Flower', cursive;
-  font-size: clamp(18px, 1.2vw + 10px, 26px);
+  font-family: Lora, Georgia, serif;
+  font-weight: 500;
+  font-size: clamp(16px, 1vw + 9px, 22px);
   line-height: 1.25;
   text-align: center;
   opacity: var(--seated);

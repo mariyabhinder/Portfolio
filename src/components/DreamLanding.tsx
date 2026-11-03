@@ -416,7 +416,7 @@ export default function DreamLanding() {
         </svg>
       </p>
       <div ref={taglineRef} className="cloud-tagline" aria-hidden="true">
-        <p>Imagine it.<br />Make it.<br />Put a little<br />magic into it.</p>
+        <p>Imagine it. Make it.<br />Put a little magic into it.</p>
       </div>
       <svg width="0" height="0" className="absolute" aria-hidden="true">
         <filter id="about-warp" x="0" y="0" width="100%" height="100%" colorInterpolationFilters="sRGB">
