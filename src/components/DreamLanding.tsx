@@ -3,7 +3,7 @@ import PhoneGallery, { type PhoneSpot } from './PhoneGallery'
 import type { GirlAnchor, MeadowHandle, MeadowState } from './meadow/meadow'
 import GirlFx from './GirlFx'
 import AboutMe from './AboutMe'
-import FlowerCard from './FlowerCard'
+import PostCard from './PostCard'
 import { LAND_CONFIG } from './meadow/land'
 import { LEAVE_CONFIG } from './meadow/leave'
 import { WINDOW_CONFIG, launchProgress, openingFit, windowAt } from './meadow/window'
@@ -21,6 +21,8 @@ const DREAM_START = 0.1385
 const DREAM_END = 0.1938
 // the original length of the section (viewport heights) that zoom, dream and fall are measured in: unchanged by the landing
 const FALL_VH = 1400
+// the postcard on the meadow, in scene px (736 x 920): centre, width and tilt. It lies between her hand and the bag
+const POST_PLACE = { x: 228, y: 464, w: 36, rot: 0.22 }
 
 // Debug: a corner label naming the storyboard frame (1-15) the scroll is on. Shown in dev, or with ?frames in the URL.
 // picstory.webp is 691 x 503, cropped to cover the opening
@@ -119,6 +121,9 @@ export default function DreamLanding() {
     window.dispatchEvent(new Event('scroll'))
   }, [phone])
   // her tote lies on the meadow too: clicking it plays the bag reveal (meadow/bagItems.ts). The hotspot is placed like the phone's.
+  const postRef = useRef<HTMLDivElement>(null)
+  const finaleRef = useRef(false)
+  const [finale, setFinale] = useState(false)
   const bagRef = useRef<HTMLButtonElement>(null)
   const bag = useRef(createBagReveal()).current
   const bagPlaying = useRef(false)
@@ -211,7 +216,7 @@ export default function DreamLanding() {
     }
 
     // a hotspot is clickable only while its thing is on screen (startBag also switches the bag's off directly)
-    const showHotspot = (btn: HTMLButtonElement, on: boolean) => {
+    const showHotspot = (btn: HTMLElement, on: boolean) => {
       const events = on ? 'auto' : 'none', vis = on ? 'visible' : 'hidden'
       if (btn.style.pointerEvents !== events) btn.style.pointerEvents = events
       if (btn.style.visibility !== vis) btn.style.visibility = vis
@@ -251,6 +256,37 @@ export default function DreamLanding() {
       }
       const on = !bagPlaying.current && window.scrollY - sectionStart < window.innerHeight * 0.15
       showHotspot(btn, on)
+    }
+
+    // The postcard lies on the grass between her hand and the bag; its wrapper is placed like the bag's hotspot (the tilt is the card's own)
+    let postKey = ''
+    const placePost = (resized: boolean) => {
+      const el = postRef.current
+      if (!el) return
+      const vw = camW, vh = camH
+      const s = Math.max(vw / 736, vh / 920)
+      const w = POST_PLACE.w * s, h = w * (269 / 376)
+      const ox = (vw - 736 * s) / 2, oy = (vh - 920 * s) / 2
+      // waking, the camera pulls back out from her face (meadow.ts applyCamera), so the card follows it like the props drawn on the grass
+      const k = state.wake > 0 ? Math.max(0, Math.min(1, state.zoom)) : 0
+      const maxZoom = Math.max(3, Math.min(6, (0.55 * Math.min(vw, vh)) / (40 * s)))
+      const z = 1 + (maxZoom - 1) * k
+      const fx = ox + 388 * s, fy = oy + 305 * s
+      const cx = ox + POST_PLACE.x * s, cy = oy + POST_PLACE.y * s
+      const sx = fx + (vw / 2 - fx) * k + (cx - fx) * z, sy = fy + (vh / 2 - fy) * k + (cy - fy) * z
+      const key = `${vw}|${vh}|${z.toFixed(3)}`
+      if (resized || key !== postKey) {
+        postKey = key
+        el.style.width = `${w}px`
+        el.style.height = `${h}px`
+        el.style.transform = `translate(${sx - w / 2}px, ${sy - h / 2}px) scale(${z.toFixed(3)})`
+      }
+      const flipped = el.querySelector('.pc-card--flipped') !== null
+      // it lies there with the rest (and is there again once she has woken, the camera back out); in between it is hidden
+      const seen = state.wake >= WAKE_CONFIG.waveEnd + 0.02
+      const on = flipped || seen || (!bagPlaying.current && window.scrollY - sectionStart < window.innerHeight * 0.15)
+      showHotspot(el, on)
+      el.style.pointerEvents = flipped || state.wake >= 0.995 || !seen && on ? 'auto' : 'none'
     }
 
     // The glasses' and hat's hotspots: over each on the grass, or over her face once she has it on, turned with it. The hat's
@@ -298,6 +334,7 @@ export default function DreamLanding() {
       state.wake = Math.max(0, Math.min(1, (scrolled - scrollDistance - landDistance - windowDistance - leaveDistance - touchDistance) / wakeDistance))
       // waking, the camera is on her face again and pulls back out (the hero's zoom, run the other way)
       if (state.wake > 0) state.zoom = wakeZoom(state.wake)
+      placePost(resized)
       // the About Me page comes in while she settles (touch 0.5 - 0.8): its own 0-1, read by AboutMe's CSS; the wake wave carries it away again
       const wave = wakeWave(state.wake)
       const a = Math.max(0, Math.min(1, (state.touch - 0.5) / 0.3))
@@ -316,9 +353,9 @@ export default function DreamLanding() {
       }
       const gone = wave >= 0.87
       if (gone !== camera.classList.contains('about-gone')) camera.classList.toggle('about-gone', gone)
-      // once the meadow has zoomed fully out, the pink petal flies in and turns into the contact flower (FlowerCard); scrolling back takes it away
-      const flowerOn = state.wake >= 0.995 ? true : state.wake < 0.9 ? false : camera.classList.contains('flower-on')
-      if (flowerOn !== camera.classList.contains('flower-on')) camera.classList.toggle('flower-on', flowerOn)
+      // at the very end of the scroll the postcard opens by itself (PostCard's `open`)
+      const end = state.wake >= 0.995
+      if (end !== finaleRef.current) { finaleRef.current = end; setFinale(end) }
       state.about = a * a * (3 - 2 * a)
       const next = state.about.toFixed(3)
       if (next !== about) camera.style.setProperty('--about', (about = next))
@@ -404,7 +441,6 @@ export default function DreamLanding() {
         <AboutMe onRemembered={onRemembered} />
         <GirlFx register={registerFx} remembered={remembered} />
       </div>
-      <FlowerCard />
       <div ref={heroTextRef} className="hero-text">
         <h1 className="hero-text__title">Hi!<br />I am Mariyah</h1>
         <p className="screen-cue screen-cue--left">[Click on different accessories]</p>
@@ -440,6 +476,7 @@ export default function DreamLanding() {
         className="absolute left-0 top-0 cursor-pointer"
         style={{ zIndex: 3, visibility: 'hidden', pointerEvents: 'none' }}
       />
+      <PostCard ref={postRef} rot={POST_PLACE.rot} open={finale} />
       <button
         ref={bagRef}
         type="button"

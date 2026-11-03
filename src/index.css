@@ -103,6 +103,84 @@
   font-display: swap;
 }
 
+/* ===== Postcard on the meadow (components/PostCard.tsx) ===== */
+/* .pc-wrap is placed by DreamLanding; .pc-card tilts with the grass, then lifts to the screen's middle when flipped. The back's ruled lines
+   are at 114/133/152/170/189… of 268 (right half), so the two links sit between lines 2-3 and 4-5. */
+.pc-wrap {
+  position: absolute;
+  left: 0;
+  top: 0;
+  perspective: 900px;
+}
+.pc-card {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  container-type: inline-size;
+  perspective: 900px;
+  transform: rotate(var(--pc-rot, 0rad));
+  transition: transform 0.9s cubic-bezier(0.22, 0.8, 0.25, 1);
+  /* the shadow is here, not on the turning .pc-flip: a filter there would flatten the two faces and the back would never show */
+  filter: drop-shadow(0 3px 5px rgba(20, 40, 10, 0.4));
+}
+/* hovering lifts it off the grass, like the bag, hat and cap (hover is on the wrapper, which stays put, so it does not flicker) */
+.pc-wrap:hover .pc-card:not(.pc-card--flipped) {
+  transform: translateY(-14%) rotate(var(--pc-rot, 0rad));
+  filter: drop-shadow(0 8px 8px rgba(20, 40, 10, 0.35)) brightness(1.06);
+}
+.pc-card--flipped {
+  transform: translate(var(--pc-dx, 0), var(--pc-dy, 0)) rotate(0rad) scale(var(--pc-scale, 2.5));
+}
+.pc-flip {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  transform-style: preserve-3d;
+  transition: transform 0.9s cubic-bezier(0.22, 0.8, 0.25, 1);
+}
+.pc-card--flipped .pc-flip { transform: rotateY(180deg); }
+.pc-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.pc-face img { display: block; width: 100%; height: 100%; }
+.pc-back { transform: rotateY(180deg); }
+.pc-links {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.pc-card--flipped .pc-links { opacity: 1; transition: opacity 0.3s ease 0.5s; }
+.pc-card--flipped .pc-link { pointer-events: auto; }
+.pc-link {
+  position: absolute;
+  left: 46.5%;
+  width: 49%;
+  height: 7%;
+  display: flex;
+  align-items: flex-end;
+  gap: 1.4cqw;
+  padding-bottom: 0.4cqw;
+  color: #1f4a2b;
+  font-family: Lora, Georgia, serif;
+  font-weight: 500;
+  font-size: 2.3cqw;
+  line-height: 1;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.pc-link:hover span { text-decoration: underline; }
+.pc-link--a { top: 42.2%; }
+.pc-link--b { top: 56.4%; }
+.pc-link svg { flex: none; width: 4.4cqw; height: 4.4cqw; }
+
 /* ===== Dream landing ===== */
 
 .dream-section {
@@ -373,6 +451,7 @@
   color: var(--ink);
   font-family: Inter, Helvetica, Arial, sans-serif;
   container-type: inline-size;
+  perspective: 900px;
 }
 .strands-game *, .strands-game *::before { box-sizing: border-box; }
 
