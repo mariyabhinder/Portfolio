@@ -36,6 +36,8 @@ export const WINDOW_CONFIG = {
   endHeight: 0.92,
   /** the gap left between the window (with its shutters open, on the right) and the right and bottom edges of the viewport, as a fraction of the viewport width and height */
   margin: { right: 0.07, bottom: 0.04 },
+  /** extra offsets on a tall (portrait) screen: the group moves further left (fraction of width) and down (of height) and ends this much smaller; the window's right margin shrinks and it sits in the top-right corner, this far (fraction of height) from the top */
+  narrow: { moveX: 0.08, moveY: 0.08, shrink: 0.2, marginRight: 0.05, marginTop: 0.02 },
   /** the window's scale at the start, as a fraction of its final size (0.04 = a speck) */
   startScale: 0.04,
   /** the share of the scroll over which the window fades in as it starts to grow (it is already growing, so it never pops) */
@@ -83,12 +85,16 @@ export function windowAt(w: number, vw: number, vh: number): WindowFrame {
   // on a tall (portrait) screen the window is limited by the width instead, so its arch and shutters keep their proportions
   // (the open shutters stick out beyond the frame on both sides, and are counted in the width)
   const full = Math.min(C.endHeight * vh, ((1 - C.margin.right) * vw * 0.92) / ((600 + 2 * SPREAD) / 800))
-  // the window ends in the bottom-right corner, leaving the margins (counted from the open shutter): its centre there, from the middle of the viewport
-  const endX = vw * (1 - C.margin.right) - ((300 + SPREAD) * full) / 800, endY = vh * (1 - C.margin.bottom) - full / 2
+  // on a tall screen the group sits further into the bottom-left corner and smaller, and the window moves right and up, clear of it
+  const narrow = clamp((1 - vw / vh) / 0.5 + 0.5, 0, 1)
+  const mr = C.margin.right - C.narrow.marginRight * narrow
+  const endX = vw * (1 - mr) - ((300 + SPREAD) * full) / 800
+  const bottomY = vh * (1 - C.margin.bottom) - full / 2, topY = vh * C.narrow.marginTop + full / 2
+  const endY = bottomY + (topY - bottomY) * narrow
   return {
-    dx: -C.move.x * vw * m,
-    dy: C.move.y * vh * m,
-    scale: 1 + (C.endScale - 1) * m,
+    dx: -(C.move.x + C.narrow.moveX * narrow) * vw * m,
+    dy: (C.move.y + C.narrow.moveY * narrow) * vh * m,
+    scale: 1 + (C.endScale - C.narrow.shrink * narrow - 1) * m,
     x: vw / 2 + (endX - vw / 2) * g,
     y: vh / 2 + (endY - vh / 2) * g,
     h: full * (C.startScale + (1 - C.startScale) * g),
@@ -126,6 +132,14 @@ export const WINDOW_ASPECT = 600 / 800
 // frame's units, with its hinge on its outer edge).
 export const SHUTTER_BOX = { x: 38, y: 314, w: 262, h: 416 }
 const STROKE = '#c9bfa6'
+
+/** Where a picture of the given aspect (w / h) lies inside the window's clear opening (below the rail, between the frame's sides), in the
+ *  drawing's units: as wide as the opening, as tall as its shape needs, centred. The shut shutters cover it; it shows as they open. */
+export function openingFit(aspect: number) {
+  const x = 38, y = 314, w = 524, h = 416
+  const fw = Math.min(w, h * aspect), fh = fw / aspect
+  return { x: x + (w - fw) / 2, y: y + (h - fh) / 2, w: fw, h: fh }
+}
 
 const DEFS = `<defs>
 <linearGradient id="wood" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fdfbf6"/><stop offset=".55" stop-color="#f3eee1"/><stop offset="1" stop-color="#e6ddca"/></linearGradient>

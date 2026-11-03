@@ -3,9 +3,9 @@
 // DreamLanding adds `flower-on` to the camera once the wake scene is done (and takes it off scrolling back); the whole move is the CSS
 // animation `flower-fly` in index.css (the turn is a 2D squash: the petal narrows to an edge, the flower widens out of it).
 
-const LINKEDIN = 'www.linkedin.com/in/mariyah-bhinderwala-4aa1872a0'
-const LINKEDIN_HREF = `https://${LINKEDIN}`
-const EMAIL = 'bhinderwalamariyah@gmail.com'
+export const LINKEDIN = 'www.linkedin.com/in/mariyah-bhinderwala-4aa1872a0'
+export const LINKEDIN_HREF = `https://${LINKEDIN}`
+export const EMAIL = 'bhinderwalamariyah@gmail.com'
 
 // the same white as the small petals blowing about (meadow.ts drawPetals), with their soft green shadow
 const WHITE = '#fcfcf4'
@@ -62,7 +62,7 @@ function PetalArt() {
   )
 }
 
-function LinkedInLogo() {
+export function LinkedInLogo() {
   return (
     <svg viewBox="0 0 24 24" className="fl-logo" aria-hidden="true">
       <rect width="24" height="24" rx="4.5" fill="#0a66c2" />
@@ -71,7 +71,7 @@ function LinkedInLogo() {
   )
 }
 
-function GmailLogo() {
+export function GmailLogo() {
   return (
     <svg viewBox="0 0 24 24" className="fl-logo" aria-hidden="true">
       <rect x="1" y="3.5" width="22" height="17" rx="2.5" fill="#fff" />

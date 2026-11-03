@@ -38,7 +38,8 @@ import type { LandPlace } from './landing'
 import { landAt, launchAt, launchSit } from './land'
 import { createDrop, ABOUT_BG } from './drop'
 import { leaveFrame } from './leave'
-import { SHUTTER_BOX, launchProgress, shutterStrips, windowAt, windowUrls } from './window'
+import { SHUTTER_BOX, launchProgress, openingFit, shutterStrips, windowAt, windowUrls } from './window'
+import picstoryUrl from '@/assets/meadow/picstory.webp'
 import { createTouch, touchAt, TOUCH_CONFIG } from './touch'
 import { WAKE_CONFIG, wakeWave } from './wake'
 import { ABOUT_DESIGN, RIGHT_SIDE } from './aboutDecos'
@@ -572,6 +573,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
   const sketch = (p: any) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let windowImg: { frame: any; left: any; right: any } | null = null
+    let picstoryImg: any = null
     // the About Me backdrop (aboutBg.ts), once painted
     let aboutBgImg: any = null
     let groundImg: any, cloth: any, faller: any, shotBodies: any[] = [], clouds: any[] = [], petals: any[] = []
@@ -673,6 +675,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       if (disposed) return
       groundImg = ground
       // the window is drawn from code (window.ts); its picture is rasterised by the browser, off the critical path
+      p.loadImage(picstoryUrl).then((img: any) => { if (!disposed) picstoryImg = img }).catch(() => {})
       Promise.all(Object.values(windowUrls()).map((u) => p.loadImage(u))).then(([frame, left, right]: any[]) => { if (!disposed) windowImg = { frame, left, right } }).catch(() => {})
       const cloudImgs = sprites
       clouds = CLOUDS.map((c, i) => ({ ...c, spr: featherEdges(cloudImgs[i * 2], 24), shadow: featherEdges(cloudImgs[i * 2 + 1], 16) }))
@@ -762,7 +765,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       const wake = clamp(state.wake, 0, 1)
       // (waking, the meadow is back on screen and runs on the clock again)
       if (dream >= 1 && shown && wake <= 0 && !sparkling) {
-        const key = [state.fall, state.land, state.window, !!windowImg, !!aboutBgImg, state.leave, state.touch, state.remembered, p.width, p.height, !!landing?.ready, !!toucher?.ready, !!decoImgs].join()
+        const key = [state.fall, state.land, state.window, !!windowImg, !!picstoryImg, !!aboutBgImg, state.leave, state.touch, state.remembered, p.width, p.height, !!landing?.ready, !!toucher?.ready, !!decoImgs].join()
         if (key === stillKey) return
         stillKey = key
       } else stillKey = ''
@@ -1071,6 +1074,15 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
         // the frame stands still; only the two shutters turn, each about its own hinge, swinging outward toward us to lie beside the
         // frame. Shut, each is one picture; swung, it is drawn in thin slices (shutterStrips) so the edge nearer to us is the bigger one
         p.image(windowImg.frame, ox, oy, 600 * u, wf.h)
+        // the project picture sits in the opening from the start, behind the shutters, so it is revealed as they swing open
+        if (picstoryImg) {
+          // fill the whole opening: cover it, trimming the picture's overhang evenly from both sides
+          const iw = picstoryImg.width, ih = picstoryImg.height
+          const O = { x: 38, y: 314, w: 524, h: 416 }
+          const sw = Math.min(iw, ih * O.w / O.h), sh = sw * O.h / O.w
+          p.clearDepth()
+          p.image(picstoryImg, ox + O.x * u, oy + O.y * u, O.w * u, O.h * u, (iw - sw) / 2, (ih - sh) / 2, sw, sh)
+        }
         p.clearDepth()
         const B = SHUTTER_BOX
         const shut = wf.swing < 0.002
@@ -1198,7 +1210,8 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       if (!toucher?.ready || !dropper) return false
       const df = leaveFrame(vw, vh)
       df.travel = 1.5 * leave
-      const tf = touchAt(clamp(state.touch, 0, 1), df, TOUCH_CONFIG.surface * vh, vw * 0.97, vh, reduceMotion, clamp(state.remembered, 0, 1))
+      const portrait = vw / vh < 0.8
+      const tf = touchAt(clamp(state.touch, 0, 1), df, (portrait ? 0.96 : TOUCH_CONFIG.surface) * vh, vw * 0.97, vh, reduceMotion, clamp(state.remembered, 0, 1), portrait)
       p.clearDepth()
       toucher.drawSurface(tf, vw, vh)
       toucher.drawShadow(tf, vh)
@@ -1216,7 +1229,8 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
     // on its bottom right corner; each piece eases in from its `at` (fades, settles up 3% of the page height, grows from 92%)
     function drawDecos(vw: number, vh: number) {
       if (!decoImgs) return
-      const stageW = Math.min(vw, 1.40625 * vh), sc = stageW / ABOUT_DESIGN.w, stageH = ABOUT_DESIGN.h * sc
+      // on a tall (phone) screen the decorations are drawn a little bigger (the page is laid out to the full height, see index.css)
+      const stageW = Math.min(vw, 1.40625 * vh) * (vw / vh < 0.8 ? 1.05 : 1), sc = stageW / ABOUT_DESIGN.w, stageH = ABOUT_DESIGN.h * sc
       const left = vw - stageW, top = vh - stageH
       p.noStroke()
       RIGHT_SIDE.forEach((d, i) => {
