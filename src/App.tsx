@@ -547,10 +547,6 @@ function LightHero({ activeQuality, onHoverIn, onHoverOut, onTap, onToggle, show
 
       {/* === "Hi I'm Mariyah" === */}
       <div className="absolute" style={{ left: '2%', top: '48.6%' }}>
-        <p className="font-['Indie_Flower:Regular',sans-serif] not-italic text-[#e85069] leading-normal"
-          style={{ fontSize: 'clamp(20px, 3.33vw, 48px)', lineHeight: 1.2 }}>
-          Hi I'm<br />Mariyah
-        </p>
         {/* Arrow */}
         <div className="absolute" style={{ left: '12%', top: '56%', width: '60%', height: '40%' }}>
           <div style={{ transformOrigin: 'center', transform: 'rotate(18deg)', width: '100%', height: '100%' }}>
@@ -683,10 +679,6 @@ function DarkHero({ activeQuality, onHoverIn, onHoverOut, onTap, onToggle, showG
 
       {/* === "Hi I'm Mariyah" — white text in dark mode === */}
       <div className="absolute" style={{ left: '2%', top: '48.6%' }}>
-        <p className="font-['Indie_Flower:Regular',sans-serif] not-italic text-white leading-normal"
-          style={{ fontSize: 'clamp(20px, 3.33vw, 48px)', lineHeight: 1.2 }}>
-          Hi I'm<br />Mariyah
-        </p>
         <div className="absolute" style={{ left: '12%', top: '56%', width: '60%', height: '40%' }}>
           <div style={{ transformOrigin: 'center', transform: 'rotate(18deg)', width: '100%', height: '100%' }}>
             <svg className="w-full h-full" fill="none" viewBox="0 0 133.001 58.002" preserveAspectRatio="none">
@@ -838,14 +830,6 @@ function MobileLightHero({ activeQuality, onHoverIn, onHoverOut, onTap, onToggle
         <img alt="" className="absolute h-[168.27%] left-0 max-w-none top-[-68.26%] w-full" src={imgGirl} />
       </div>
 
-      {/* Hi I'm Mariyah */}
-      <div className="absolute" style={{ left: '3.7%', top: '46.1%' }}>
-        <p className="font-['Indie_Flower:Regular',sans-serif] not-italic text-[#e85069] leading-normal"
-          style={{ fontSize: 'clamp(10px, 3.85vw, 16.5px)', lineHeight: 1.2 }}>
-          Hi I'm<br />Mariyah
-        </p>
-      </div>
-
       {/* Interactive cloud zones — mobile */}
       <InteractiveZone
         qualityId="uiux"
@@ -930,14 +914,6 @@ function MobileDarkHero({ activeQuality, onHoverIn, onHoverOut, onTap, onToggle 
       {/* Girl */}
       <div className="absolute pointer-events-none overflow-hidden" style={{ left: '10.7%', top: '51.3%', width: '37.1%', height: '40.6%' }}>
         <img alt="" className="absolute h-[168.27%] left-0 max-w-none top-[-68.26%] w-full" src={imgGirl} />
-      </div>
-
-      {/* Hi I'm Mariyah — white */}
-      <div className="absolute" style={{ left: '4.7%', top: '40.6%' }}>
-        <p className="font-['Indie_Flower:Regular',sans-serif] not-italic text-white leading-normal"
-          style={{ fontSize: 'clamp(8px, 3.05vw, 13px)', lineHeight: 1.2 }}>
-          Hi I'm<br />Mariyah
-        </p>
       </div>
 
       {/* Interactive stars — mobile dark mode */}

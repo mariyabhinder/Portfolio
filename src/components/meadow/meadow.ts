@@ -663,7 +663,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
         Promise.all(SHOTS.map((s) => p.loadImage(s.sprite))),
         fetch(bladesUrl).then((r) => r.json()),
         loadHtmlImage(bagUrl),
-        Promise.all(BAG_ITEMS.map((it) => loadHtmlImage(it.image))),
+        Promise.all(BAG_ITEMS.map((it) => (it.image ? loadHtmlImage(it.image) : null))),
         ...CLOUDS.flatMap((c) => [p.loadImage(c.spr), p.loadImage(c.shadow)]),
       ])
       // the poster is on screen meanwhile; let the browser breathe between the heavier steps
@@ -703,6 +703,10 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       if (disposed) return
       props = paintProps({ bag: bagImg }).map(({ sprite, shadow, ...rest }) => ({ ...rest, spr: fromCanvas(sprite), shadow: fromCanvas(shadow) }))
       bagItems = itemImgs.map((img, i) => {
+        if (!img) {
+          const q = props.find((o) => o.id === BAG_ITEMS[i].prop)!
+          return { w: q.w, h: q.h, spr: q.spr, shadow: q.shadow }
+        }
         const { sprite, shadow, w, h } = paintPicture(img, BAG_ITEMS[i].height, 1, 0)
         return { w, h, spr: fromCanvas(sprite), shadow: fromCanvas(shadow) }
       })
@@ -1364,7 +1368,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       const lift = (q: (typeof props)[number]) => (reduceMotion ? 0 : hovers[q.id ?? ''] ?? 0)
       // once they have been picked up, her glasses and hat are drawn over her instead (drawWorn)
       // and while the gallery holds her phone, it and its strap are off the grass
-      const lying = props.filter((q) => !(q.id === 'glasses' && state.glasses.u > 0) && !(q.id === 'hat' && state.hat.u > 0) && !(q.id === 'cap' && state.cap.u > 0) && !(state.phone.up && (q.id === 'phone' || q.id === 'strap')))
+      const lying = props.filter((q) => !(q.id === 'glasses' && state.glasses.u > 0) && !(q.id === 'hat' && state.hat.u > 0) && q.id !== 'cap' && !(state.phone.up && (q.id === 'phone' || q.id === 'strap')))
       p.tint(22, 42, 10, 120)
       for (const q of lying) draw(q.shadow, q, q.lift * 0.7 + lift(q) * 2, q.lift + lift(q) * 4, 1 + lift(q) * 0.03)
       p.noTint()

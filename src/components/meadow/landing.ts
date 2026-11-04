@@ -16,6 +16,7 @@ import sitFlow from '@/assets/meadow/sit-flow.json'
 import position2Url from '@/assets/meadow/position2.webp'
 import position5Url from '@/assets/meadow/position5.webp'
 import position6Url from '@/assets/meadow/position6.webp'
+import position6MobileUrl from '@/assets/meadow/position6-1.webp'
 import j1Url from '@/assets/meadow/j1.webp'
 import j2Url from '@/assets/meadow/j2.webp'
 import j3Url from '@/assets/meadow/j3.webp'
@@ -420,7 +421,13 @@ export function createLanding(p: any, reduceMotion: boolean) {
       cloudImgs = { body: imageFromCanvas(cloud!.body), front: imageFromCanvas(cloud!.front), hollow: imageFromCanvas(cloud!.hollow), wisps: cloud!.wisps.map(imageFromCanvas) }
     })
     // the sit-up pictures come last (she is not sitting up for a good while after she lands): the landing's own mesh for the first, a plain grid (no loose fabric: the morph moves it all) for the other two
-    const sitUrls = [position2Url, position5Url, position6Url, j1Url, j2Url, j3Url, j4Url, j5Url]
+    // on a phone, position6 is the smaller position6-1.webp (a tighter crop, ~0.267 of the original's px, offset 17 px in x): its poses are the original's remapped onto it
+    const mobile = window.innerWidth < 768
+    if (mobile) {
+      const A = 0.267, OX = -17, o = SIT_POSES[3], map = ([x, y]: number[]) => [x * A + OX, y * A]
+      SIT_POSES[3] = { ...o, w: 316, h: 323, s: o.s / A, face: map(o.face), hip: map(o.hip), marks: o.marks.map(map) }
+    }
+    const sitUrls = [position2Url, position5Url, mobile ? position6MobileUrl : position6Url, j1Url, j2Url, j3Url, j4Url, j5Url]
     const [sitHtml, sitP5] = await Promise.all([Promise.all(sitUrls.map(loadHtml)), Promise.all(sitUrls.map((u) => p.loadImage(u)))])
     if (disposed) return
     // each picture is a grid mesh (no loose fabric here: the morph moves it all) carrying its baked residuals, one pair per vertex

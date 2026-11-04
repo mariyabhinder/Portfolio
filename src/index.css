@@ -572,6 +572,7 @@
 }
 .strands-complete.is-visible { opacity: 1; transform: translate(-50%, -50%); }
 .strands-complete strong { font-size: 1.9cqw; }
+.strands-complete--close { font-size: 2.2cqw; }
 
 @media (prefers-reduced-motion: reduce) {
   .strand-letter, .strand-letter::before, .strand-path, .strands-complete { transition: none !important; animation: none !important; }

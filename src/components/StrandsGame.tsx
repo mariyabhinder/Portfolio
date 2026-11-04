@@ -12,6 +12,12 @@ const X0 = (VB_W - (COLS - 1) * PITCH) / 2
 const Y0 = 130
 const HIT_RADIUS = 36 // how close the pointer must be to a letter centre
 const REVEAL_STEP = 900
+const REVEAL_AFTER_MISSES = 6
+const CLOSE_WORDS = ["DESIGN", "CLOUD", "FLOWER", "GAME"] // near-misses of the real words; tracing one flashes "Very close!"
+const HINT_MS = 2200
+const DICTIONARY_URL = `${import.meta.env.BASE_URL}english-words.txt`
+
+type Hint = "close" | "wrong" | "nonword" | null
 
 type Word = { word: string; spangram?: boolean; cells: number[] }
 
@@ -46,6 +52,10 @@ export default function StrandsGame({ onComplete }: { onComplete?: (done: boolea
   const [fading, setFading] = useState<number[][]>([])
   const [revealing, setRevealing] = useState(false)
   const [complete, setComplete] = useState(false)
+  const [misses, setMisses] = useState(0)
+  const [hint, setHint] = useState<Hint>(null)
+  const hintTimer = useRef<number>(undefined)
+  const dictionary = useRef<Set<string> | null>(null)
   const selRef = useRef<number[]>([])
   const solvedRef = useRef<string[]>([])
 
@@ -71,7 +81,28 @@ export default function StrandsGame({ onComplete }: { onComplete?: (done: boolea
     timers.current = []
     setRevealing(false)
   }
-  useEffect(() => clearTimers, [])
+  useEffect(() => () => {
+    clearTimers()
+    window.clearTimeout(hintTimer.current)
+  }, [])
+  // lazy-load the English word list so "wrong word" can tell real words from random letters
+  useEffect(() => {
+    let live = true
+    fetch(DICTIONARY_URL)
+      .then((r) => (r.ok ? r.text() : ""))
+      .then((t) => {
+        if (live && t) dictionary.current = new Set(t.split("\n"))
+      })
+      .catch(() => {})
+    return () => {
+      live = false
+    }
+  }, [])
+  const flashHint = (h: Hint) => {
+    setHint(h)
+    window.clearTimeout(hintTimer.current)
+    hintTimer.current = window.setTimeout(() => setHint(null), HINT_MS)
+  }
   useEffect(() => onComplete?.(complete), [complete, onComplete])
 
   const cellAt = (e: ReactPointerEvent) => {
@@ -110,6 +141,9 @@ export default function StrandsGame({ onComplete }: { onComplete?: (done: boolea
       markSolved(names)
       if (names.length === WORDS.length) timers.current.push(window.setTimeout(() => setComplete(true), 700))
     } else if (sel.length > 1) {
+      setMisses((m) => m + 1)
+      if (CLOSE_WORDS.includes(text)) flashHint("close")
+      else if (dictionary.current && text.length >= 3) flashHint(dictionary.current.has(text.toLowerCase()) ? "wrong" : "nonword")
       setFading((f) => [...f, sel])
       window.setTimeout(() => setFading((f) => f.slice(1)), 400)
     }
@@ -146,6 +180,8 @@ export default function StrandsGame({ onComplete }: { onComplete?: (done: boolea
   const replay = () => {
     clearTimers()
     setComplete(false)
+    setMisses(0)
+    setHint(null)
     setSel([])
     markSolved([])
     setFading([])
@@ -172,17 +208,42 @@ export default function StrandsGame({ onComplete }: { onComplete?: (done: boolea
     })
   }
 
+  const allFound = solved.length === WORDS.length
+  const showReveal = misses >= REVEAL_AFTER_MISSES && !allFound
+
   return (
     <div className="strands-game">
       <div className="strands-game__top">
-        <button className="strands-btn" type="button" onClick={replay}>
+        <button
+          className="strands-btn"
+          type="button"
+          onClick={replay}
+          style={allFound ? undefined : { visibility: "hidden" }}
+          tabIndex={allFound ? 0 : -1}
+        >
           Replay
         </button>
+        <div className={`strands-complete strands-complete--close${hint === "close" && !complete ? " is-visible" : ""}`}>
+          <span>Very close!</span>
+        </div>
+        <div className={`strands-complete strands-complete--close${hint === "wrong" && !complete ? " is-visible" : ""}`}>
+          <span>Wrong word</span>
+        </div>
+        <div className={`strands-complete strands-complete--close${hint === "nonword" && !complete ? " is-visible" : ""}`}>
+          <span>Not a word</span>
+        </div>
         <div className={`strands-complete${complete ? " is-visible" : ""}`}>
           <span>You've found me.</span>
           <strong>☕</strong>
         </div>
-        <button className="strands-btn" type="button" onClick={reveal} disabled={revealing}>
+        <button
+          className="strands-btn"
+          type="button"
+          onClick={reveal}
+          disabled={revealing}
+          style={showReveal ? undefined : { visibility: "hidden" }}
+          tabIndex={showReveal ? 0 : -1}
+        >
           Reveal answers
         </button>
       </div>

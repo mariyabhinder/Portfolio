@@ -10,7 +10,7 @@ import { WINDOW_CONFIG, launchProgress, openingFit, windowAt } from './meadow/wi
 import { TOUCH_CONFIG } from './meadow/touch'
 import { WAKE_CONFIG, wakeWave, wakeZoom } from './meadow/wake'
 import { BAG_PLACE, PHONE_PLACE } from './meadow/props'
-import { createBagReveal, playBagReveal } from './meadow/bagItems'
+import { bagCamera, createBagReveal, playBagReveal } from './meadow/bagItems'
 import { createWear, playWear, CAP_WEAR, GLASSES_WEAR, HAT_WEAR, type WearConfig, type WearState } from './meadow/wear'
 // Scroll progress (0-1): the camera closes in on her face until ZOOM_END, she falls asleep, the dream wave
 // crosses from DREAM_START to DREAM_END, and from there to FALL_VH she falls through the sky. The scroll after that is the
@@ -21,8 +21,8 @@ const DREAM_START = 0.1385
 const DREAM_END = 0.1938
 // the original length of the section (viewport heights) that zoom, dream and fall are measured in: unchanged by the landing
 const FALL_VH = 1400
-// the postcard on the meadow, in scene px (736 x 920): centre, width and tilt. It lies between her hand and the bag
-const POST_PLACE = { x: 228, y: 464, w: 36, rot: 0.22 }
+// the postcard on the meadow, in scene px (736 x 920): centre, width and tilt. It lies on her right side, a little below her hand
+const POST_PLACE = { x: 498, y: 488, w: 36, rot: -0.15 }
 
 // Debug: a corner label naming the storyboard frame (1-15) the scroll is on. Shown in dev, or with ?frames in the URL.
 // picstory.webp is 691 x 503, cropped to cover the opening
@@ -140,11 +140,15 @@ export default function DreamLanding() {
     window.addEventListener('wheel', stopScroll, { passive: false })
     window.addEventListener('touchmove', stopScroll, { passive: false })
     window.addEventListener('keydown', stopKeys)
+    // a click anywhere (the bag included) once all the items are out puts them back in
+    const dismiss = () => stop.dismiss()
+    window.addEventListener('pointerdown', dismiss)
     const stop = playBagReveal(bag, matchMedia('(prefers-reduced-motion: reduce)').matches, () => finish())
     const finish = () => {
       window.removeEventListener('wheel', stopScroll)
       window.removeEventListener('touchmove', stopScroll)
       window.removeEventListener('keydown', stopKeys)
+      window.removeEventListener('pointerdown', dismiss)
       bagStop.current = null
       bagPlaying.current = false
       // the hotspot comes back with the next scroll update
@@ -267,26 +271,36 @@ export default function DreamLanding() {
       const s = Math.max(vw / 736, vh / 920)
       const w = POST_PLACE.w * s, h = w * (269 / 376)
       const ox = (vw - 736 * s) / 2, oy = (vh - 920 * s) / 2
-      // waking, the camera pulls back out from her face (meadow.ts applyCamera), so the card follows it like the props drawn on the grass
-      const k = state.wake > 0 ? Math.max(0, Math.min(1, state.zoom)) : 0
+      // like the bag, hat and cap drawn on the grass, the card is part of the scene: it stays at its spot and follows the camera (meadow.ts applyCamera)
+      const k = Math.max(0, Math.min(1, state.zoom))
       const maxZoom = Math.max(3, Math.min(6, (0.55 * Math.min(vw, vh)) / (40 * s)))
       const z = 1 + (maxZoom - 1) * k
       const fx = ox + 388 * s, fy = oy + 305 * s
       const cx = ox + POST_PLACE.x * s, cy = oy + POST_PLACE.y * s
       const sx = fx + (vw / 2 - fx) * k + (cx - fx) * z, sy = fy + (vh / 2 - fy) * k + (cy - fy) * z
-      const key = `${vw}|${vh}|${z.toFixed(3)}`
+      // clicked bag: the camera closes in on the bag; the card stays on the grass where it lies, so it rides that same camera
+      let px = sx, py = sy, pz = z
+      if (bag.cam > 0) {
+        const s0 = Math.max(vw / 736, vh / 920)
+        const c = bagCamera(vw, vh, bag.cam, { w: 736, h: 920 }, s0, ox, oy)
+        px = c.tx + POST_PLACE.x * c.s
+        py = c.ty + POST_PLACE.y * c.s
+        pz = c.s / s0
+      }
+      const key = `${vw}|${vh}|${pz.toFixed(3)}|${px.toFixed(1)}|${py.toFixed(1)}`
       if (resized || key !== postKey) {
         postKey = key
         el.style.width = `${w}px`
         el.style.height = `${h}px`
-        el.style.transform = `translate(${sx - w / 2}px, ${sy - h / 2}px) scale(${z.toFixed(3)})`
+        el.style.transform = `translate(${px - w / 2}px, ${py - h / 2}px) scale(${pz.toFixed(3)})`
       }
       const flipped = el.querySelector('.pc-card--flipped') !== null
-      // it lies there with the rest (and is there again once she has woken, the camera back out); in between it is hidden
-      const seen = state.wake >= WAKE_CONFIG.waveEnd + 0.02
-      const on = flipped || seen || (!bagPlaying.current && window.scrollY - sectionStart < window.innerHeight * 0.15)
+      // only on the meadow: the hero (before the dream begins) and the last section (once she has woken); hidden in between
+      const hero = state.dream <= 0 && state.wake <= 0
+      const last = state.wake >= WAKE_CONFIG.waveEnd + 0.02
+      const on = hero || last
       showHotspot(el, on)
-      el.style.pointerEvents = flipped || state.wake >= 0.995 || !seen && on ? 'auto' : 'none'
+      el.style.pointerEvents = on && (flipped || hero || state.wake >= 0.995) ? 'auto' : 'none'
     }
 
     // The glasses' and hat's hotspots: over each on the grass, or over her face once she has it on, turned with it. The hat's
@@ -414,9 +428,17 @@ export default function DreamLanding() {
     })
     visibility.observe(section)
     window.addEventListener('scroll', onScroll, { passive: true })
+    // the bag's camera moves without any scroll, so the card is re-placed every frame while it plays
+    let postFrame = 0
+    const postTick = () => {
+      if (bagPlaying.current || bag.cam > 0) placePost(false)
+      postFrame = requestAnimationFrame(postTick)
+    }
+    postFrame = requestAnimationFrame(postTick)
     measure()
     update(true)
     return () => {
+      cancelAnimationFrame(postFrame)
       resizeObserver.disconnect()
       visibility.disconnect()
       cancelled = true
@@ -442,7 +464,6 @@ export default function DreamLanding() {
         <GirlFx register={registerFx} remembered={remembered} />
       </div>
       <div ref={heroTextRef} className="hero-text">
-        <h1 className="hero-text__title">Hi!<br />I am Mariyah</h1>
         <p className="screen-cue screen-cue--left">[Click on different accessories]</p>
       </div>
       <p ref={scrollCueRef} className="screen-cue screen-cue--right">
@@ -504,16 +525,6 @@ export default function DreamLanding() {
         onClick={(e) => { e.stopPropagation(); toggleWear(hat, HAT_WEAR, hatRef.current) }}
         onMouseEnter={() => { if (!hat.moving && hat.u <= 0) hat.hover = 1 }}
         onMouseLeave={() => { hat.hover = 0 }}
-        className="absolute left-0 top-0 cursor-pointer"
-        style={{ zIndex: 3, background: 'transparent' }}
-      />
-      <button
-        ref={capRef}
-        type="button"
-        aria-label="Pull her cap over her face"
-        onClick={(e) => { e.stopPropagation(); toggleWear(cap, CAP_WEAR, capRef.current) }}
-        onMouseEnter={() => { if (!cap.moving && cap.u <= 0) cap.hover = 1 }}
-        onMouseLeave={() => { cap.hover = 0 }}
         className="absolute left-0 top-0 cursor-pointer"
         style={{ zIndex: 3, background: 'transparent' }}
       />
