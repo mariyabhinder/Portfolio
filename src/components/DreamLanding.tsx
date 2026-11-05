@@ -59,7 +59,7 @@ const FALL_TEXTS = [
   // the face close-up (meadow.ts FACE_ZOOM) runs over travel ~4.1-8.0: this one waits until the camera has pulled back to her whole body
   { lines: ['I am a', 'UI/UX designer.'], side: 'left', dx: -0.27, dy: 0.08, from: 8.2, to: 11.8, m: { x: 0.31, y: 0.88 } },
   // further out to the side, so it hangs a little way off her body rather than over it
-  { lines: ['I find joy in small', 'things around us.'], side: 'right', dx: 0.36, dy: -0.04, from: 12.2, to: 16.0, m: { x: 0.5, y: 0.11 } },
+  { lines: ['I find joy in little', 'things around me.'], side: 'right', dx: 0.36, dy: -0.04, from: 12.2, to: 16.0, m: { x: 0.5, y: 0.11 } },
 ] as const
 const FALL_TEXT_Z = { far: 2.2, near: 0.7 } // like SKY_LAYERS zFar / zNear: size = 1 / z
 const fallDynamics = createFallDynamics()
