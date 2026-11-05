@@ -43,6 +43,38 @@
 .screen-cue--left { left: clamp(14px, 2vw, 32px); }
 .screen-cue--right { right: clamp(14px, 2vw, 32px); transition: opacity 0.3s ease; }
 
+/* The lines that fall past with her (DreamLanding.tsx FALL_TEXTS): placed every scroll by script, from the fall's depth clock */
+.fall-text {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 2;
+}
+.fall-text__line {
+  position: absolute;
+  left: 0;
+  top: 0;
+  margin: 0;
+  opacity: 0;
+  width: max-content;
+  font-family: Inter, "Helvetica Neue", Arial, sans-serif;
+  font-weight: 900;
+  font-size: clamp(22px, 3.6vw, 68px);
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+  white-space: nowrap;
+  color: #f1f7ff;
+  /* same soft dark halo as the cloud tagline, so the white text stays readable over clouds and pale sky */
+  text-shadow: 0 1px 2px rgba(20, 35, 70, 0.55), 0 2px 14px rgba(20, 35, 70, 0.5), 0 0 28px rgba(20, 35, 70, 0.35);
+  will-change: transform, opacity, filter;
+}
+.fall-text__line--right { text-align: right; }
+.fall-text__line--left { text-align: left; }
+@media (max-aspect-ratio: 1/1) {
+  .fall-text__line { font-size: clamp(20px, 6.4vw, 48px); }
+}
+
 /* The tagline over her cloud in the window scene (DreamLanding.tsx): it stands in the empty sky at the top left and fades with the window */
 .cloud-tagline {
   position: absolute;
@@ -62,20 +94,27 @@
   font-family: Inter, "Helvetica Neue", Arial, sans-serif;
   font-weight: 900;
   /* as big as fits left of the open window: its left edge (shutters included) is at about 93vw - 90vh, the text starts at 5vw, and the longer line is about 14.5em wide */
-  font-size: clamp(20px, min(3.4vw, calc((88vw - 90vh) / 14.5)), 80px);
+  font-size: clamp(20px, min(3.9vw, calc((88vw - 90vh) / 13.5)), 92px);
+  /* the cloud is the same white as the text, so a soft dark halo keeps it readable over both cloud and sky */
+  text-shadow: 0 1px 2px rgba(20, 35, 70, 0.55), 0 2px 14px rgba(20, 35, 70, 0.5), 0 0 28px rgba(20, 35, 70, 0.35);
   line-height: 1.08;
   letter-spacing: -0.03em;
   white-space: nowrap;
   color: #f1f7ff; /* the cloud's soft sky-white */
 }
-/* on a tall (mobile) screen the window takes the top-right, so the tagline moves to the bottom-right corner */
+.cloud-tagline .tag-br { display: none; }
+/* on a tall (mobile) screen the window takes the top-right, so the tagline moves to the bottom-right corner, one phrase per line */
 @media (max-aspect-ratio: 1/1) {
+  .cloud-tagline .tag-br { display: inline; }
   .cloud-tagline p {
-    font-size: clamp(24px, 3.6vw, 62px);
+    font-size: clamp(22px, 7vw, 62px);
+    text-align: left;
     left: auto;
-    top: auto;
+    /* level with the girl: she and her cloud end up centred about 76% of the way down (the middle of the screen plus window.ts move.y + narrow.moveY) */
+    top: 76%;
+    transform: translateY(-50%);
     right: 5%;
-    bottom: 16%;
+    bottom: auto;
   }
 }
 

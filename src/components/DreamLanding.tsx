@@ -4,6 +4,7 @@ import type { GirlAnchor, MeadowHandle, MeadowState } from './meadow/meadow'
 import GirlFx from './GirlFx'
 import AboutMe from './AboutMe'
 import PostCard from './PostCard'
+import { createFallDynamics } from './meadow/fall'
 import { LAND_CONFIG } from './meadow/land'
 import { LEAVE_CONFIG } from './meadow/leave'
 import { WINDOW_CONFIG, launchProgress, openingFit, windowAt } from './meadow/window'
@@ -49,6 +50,20 @@ const FRAMES: [number, string][] = [
   [18, 'Lowers her legs over the cloud edge and sits there'],
   [19, 'Launch: hands on the cloud, hips lift, push-off, jump11'],
 ]
+// The lines that pass by while she falls, one after another, alternating sides. Each lives on the same depth clock as the sky's
+// cloud slices (the distance fallen, fall.ts `travel`): it starts small and faint near the vanishing point, rushes outward and
+// grows as it nears the lens, then dissolves. `dx`/`dy` are its place relative to the vanishing point (fractions of the camera's
+// width/height) at normal size, `from`/`to` the span of `travel` it lives over.
+const FALL_TEXTS = [
+  { lines: ['Hi, I am', 'Mariyah.'], side: 'right', dx: 0.27, dy: -0.02, from: 1.0, to: 4.6, m: { x: 0.5, y: 0.11 } },
+  // the face close-up (meadow.ts FACE_ZOOM) runs over travel ~4.1-8.0: this one waits until the camera has pulled back to her whole body
+  { lines: ['I am a', 'UI/UX designer.'], side: 'left', dx: -0.27, dy: 0.08, from: 8.2, to: 11.8, m: { x: 0.31, y: 0.88 } },
+  // further out to the side, so it hangs a little way off her body rather than over it
+  { lines: ['I find joy in small', 'things around us.'], side: 'right', dx: 0.36, dy: -0.04, from: 12.2, to: 16.0, m: { x: 0.5, y: 0.11 } },
+] as const
+const FALL_TEXT_Z = { far: 2.2, near: 0.7 } // like SKY_LAYERS zFar / zNear: size = 1 / z
+const fallDynamics = createFallDynamics()
+
 function frameIndex(s: { zoom: number; dream: number; fall: number; land: number; window: number }) {
   const land = s.land, d = s.dream, f = s.fall, contact = LAND_CONFIG.approach.contact / LAND_CONFIG.duration
   if (land > 0) {
@@ -73,6 +88,7 @@ export default function DreamLanding() {
   const stageRef = useRef<HTMLDivElement>(null)
   const framesRef = useRef<HTMLDivElement>(null)
   const taglineRef = useRef<HTMLDivElement>(null)
+  const fallTextRef = useRef<HTMLDivElement>(null)
   const picstoryRef = useRef<HTMLAnchorElement>(null)
   const heroTextRef = useRef<HTMLDivElement>(null)
   const scrollCueRef = useRef<HTMLParagraphElement>(null)
@@ -378,6 +394,37 @@ export default function DreamLanding() {
       if (heroText) heroText.style.opacity = state.wake > 0 ? '0' : Math.max(0, 1 - state.zoom / 0.12).toFixed(3)
       // the scroll cue stays until the page is scrolled all the way down
       if (scrollCueRef.current) scrollCueRef.current.style.opacity = state.wake >= 0.995 ? '0' : '1'
+      // the lines of text that fall past with her: placed from the same depth clock as the clouds, so they rush with the sky
+      const fallText = fallTextRef.current
+      if (fallText) {
+        const k = (a: number, b: number, x: number) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t) }
+        const falling = state.fall > 0 && state.land <= 0 && state.wake <= 0
+        const fr = falling ? fallDynamics.at(state.fall) : null
+        const still = matchMedia('(prefers-reduced-motion: reduce)').matches
+        FALL_TEXTS.forEach((t, i) => {
+          const el = fallText.children[i] as HTMLElement | undefined
+          if (!el) return
+          const ph = fr ? (fr.travel - t.from) / (t.to - t.from) : 0
+          if (!fr || ph <= 0 || ph >= 1) {
+            if (el.style.opacity !== '0') el.style.opacity = '0'
+            return
+          }
+          const env = k(0, 0.2, ph) * (1 - k(0.72, 1, ph))
+          const zoom = still ? 1 : 1 / (FALL_TEXT_Z.far + (FALL_TEXT_Z.near - FALL_TEXT_Z.far) * ph)
+          // the vanishing point the sky radiates from (meadow.ts vanishPoint): she sways about it
+          const vx = camW / 2 + Math.sin(fr.s * 0.45) * 0.035 * camW, vy = camH * 0.4 + Math.cos(fr.s * 0.31) * camH * 0.015
+          // on a tall (phone) screen she fills the width, so the lines wait above and below her (`m`) instead of beside her, drifting outward a little
+          const tall = camH > camW * 1.15
+          const out = still ? 0 : (zoom - 0.8) * 0.04 * camH * (t.m.y < 0.5 ? -1 : 1)
+          const x = tall ? t.m.x * camW : vx + t.dx * camW * zoom
+          const y = tall ? t.m.y * camH + out : vy + t.dy * camH * zoom
+          // blurred by the speed while it is still far or already past, sharp while it reads
+          const blur = still ? 0 : (1 - env) * 5 * Math.min(1, fr.u * 1.4)
+          el.style.opacity = env.toFixed(3)
+          el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -50%) rotate(${(still ? 0 : fr.camRoll).toFixed(4)}rad) scale(${zoom.toFixed(3)})`
+          el.style.filter = blur > 0.2 ? `blur(${blur.toFixed(1)}px)` : ''
+        })
+      }
       // the tagline stays put in the sky, fading in as the window grows and out as she launches
       const tag = taglineRef.current
       if (tag) {
@@ -472,8 +519,15 @@ export default function DreamLanding() {
           <path d="M6 1v11M1.5 7.5 6 12l4.5-4.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="square" />
         </svg>
       </p>
+      <div ref={fallTextRef} className="fall-text" aria-hidden="true">
+        {FALL_TEXTS.map((t) => (
+          <p key={t.lines[0]} className={`fall-text__line fall-text__line--${t.side}`}>
+            {t.lines[0]}<br />{t.lines[1]}
+          </p>
+        ))}
+      </div>
       <div ref={taglineRef} className="cloud-tagline" aria-hidden="true">
-        <p>Imagine it. Make it.<br />Put a little magic into it.</p>
+        <p>Imagine it.<br className="tag-br" /> Make it.<br />Put a little<br className="tag-br" /> magic into it.</p>
       </div>
       <svg width="0" height="0" className="absolute" aria-hidden="true">
         <filter id="about-warp" x="0" y="0" width="100%" height="100%" colorInterpolationFilters="sRGB">

@@ -36,8 +36,8 @@ export const WINDOW_CONFIG = {
   endHeight: 0.92,
   /** the gap left between the window (with its shutters open, on the right) and the right and bottom edges of the viewport, as a fraction of the viewport width and height */
   margin: { right: 0.07, bottom: 0.04 },
-  /** extra offsets on a tall (portrait) screen: the group moves further left (fraction of width) and down (of height) and ends this much smaller; the window's right margin shrinks and it sits in the top-right corner, this far (fraction of height) from the top */
-  narrow: { moveX: 0.08, moveY: 0.08, shrink: 0.2, marginRight: 0.05, marginTop: 0.02 },
+  /** extra offsets on a tall (portrait) screen: the group moves further left (fraction of width) and down (of height) and ends this much smaller; the window is centred across the viewport and pinned near the top, this far (fraction of height) from the top, clear of the girl and cloud in the bottom-left (marginRight only eases its path there) */
+  narrow: { moveX: 0.08, moveY: 0.08, shrink: 0.2, marginRight: 0.05, marginTop: 0.03 },
   /** the window's scale at the start, as a fraction of its final size (0.04 = a speck) */
   startScale: 0.04,
   /** the share of the scroll over which the window fades in as it starts to grow (it is already growing, so it never pops) */
@@ -88,8 +88,11 @@ export function windowAt(w: number, vw: number, vh: number): WindowFrame {
   // on a tall screen the group sits further into the bottom-left corner and smaller, and the window moves right and up, clear of it
   const narrow = clamp((1 - vw / vh) / 0.5 + 0.5, 0, 1)
   const mr = C.margin.right - C.narrow.marginRight * narrow
-  const endX = vw * (1 - mr) - ((300 + SPREAD) * full) / 800
-  const bottomY = vh * (1 - C.margin.bottom) - full / 2, topY = vh * C.narrow.marginTop + full / 2
+  // (on a tall screen it is centred instead of sitting in a corner)
+  const cornerX = vw * (1 - mr) - ((300 + SPREAD) * full) / 800
+  const endX = cornerX + (vw / 2 - cornerX) * narrow
+  const bottomY = vh * (1 - C.margin.bottom) - full / 2
+  const topY = vh * C.narrow.marginTop + full / 2
   const endY = bottomY + (topY - bottomY) * narrow
   return {
     dx: -(C.move.x + C.narrow.moveX * narrow) * vw * m,
