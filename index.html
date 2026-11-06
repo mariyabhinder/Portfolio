@@ -6,10 +6,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title><!-- figma:title --></title>
     <!-- figma:head-end -->
+    <style>
+      /* A still of the meadow, on screen from the first paint until the app replaces it */
+      .boot-poster { position: fixed; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #173719; }
+    </style>
   </head>
   <body>
     <!-- figma:body-start -->
-    <div id="root"></div>
+    <div id="root"><img class="boot-poster" src="/src/assets/meadow/poster.webp" alt="" fetchpriority="high" /></div>
     <script type="module" src="/src/main.tsx"></script>
     <!-- figma:body-end -->
   </body>

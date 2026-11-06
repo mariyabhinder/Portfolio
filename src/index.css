@@ -1,4 +1,122 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@600;700;900&family=Lora:wght@500&display=swap');
 @import 'tailwindcss';
+
+/* The hero text over the opening meadow (DreamLanding.tsx): white Inter, the heading top left */
+.hero-text {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  color: #fff;
+  font-family: Inter, "Helvetica Neue", Arial, sans-serif;
+  will-change: opacity;
+}
+.hero-text__title {
+  position: absolute;
+  left: 7%;
+  top: 7.5%;
+  margin: 0;
+  font-size: clamp(30px, 4.15vw, 80px);
+  font-weight: 900;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+/* Small corner cues: "scroll" bottom right on every screen but the last, the accessories hint bottom left in the hero only */
+.screen-cue {
+  position: absolute;
+  bottom: clamp(12px, 1.8vw, 28px);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #fff;
+  font-family: Inter, "Helvetica Neue", Arial, sans-serif;
+  font-size: clamp(14px, 1.1vw, 17px);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+  user-select: none;
+  z-index: 20;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.25);
+}
+.screen-cue--left { left: clamp(14px, 2vw, 32px); }
+.screen-cue--right { right: clamp(14px, 2vw, 32px); transition: opacity 0.3s ease; }
+
+/* The lines that fall past with her (DreamLanding.tsx FALL_TEXTS): placed every scroll by script, from the fall's depth clock */
+.fall-text {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 2;
+}
+.fall-text__line {
+  position: absolute;
+  left: 0;
+  top: 0;
+  margin: 0;
+  opacity: 0;
+  width: max-content;
+  font-family: Inter, "Helvetica Neue", Arial, sans-serif;
+  font-weight: 900;
+  font-size: clamp(22px, 3.6vw, 68px);
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+  white-space: nowrap;
+  color: #f1f7ff;
+  /* same soft dark halo as the cloud tagline, so the white text stays readable over clouds and pale sky */
+  text-shadow: 0 1px 2px rgba(20, 35, 70, 0.55), 0 2px 14px rgba(20, 35, 70, 0.5), 0 0 28px rgba(20, 35, 70, 0.35);
+  will-change: transform, opacity, filter;
+}
+.fall-text__line--right { text-align: right; }
+.fall-text__line--left { text-align: left; }
+@media (max-aspect-ratio: 1/1) {
+  .fall-text__line { font-size: clamp(20px, 6.4vw, 48px); }
+}
+
+/* The tagline over her cloud in the window scene (DreamLanding.tsx): it stands in the empty sky at the top left and fades with the window */
+.cloud-tagline {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 2;
+  will-change: transform, opacity;
+}
+.cloud-tagline p {
+  position: absolute;
+  left: 5%;
+  top: 8.5%;
+  margin: 0;
+  width: max-content;
+  text-align: left;
+  font-family: Inter, "Helvetica Neue", Arial, sans-serif;
+  font-weight: 900;
+  /* as big as fits left of the open window: its left edge (shutters included) is at about 93vw - 90vh, the text starts at 5vw, and the longer line is about 14.5em wide */
+  font-size: clamp(20px, min(3.9vw, calc((88vw - 90vh) / 13.5)), 92px);
+  /* the cloud is the same white as the text, so a soft dark halo keeps it readable over both cloud and sky */
+  text-shadow: 0 1px 2px rgba(20, 35, 70, 0.55), 0 2px 14px rgba(20, 35, 70, 0.5), 0 0 28px rgba(20, 35, 70, 0.35);
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+  white-space: nowrap;
+  color: #f1f7ff; /* the cloud's soft sky-white */
+}
+.cloud-tagline .tag-br { display: none; }
+/* on a tall (mobile) screen the window takes the top-right, so the tagline moves to the bottom-right corner, one phrase per line */
+@media (max-aspect-ratio: 1/1) {
+  .cloud-tagline .tag-br { display: inline; }
+  .cloud-tagline p {
+    font-size: clamp(22px, 7vw, 62px);
+    text-align: left;
+    left: auto;
+    /* level with the girl: she and her cloud end up centred about 76% of the way down (the middle of the screen plus window.ts move.y + narrow.moveY) */
+    top: 76%;
+    transform: translateY(-50%);
+    right: 5%;
+    bottom: auto;
+  }
+}
 
 @font-face {
   font-family: 'Indie Flower:Regular';
@@ -24,10 +142,191 @@
   font-display: swap;
 }
 
+/* ===== Postcard on the meadow (components/PostCard.tsx) ===== */
+/* .pc-wrap is placed by DreamLanding; .pc-card tilts with the grass, then lifts to the screen's middle when flipped. The back's ruled lines
+   are at 114/133/152/170/189… of 268 (right half), so the two links sit between lines 2-3 and 4-5. */
+.pc-wrap {
+  position: absolute;
+  left: 0;
+  top: 0;
+  perspective: 12000px;
+}
+.pc-card {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  container-type: inline-size;
+  perspective: 12000px;
+  transform: rotate(var(--pc-rot, 0rad));
+  transition: transform 0.9s cubic-bezier(0.22, 0.8, 0.25, 1);
+  /* the shadow is here, not on the turning .pc-flip: a filter there would flatten the two faces and the back would never show */
+  filter: drop-shadow(0 calc(3px * var(--pc-u, 1)) calc(5px * var(--pc-u, 1)) rgba(20, 40, 10, 0.4));
+}
+/* hovering lifts it off the grass, like the bag, hat and cap (hover is on the wrapper, which stays put, so it does not flicker) */
+.pc-wrap:hover .pc-card:not(.pc-card--flipped) {
+  transform: translateY(-14%) rotate(var(--pc-rot, 0rad));
+  filter: drop-shadow(0 calc(8px * var(--pc-u, 1)) calc(8px * var(--pc-u, 1)) rgba(20, 40, 10, 0.35)) brightness(1.06);
+}
+.pc-card--flipped {
+  transform: translate(var(--pc-dx, 0), var(--pc-dy, 0)) rotate(0rad) scale(var(--pc-scale, 2.5));
+  /* a filter makes the browser draw the card (text and icons included) into a bitmap at the size it was before the lift, then stretch it: blurry.
+     Without it the text and icons are drawn as vectors at the size they are shown */
+  filter: none;
+}
+.pc-flip {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  transform-style: preserve-3d;
+  transition: transform 0.9s cubic-bezier(0.22, 0.8, 0.25, 1);
+}
+.pc-card--flipped .pc-flip { transform: rotateY(180deg); }
+.pc-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.pc-face img { display: block; width: 100%; height: 100%; }
+.pc-back { transform: rotateY(180deg); }
+.pc-links {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.pc-card--flipped .pc-links { opacity: 1; transition: opacity 0.3s ease 0.5s; }
+.pc-card--flipped .pc-link { pointer-events: auto; }
+.pc-link {
+  position: absolute;
+  left: 46.5%;
+  width: 50%;
+  height: 9%;
+  display: flex;
+  align-items: flex-end;
+  gap: 1.2cqw;
+  padding-bottom: 0.9cqw;
+  color: #4d6f9e;
+  font-family: Lora, Georgia, serif;
+  font-weight: 400;
+  font-size: 2.55cqw;
+  line-height: 1;
+  white-space: nowrap;
+  text-decoration: none;
+  text-rendering: geometricPrecision;
+  -webkit-font-smoothing: antialiased;
+}
+.pc-link:hover span { text-decoration: underline; }
+/* each link sits on one of the back's ruled lines (at 131 and 169 of 269) */
+.pc-link--a { top: 39.7%; }
+.pc-link--b { top: 53.8%; }
+.pc-link svg { flex: none; width: 5.2cqw; height: 5.2cqw; }
+
+/* ===== ID card on its lanyard (components/IdCard.tsx) ===== */
+/* .id-grass is placed by DreamLanding like the postcard; when picked up, .id-hang drops the card in from the top of the screen */
+.id-grass {
+  position: absolute;
+  left: 0;
+  top: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.id-grass__art {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform: rotate(var(--id-rot, 0rad));
+  transition: transform 0.5s cubic-bezier(0.22, 0.8, 0.25, 1), opacity 0.35s ease, filter 0.5s ease;
+  filter: drop-shadow(0 4px 5px rgba(20, 40, 10, 0.4));
+}
+.id-grass:hover .id-grass__art {
+  transform: translateY(-8%) rotate(var(--id-rot, 0rad));
+  filter: drop-shadow(0 10px 9px rgba(20, 40, 10, 0.32)) brightness(1.06);
+}
+.id-grass--up .id-grass__art {
+  opacity: 0;
+  transform: translateY(-30%) scale(1.15) rotate(var(--id-rot, 0rad));
+}
+
+.id-hang {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(24, 38, 14, 0.42);
+  animation: id-fade 0.35s ease both;
+}
+.id-hang--leaving { animation: id-fade-out 0.38s ease both; }
+.id-hang__stage { position: absolute; inset: 0; }
+.id-hang__flat { display: grid; place-items: center; height: 100%; }
+.id-hang__flat img { height: 60%; width: auto; border-radius: 18px; box-shadow: 0 18px 40px rgba(10, 20, 5, 0.35); }
+.id-hang__hint {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 10px;
+  margin: 0;
+  text-align: center;
+  font-family: Lora, Georgia, serif;
+  font-style: italic;
+  font-size: 14px;
+  color: rgba(255, 250, 240, 0.85);
+  pointer-events: none;
+}
+.id-hang__links {
+  position: absolute;
+  left: 50%;
+  bottom: 36px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 10px;
+}
+.id-hang__links a {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  border-radius: 99px;
+  background: rgba(255, 250, 240, 0.94);
+  color: #2b2523;
+  font-family: Lora, Georgia, serif;
+  font-size: 14px;
+  text-decoration: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+.id-hang__links a:hover { background: #fff; }
+.id-hang__links svg { width: 18px; height: 18px; flex: none; }
+.id-hang__close {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 99px;
+  background: rgba(255, 250, 240, 0.92);
+  color: #2b2523;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+@keyframes id-fade { from { opacity: 0; } }
+@keyframes id-fade-out { to { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .id-hang, .id-hang--leaving { animation: none; }
+}
+
 /* ===== Dream landing ===== */
 
 .dream-section {
-  height: 350vh;
+  /* the height is set in DreamLanding.tsx: the fall's 1400vh plus the landing's scroll (LAND_CONFIG.scrollVh) */
+  height: 1400vh;
   position: relative;
 }
 
@@ -40,163 +339,485 @@
   background: #173719;
 }
 
-.sleeping-image {
+/* The hand-drawn meadow is drawn live into a canvas here; a still of it shows while it loads */
+.meadow-stage {
+  position: absolute;
+  inset: 0;
+  background: url('./assets/meadow/poster.webp') center / cover no-repeat;
+}
+
+.meadow-stage canvas {
+  display: block;
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}
+
+.meadow-ready .meadow-stage canvas {
+  opacity: 1;
+}
+
+/* ===== About Me page (components/AboutMe.tsx) ===== */
+/* A 1440 x 1024 design fitted into the camera, centred and resting on its bottom edge. DreamLanding sets --about (0-1) on the camera. */
+
+.about-stage {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: min(100vw, 140.625vh);
+  aspect-ratio: 1440 / 1024;
+  container-type: size;
+  z-index: 1;
+  pointer-events: none;
+  overflow: clip;
+}
+
+/* each piece eases in from --at: --p is its own 0-1 progress, so it settles up from below as it fades in */
+.about-piece {
+  --p: clamp(0, calc((var(--about, 0) - var(--at, 0)) * 5), 1);
+  position: absolute;
+  max-width: none;
+  opacity: var(--p);
+  transform: translateY(calc((1 - var(--p)) * 3cqh)) scale(calc(0.92 + 0.08 * var(--p)));
+  user-select: none;
+}
+
+/* heading, top centre of the page; sizes are in cqw so it scales with the stage */
+.about-title {
+  --s: min(100vw, 140.625vh);
+  left: 0;
+  top: calc(var(--s) * 0.03);
+  width: 100%;
+  z-index: 1;
+  text-align: center;
+  pointer-events: none;
+  color: #000;
+  font-family: Inter, "Helvetica Neue", Arial, sans-serif;
+}
+.about-title h2 {
+  margin: 0;
+  font-size: calc(var(--s) * 0.045);
+  font-weight: 900;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+.about-title p {
+  margin: calc(var(--s) * 0.012) 0 0;
+  font-size: calc(var(--s) * 0.021);
+  font-weight: 400;
+}
+
+/* tall (phone) screens: the stage fills the screen, the heading and the word game are bigger and sit in its upper part; the decorations
+   (drawn in the scene, meadow.ts drawDecos) fill the bottom right and she sits in the bottom left */
+@media (max-aspect-ratio: 4/5) {
+  .about-stage { height: 100vh; aspect-ratio: auto; }
+  .about-title { top: 4vh; }
+  .about-title h2 { font-size: calc(var(--s) * 0.052); }
+  .about-title p { font-size: calc(var(--s) * 0.028); }
+}
+
+/* ===== Girl effects: dizzy loops and stars, thought bubble (components/GirlFx.tsx) ===== */
+/* GirlFx moves these through custom properties (the head's place from the p5 scene, --landed / --seated from scroll). */
+
+.girl-fx {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  --hx: 0; --dy: 0; --hw: 90; --bx: 12; --by: 12; --tx: 60; --td: 0; --landed: 0; --seated: 0;
+}
+
+.girl-dizzy {
+  position: absolute;
+  left: calc(var(--hx) * 1px);
+  top: calc(var(--dy) * 1px);
+  width: calc(var(--hw) * 1.6px);
+  height: calc(var(--hw) * 0.8px);
+  translate: -50% -50%;
+  opacity: var(--landed);
+  transition: opacity 0.5s ease;
+}
+.girl-fx.is-remembered .girl-dizzy { opacity: 0; }
+
+.girl-loops {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
-  isolation: isolate;
-  will-change: transform;
+  overflow: visible;
 }
 
-/* Garden grass */
-.dg-garden {
-  position: absolute;
-  inset: -2%;
-  z-index: 0;
-  background-position: center;
-  background-size: cover;
-  background-repeat: no-repeat;
-  animation: dgGrassBreeze 12s ease-in-out infinite alternate;
+/* the loops sway a few degrees about their centre while a dash runs round them, so they read as turning without sweeping down over her face */
+.girl-loops path {
+  fill: none;
+  stroke: #b39461;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-dasharray: 70 22;
+  opacity: 0.5;
+  transform-box: fill-box;
+  transform-origin: center;
+  rotate: var(--tilt);
+  animation: girl-loop-sway var(--spin) ease-in-out infinite alternate, girl-loop-dash 3.4s linear infinite var(--dir);
 }
 
-/* The girl: sized from one variable so the face position can be derived in JS */
-.dg-girl {
-  --girl-w: min(34vw, 52vh);
+/* the stars ride a flattened ellipse: the box is squashed, and each star is un-squashed and un-rotated again so it stays upright and round */
+.girl-orbits {
   position: absolute;
-  z-index: 2;
+  inset: 0;
+  scale: 1 0.32;
+}
+
+.girl-orbit {
+  position: absolute;
   left: 50%;
   top: 50%;
-  width: var(--girl-w);
-  height: calc(var(--girl-w) * 1.4987);
-  margin-left: calc(var(--girl-w) / -2);
-  margin-top: calc(var(--girl-w) * -0.7494);
-  animation: dgGirlBreeze 7s ease-in-out infinite;
-}
-
-.dg-girl img {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  display: block;
-}
-
-@media (max-width: 600px) {
-  .dg-girl {
-    --girl-w: min(72vw, 52vh);
-  }
-}
-
-.dream-filters {
-  position: absolute;
   width: 0;
   height: 0;
-  pointer-events: none;
+  animation: girl-orbit-spin var(--dur) linear infinite;
+  animation-delay: var(--at);
 }
 
-.dg-girl .face-layer {
-  opacity: 0;
-  -webkit-mask-image: radial-gradient(circle at var(--fx, 50%) var(--fy, 50%), #000 0, #000 var(--fr, 90px), transparent calc(var(--fr, 90px) * 2.2));
-  mask-image: radial-gradient(circle at var(--fx, 50%) var(--fy, 50%), #000 0, #000 var(--fr, 90px), transparent calc(var(--fr, 90px) * 2.2));
-}
-
-.dreaming .dg-girl .face-layer {
-  opacity: 1;
-  filter: url('#dreamDistortion');
-}
-
-/* Cloud shadows on the grass (z 1) and over the girl (z 3), then the clouds (z 4) */
-.dg-shadow-layer,
-.dg-cloud-layer {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-}
-
-.dg-ground-shadows { z-index: 1; }
-/* Shadows are pure black, so normal blending looks identical to multiply */
-.dg-girl-shadows { z-index: 3; }
-.dg-cloud-layer { z-index: 4; }
-
-.dg-cloud,
-.dg-cloud-shadow {
+.girl-star-pos {
   position: absolute;
   left: 0;
-  width: var(--cloud-width);
-  height: auto;
-  object-fit: contain;
-  opacity: 0;
-  will-change: transform;
-  animation: dgCloudDrift var(--duration) linear infinite;
-  animation-delay: var(--delay);
+  top: 0;
+  width: 0;
+  height: 0;
+  translate: calc(var(--hw) * 0.8px * var(--r)) 0;
+  scale: 1 3.125;
+  animation: girl-orbit-unspin var(--dur) linear infinite;
+  animation-delay: var(--at);
 }
 
-.dg-cloud { top: var(--cloud-top); }
-
-/* Shadow images include blur padding (--shadow-pad, a fraction of the cloud width) on every side */
-.dg-cloud-shadow {
-  top: var(--cloud-top);
-  width: calc(var(--cloud-width) * (1 + 2 * var(--shadow-pad)));
-  margin-top: calc(18px - var(--cloud-width) * var(--shadow-pad));
-  margin-left: calc(12px - var(--cloud-width) * var(--shadow-pad));
-  animation-name: dgCloudShadowDrift;
+.girl-star {
+  position: absolute;
+  left: 0;
+  top: 0;
+  translate: -50% -50%;
+  overflow: visible;
+  fill: #ffe27a;
+  stroke: #d1a23e;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  animation: girl-twinkle var(--tw) ease-in-out infinite alternate;
 }
 
-/* Each cloud has its own size, height, and speed */
-.dg-cloud-one {
-  --cloud-width: clamp(220px, 34vw, 490px);
-  --duration: 32s;
-  --delay: -22s;
-  --cloud-top: 5%;
-  --shadow-pad: 0.0812;
+.girl-bubble {
+  position: absolute;
+  left: calc(var(--bx) * 1px);
+  top: calc(var(--by) * 1px);
+  width: max-content;
+  max-width: min(300px, calc(100vw - 24px));
+  padding: 14px 22px;
+  box-sizing: border-box;
+  background: #fffdf6;
+  border: 2px solid #b9a27a;
+  border-radius: 28px;
+  box-shadow: 0 6px 18px rgba(90, 70, 30, 0.14);
+  color: #4b3d27;
+  font-family: Lora, Georgia, serif;
+  font-weight: 500;
+  font-size: clamp(16px, 1vw + 9px, 22px);
+  line-height: 1.25;
+  text-align: center;
+  opacity: var(--seated);
+  translate: 0 calc((1 - var(--seated)) * 10px);
+  transition: opacity 0.6s ease, translate 0.6s ease;
 }
 
-.dg-cloud-two {
-  --cloud-width: clamp(160px, 23vw, 330px);
-  --duration: 25s;
-  --delay: -8s;
-  --cloud-top: 42%;
-  --shadow-pad: 0.1188;
+@media (max-aspect-ratio: 4/5) {
+  .girl-bubble { max-width: 200px; padding: 8px 14px; border-radius: 20px; font-size: 14px; }
 }
 
-.dg-cloud-three {
-  --cloud-width: clamp(190px, 28vw, 400px);
-  --duration: 38s;
-  --delay: -31s;
-  --cloud-top: 68%;
-  --shadow-pad: 0.1;
+.girl-bubble-text {
+  margin: 0;
 }
 
-@keyframes dgCloudDrift {
-  0% { transform: translate3d(-40vw, 0, 0); opacity: 0; }
-  8%, 92% { opacity: 0.96; }
-  100% { transform: translate3d(145vw, 0, 0); opacity: 0; }
+/* the tail: three little circles falling toward her head */
+.girl-bubble-dot {
+  position: absolute;
+  border-radius: 50%;
+  background: #fffdf6;
+  border: 2px solid #b9a27a;
+  box-sizing: border-box;
 }
+.girl-bubble-dot-1 { width: 16px; height: 16px; bottom: -14px; left: calc(var(--tx) * 1px + var(--td) * 0.2px - 8px); }
+.girl-bubble-dot-2 { width: 11px; height: 11px; bottom: -28px; left: calc(var(--tx) * 1px + var(--td) * 0.6px - 5px); }
+.girl-bubble-dot-3 { width: 7px; height: 7px; bottom: -38px; left: calc(var(--tx) * 1px + var(--td) * 1px - 3px); }
 
-@keyframes dgCloudShadowDrift {
-  0% { transform: translate3d(-40vw, 0, 0); opacity: 0; }
-  8%, 92% { opacity: 0.24; }
-  100% { transform: translate3d(145vw, 0, 0); opacity: 0; }
-}
+/* GirlFx sets data-idle while both are at 0 (nothing shows) */
+.girl-fx[data-idle] { visibility: hidden; }
+.girl-fx[data-idle] * { animation-play-state: paused; }
 
-/* A tiny floating movement to suggest a light breeze */
-@keyframes dgGirlBreeze {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-5px); }
-}
-
-/* Very subtle movement of the garden image */
-@keyframes dgGrassBreeze {
-  from { transform: scale(1) translate3d(0, 0, 0); }
-  to { transform: scale(1.035) translate3d(0.3%, -0.2%, 0); }
+@keyframes girl-loop-sway { to { rotate: calc(var(--tilt) + 14deg); } }
+@keyframes girl-loop-dash { to { stroke-dashoffset: -184; } }
+@keyframes girl-orbit-spin { to { rotate: 360deg; } }
+@keyframes girl-orbit-unspin { to { rotate: -360deg; } }
+@keyframes girl-twinkle {
+  from { opacity: 0.6; scale: 0.82; }
+  to { opacity: 1; scale: 1.1; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .dg-garden,
-  .dg-girl {
-    animation: none;
-  }
+  .girl-loops path, .girl-orbit, .girl-star-pos, .girl-star { animation: none; }
+}
+
+/* ===== Strands word game (components/StrandsGame.tsx) ===== */
+/* Sits under the heading on the left of the about stage; the board is 800 x 640 and everything inside scales with its width (cqw). */
+
+.about-game {
+  --s: min(100vw, 140.625vh);
+  width: calc(var(--s) * 0.5);
+  left: calc(50% - var(--s) * 0.25);
+  top: calc(var(--s) * 0.215);
+  z-index: 2;
+  pointer-events: auto;
+}
+@media (max-aspect-ratio: 4/5) {
+  .about-game { width: calc(var(--s) * 0.64); left: calc(var(--s) * 0.18); top: 17vh; }
+}
+
+.strands-game {
+  --blue: #aedcef;
+  --yellow: #f6cf3a;
+  --grey: #e2e2e2;
+  --ink: #171717;
+  position: relative;
+  width: 100%;
+  aspect-ratio: 800 / 640;
+  border-radius: 4.4cqw;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.07);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.06);
+  color: var(--ink);
+  font-family: Inter, Helvetica, Arial, sans-serif;
+  container-type: inline-size;
+  perspective: 900px;
+}
+.strands-game *, .strands-game *::before { box-sizing: border-box; }
+
+.strands-game__top {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 11%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 6.5cqw;
+  z-index: 30;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.strands-btn {
+  appearance: none;
+  border: 1.5px solid #1f5fae;
+  background: #fff;
+  padding: 1cqw 2cqw;
+  border-radius: 100px;
+  font: inherit;
+  font-size: 1.6cqw;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  color: #1f5fae;
+  box-shadow: 0 2px 0 rgba(31, 95, 174, 0.25);
+  transition: background 0.2s ease, color 0.2s ease, transform 0.1s ease, box-shadow 0.1s ease;
+}
+.strands-btn:hover:not(:disabled) { background: #1f5fae; color: #fff; }
+.strands-btn:active:not(:disabled) { transform: translateY(2px); box-shadow: none; }
+.strands-btn:disabled { opacity: 0.45; cursor: default; }
+
+.strands-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 3;
+  pointer-events: none;
+}
+.strand-path {
+  fill: none;
+  stroke-width: 20;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: stroke 0.45s ease, opacity 0.35s ease;
+}
+.strand-path--live { stroke: var(--grey); }
+.strand-path--blue { stroke: var(--blue); }
+.strand-path--yellow { stroke: var(--yellow); }
+.strand-path.is-fading { opacity: 0; }
+
+.strands-grid {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  touch-action: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.strand-letter {
+  position: absolute;
+  width: 8%;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: translate(-50%, -50%);
+  font-size: 3.3cqw;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--ink);
+  user-select: none;
+  pointer-events: none;
+}
+.strand-letter::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: 50%;
+  background: var(--grey);
+  opacity: 0;
+  transform: scale(0.5);
+  transition: transform 0.32s cubic-bezier(.2, .8, .2, 1), opacity 0.28s ease, background-color 0.45s ease;
+  transition-delay: var(--d, 0s);
+}
+.strand-letter.is-selected::before,
+.strand-letter.is-solved::before { opacity: 1; transform: scale(1); }
+.strand-letter.is-selected { animation: letter-pop 0.28s cubic-bezier(.2, .8, .2, 1); }
+.strand-letter.is-blue::before { background: var(--blue); }
+.strand-letter.is-yellow::before { background: var(--yellow); }
+
+@keyframes letter-pop {
+  0% { transform: translate(-50%, -50%) scale(1); }
+  50% { transform: translate(-50%, -50%) scale(1.1); }
+  100% { transform: translate(-50%, -50%) scale(1); }
+}
+
+.strands-complete {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, calc(-50% + 8px));
+  opacity: 0;
+  display: flex;
+  align-items: center;
+  gap: 1cqw;
+  font-size: 1.6cqw;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+  transition: opacity 0.7s ease, transform 0.7s ease;
+}
+.strands-complete.is-visible { opacity: 1; transform: translate(-50%, -50%); }
+.strands-complete strong { font-size: 1.9cqw; }
+.strands-complete--close { font-size: 2.2cqw; }
+
+@media (prefers-reduced-motion: reduce) {
+  .strand-letter, .strand-letter::before, .strand-path, .strands-complete { transition: none !important; animation: none !important; }
+}
+
+/* waking up: once the wave has taken the About Me page away it is out of the way (no clicks on the meadow's grass go to the word game) */
+.about-gone .about-piece,
+.about-gone .girl-fx { visibility: hidden; pointer-events: none; }
+
+/* the About Me page and her effects share this layer; while the wake wave crosses, it is masked away inside the wave (as the canvas swaps
+   to the meadow there) and bent by the displacement filter. DreamLanding sets --wr (wave radius) and --ws (viewport diagonal). */
+.about-layer { position: absolute; inset: 0; pointer-events: none; }
+.about-layer.waking {
+  filter: url(#about-warp);
+  -webkit-mask-image: radial-gradient(circle at 50% 50%, transparent calc(var(--wr) - var(--ws) * 0.2), #000 var(--wr));
+  mask-image: radial-gradient(circle at 50% 50%, transparent calc(var(--wr) - var(--ws) * 0.2), #000 var(--wr));
+}
+
+/* ===== The contact flower (components/FlowerCard.tsx) ===== */
+/* DreamLanding puts `flower-on` on the camera once the meadow has finished zooming out. One white petal drifts in from the left, narrows to an
+   edge (scaleX 1 -> 0) and the flower widens out of it (scaleX 0 -> 1) as it grows to its full size in the middle. */
+.fl-stage {
+  --fs: min(88vw, 84vh, 780px);
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+.fl-wrap {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--fs);
+  height: var(--fs);
+  margin: calc(var(--fs) / -2) 0 0 calc(var(--fs) / -2);
+  opacity: 0;
+}
+.fl-bob { position: absolute; inset: 0; }
+.fl-face { position: absolute; inset: 0; }
+.fl-flower { transform: scaleX(0); }
+.fl-art { display: block; width: 100%; height: 100%; overflow: visible; }
+
+.fl-links {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 72%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--fs) * 0.06);
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-size: clamp(12px, calc(var(--fs) * 0.033), 25px);
+  font-weight: 600;
+  opacity: 0;
+}
+.fl-link {
+  display: flex;
+  align-items: center;
+  gap: 0.7em;
+  color: #34421d;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+  line-height: 1.3;
+}
+.fl-link:hover span, .fl-link:focus-visible span { text-decoration: underline; text-underline-offset: 3px; }
+.fl-logo { flex: none; width: 2.6em; height: 2.6em; filter: drop-shadow(0 1px 2px rgba(40, 50, 20, 0.3)); }
+
+.flower-on .fl-wrap { animation: flower-fly 4.8s both; }
+.flower-on .fl-petal { animation: petal-out 4.8s both; }
+.flower-on .fl-flower { animation: flower-in 4.8s both; }
+.flower-on .fl-bob { animation: flower-bob 6s ease-in-out 4.8s infinite; }
+.flower-on .fl-links { animation: flower-links 0.8s ease-out 3.9s both; }
+.flower-on .fl-link { pointer-events: auto; }
+
+@keyframes flower-fly {
+  0%   { opacity: 0; transform: translate(calc(-50vw - 60px), 18vh) scale(0.05) rotate(0deg); animation-timing-function: ease-in-out; }
+  4%   { opacity: 1; }
+  20%  { transform: translate(-46vw, 8vh) scale(0.055) rotate(150deg); animation-timing-function: ease-in-out; }
+  40%  { transform: translate(-36vw, 14vh) scale(0.06) rotate(320deg); animation-timing-function: cubic-bezier(0.4, 0, 0.8, 0.6); }
+  62%  { transform: translate(-14vw, 6vh) scale(0.2) rotate(345deg); animation-timing-function: cubic-bezier(0.2, 0.5, 0.2, 1); }
+  100% { opacity: 1; transform: translate(0, 0) scale(1) rotate(360deg); }
+}
+@keyframes petal-out {
+  0%, 40% { transform: scaleX(1); animation-timing-function: ease-in; }
+  62%, 100% { transform: scaleX(0); }
+}
+@keyframes flower-in {
+  0%, 62% { transform: scaleX(0); animation-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1); }
+  92%, 100% { transform: scaleX(1); }
+}
+@keyframes flower-bob {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-1.4%) rotate(1.5deg); }
+}
+@keyframes flower-links {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .flower-on .fl-wrap { animation: none; opacity: 1; }
+  .flower-on .fl-petal { animation: none; transform: scaleX(0); }
+  .flower-on .fl-flower { animation: none; transform: none; }
+  .flower-on .fl-bob, .flower-on .fl-links { animation: none; }
+  .flower-on .fl-links { opacity: 1; }
 }
