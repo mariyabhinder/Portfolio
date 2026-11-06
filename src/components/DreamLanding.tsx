@@ -306,9 +306,12 @@ export default function DreamLanding() {
       const key = `${vw}|${vh}|${pz.toFixed(3)}|${px.toFixed(1)}|${py.toFixed(1)}`
       if (resized || key !== postKey) {
         postKey = key
-        el.style.width = `${w}px`
-        el.style.height = `${h}px`
-        el.style.transform = `translate(${px - w / 2}px, ${py - h / 2}px) scale(${pz.toFixed(3)})`
+        // laid out at the size it is read at (~460px wide) and scaled down, so the card, its text and icons are drawn sharp when it opens
+        const R = 460 / w
+        el.style.width = `${w * R}px`
+        el.style.height = `${h * R}px`
+        el.style.setProperty('--pc-u', R.toFixed(3))
+        el.style.transform = `translate(${px - (w * R) / 2}px, ${py - (h * R) / 2}px) scale(${(pz / R).toFixed(5)})`
       }
       const flipped = el.querySelector('.pc-card--flipped') !== null
       // only on the meadow: the hero (before the dream begins) and the last section (once she has woken); hidden in between
