@@ -7,13 +7,12 @@ import { forwardRef, lazy, Suspense, useCallback, useEffect, useState } from 're
 import { createPortal } from 'react-dom'
 import front from '../assets/meadow/id-front.webp'
 import back from '../assets/meadow/id-back.webp'
-import { EMAIL, GmailLogo, LINKEDIN_HREF, LinkedInLogo } from './FlowerCard'
 
 // three.js is only fetched the first time the card is picked up
 const Lanyard = lazy(() => import('./Lanyard'))
 
-const STRAP = '#d9667f'
-const STRAP_LIGHT = '#f2a3b4'
+const STRAP = '#f2762e'
+const STRAP_LIGHT = '#ffb27a'
 
 function hasWebGL2() {
   try {
@@ -101,10 +100,6 @@ function Hanging({ onClose }: { onClose: () => void }) {
         )}
       </div>
       <p className="id-hang__hint">drag it around · click to flip</p>
-      <div className="id-hang__links">
-        <a href={LINKEDIN_HREF} target="_blank" rel="noopener noreferrer"><LinkedInLogo /><span>LinkedIn</span></a>
-        <a href={`mailto:${EMAIL}`}><GmailLogo /><span>Email</span></a>
-      </div>
       <button type="button" className="id-hang__close" aria-label="Put the ID card down" onClick={close}>
         <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M2 2l10 10M12 2 2 12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
       </button>
