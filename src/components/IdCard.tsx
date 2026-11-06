@@ -7,12 +7,52 @@ import { forwardRef, lazy, Suspense, useCallback, useEffect, useState } from 're
 import { createPortal } from 'react-dom'
 import front from '../assets/meadow/id-front.webp'
 import back from '../assets/meadow/id-back.webp'
+import portrait from '../assets/meadow/idcard.webp'
 
 // three.js is only fetched the first time the card is picked up
 const Lanyard = lazy(() => import('./Lanyard'))
 
 const STRAP = '#f2762e'
 const STRAP_LIGHT = '#ffb27a'
+
+const load = (src: string) => new Promise<HTMLImageElement>((res, rej) => {
+  const i = new Image()
+  i.onload = () => res(i)
+  i.onerror = rej
+  i.src = src
+})
+
+/** The card face with the sleeping portrait swapped for idcard.webp (drawn into the photo window on a canvas). Falls back to the plain face. */
+function useFront() {
+  const [url, setUrl] = useState(front)
+  useEffect(() => {
+    let dead = false
+    Promise.all([load(front), load(portrait)]).then(([f, p]) => {
+      const W = f.naturalWidth, H = f.naturalHeight
+      const cv = document.createElement('canvas')
+      cv.width = W; cv.height = H
+      const g = cv.getContext('2d')
+      if (!g) return
+      g.drawImage(f, 0, 0, W, H)
+      // photo window, as fractions of the card
+      const x = W * 0.246, y = H * 0.243, w = W * 0.508, h = H * 0.417
+      g.save()
+      g.beginPath()
+      g.roundRect(x, y, w, h, W * 0.04)
+      g.clip()
+      g.fillStyle = '#cde3b8'
+      g.fillRect(x, y, w, h)
+      // crop the cutout to its figure, fit to the window width, top-aligned so the cap shows and the bottom is cropped
+      const sy = p.naturalHeight * 0.31, sx = p.naturalWidth * 0.08, sw = p.naturalWidth * 0.84, sh = p.naturalHeight - sy
+      const k = w / sw
+      g.drawImage(p, sx, sy, sw, sh, x, y + h * 0.06, sw * k, sh * k)
+      g.restore()
+      if (!dead) setUrl(cv.toDataURL('image/png'))
+    }).catch(() => {})
+    return () => { dead = true }
+  }, [])
+  return url
+}
 
 function hasWebGL2() {
   try {
@@ -25,7 +65,7 @@ function hasWebGL2() {
 }
 
 /** The lanyard lying on the grass: the ribbon in a loose loop, the clip, and the card face up. 100 x 100 units. */
-function GrassArt() {
+function GrassArt({ front }: { front: string }) {
   const loop = 'M53 27 C 34 0, 2 14, 8 48 C 13 76, 34 76, 38 56 C 41 42, 48 32, 58 27'
   return (
     <svg viewBox="0 0 100 100" width="100%" height="100%" aria-hidden="true" style={{ display: 'block', overflow: 'visible' }}>
@@ -56,14 +96,14 @@ const IdLanyard = forwardRef<HTMLButtonElement, { rot: number }>(function IdLany
         onClick={(e) => { e.stopPropagation(); setOpen(true) }}
         style={{ ['--id-rot' as string]: `${rot}rad` }}
       >
-        <span className="id-grass__art"><GrassArt /></span>
+        <span className="id-grass__art"><GrassArt front={front} /></span>
       </button>
-      {open ? createPortal(<Hanging onClose={() => setOpen(false)} />, document.body) : null}
+      {open ? createPortal(<Hanging front={front} onClose={() => setOpen(false)} />, document.body) : null}
     </>
   )
 })
 
-function Hanging({ onClose }: { onClose: () => void }) {
+function Hanging({ front, onClose }: { front: string; onClose: () => void }) {
   const [leaving, setLeaving] = useState(false)
   const [webgl] = useState(hasWebGL2)
 
