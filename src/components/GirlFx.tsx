@@ -80,14 +80,15 @@ export default function GirlFx({ register, remembered = false }: Props) {
         idle(true)
         return
       }
-      idle(a.landed <= 0 && a.seated <= 0)
+      idle(a.landed <= 0)
       const hx = a.face[0], hw = a.headW
       set('--hx', hx.toFixed(1))
       // the loops' centre sits just above her hijab
       set('--dy', (a.headTop - hw * 0.22).toFixed(1))
       set('--hw', hw.toFixed(1))
       set('--landed', a.landed.toFixed(3))
-      set('--seated', a.seated.toFixed(3))
+      // the bubble shows once she has landed (not at a later scroll position) and fades in on its own; it hides again if she leaves
+      set('--seated', a.landed >= 0.95 ? 1 : 0)
       // the bubble sits above and to the left of her head (her face stays clear), inside the viewport; its tail leans toward her
       const tail = 40
       const bx = clamp(hx + hw * 0.2 - bw * 0.82, 12, Math.max(12, vw - bw - 12))

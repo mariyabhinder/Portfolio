@@ -420,6 +420,7 @@
   text-align: center;
   opacity: var(--seated);
   translate: 0 calc((1 - var(--seated)) * 10px);
+  transition: opacity 0.6s ease, translate 0.6s ease;
 }
 
 @media (max-aspect-ratio: 4/5) {
