@@ -149,26 +149,29 @@
   position: absolute;
   left: 0;
   top: 0;
-  perspective: 900px;
+  perspective: 12000px;
 }
 .pc-card {
   position: relative;
   width: 100%;
   height: 100%;
   container-type: inline-size;
-  perspective: 900px;
+  perspective: 12000px;
   transform: rotate(var(--pc-rot, 0rad));
   transition: transform 0.9s cubic-bezier(0.22, 0.8, 0.25, 1);
   /* the shadow is here, not on the turning .pc-flip: a filter there would flatten the two faces and the back would never show */
-  filter: drop-shadow(0 3px 5px rgba(20, 40, 10, 0.4));
+  filter: drop-shadow(0 calc(3px * var(--pc-u, 1)) calc(5px * var(--pc-u, 1)) rgba(20, 40, 10, 0.4));
 }
 /* hovering lifts it off the grass, like the bag, hat and cap (hover is on the wrapper, which stays put, so it does not flicker) */
 .pc-wrap:hover .pc-card:not(.pc-card--flipped) {
   transform: translateY(-14%) rotate(var(--pc-rot, 0rad));
-  filter: drop-shadow(0 8px 8px rgba(20, 40, 10, 0.35)) brightness(1.06);
+  filter: drop-shadow(0 calc(8px * var(--pc-u, 1)) calc(8px * var(--pc-u, 1)) rgba(20, 40, 10, 0.35)) brightness(1.06);
 }
 .pc-card--flipped {
   transform: translate(var(--pc-dx, 0), var(--pc-dy, 0)) rotate(0rad) scale(var(--pc-scale, 2.5));
+  /* a filter makes the browser draw the card (text and icons included) into a bitmap at the size it was before the lift, then stretch it: blurry.
+     Without it the text and icons are drawn as vectors at the size they are shown */
+  filter: none;
 }
 .pc-flip {
   position: absolute;
@@ -201,24 +204,27 @@
 .pc-link {
   position: absolute;
   left: 46.5%;
-  width: 49%;
-  height: 7%;
+  width: 50%;
+  height: 9%;
   display: flex;
   align-items: flex-end;
-  gap: 1.4cqw;
-  padding-bottom: 0.4cqw;
-  color: #1f4a2b;
+  gap: 1.2cqw;
+  padding-bottom: 0.9cqw;
+  color: #4d6f9e;
   font-family: Lora, Georgia, serif;
-  font-weight: 500;
-  font-size: 2.3cqw;
+  font-weight: 400;
+  font-size: 2.55cqw;
   line-height: 1;
   white-space: nowrap;
   text-decoration: none;
+  text-rendering: geometricPrecision;
+  -webkit-font-smoothing: antialiased;
 }
 .pc-link:hover span { text-decoration: underline; }
-.pc-link--a { top: 42.2%; }
-.pc-link--b { top: 56.4%; }
-.pc-link svg { flex: none; width: 4.4cqw; height: 4.4cqw; }
+/* each link sits on one of the back's ruled lines (at 131 and 169 of 269) */
+.pc-link--a { top: 39.7%; }
+.pc-link--b { top: 53.8%; }
+.pc-link svg { flex: none; width: 5.2cqw; height: 5.2cqw; }
 
 /* ===== Dream landing ===== */
 
