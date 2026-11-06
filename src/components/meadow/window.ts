@@ -47,7 +47,7 @@ export const WINDOW_CONFIG = {
   /** how far away the viewer is, in the drawing's units: the nearer, the bigger the outer (free) edge of an open shutter looks */
   viewer: 1800,
   /** how far each hinge slides outward as the shutter opens, to the frame's outer edge, so the open shutter lies beside the frame */
-  hingeSlide: 24,
+  hingeSlide: 80,
 }
 
 /** how far (drawing units) an open shutter reaches beyond each side of the 600-wide drawing: the window is placed so it is not cut off */
@@ -130,41 +130,57 @@ export function shutterStrips(swing: number, n: number): Strip[] {
 /** width / height of the drawing below */
 export const WINDOW_ASPECT = 600 / 800
 
-// The drawing is in a 600 x 800 box: a broad round-headed frame, a fan transom over a rail, and two casement shutters hung on
-// the frame's sides. Shut, each covers half of the opening; the frame is one picture, each shutter another (box below, in the
-// frame's units, with its hinge on its outer edge).
-export const SHUTTER_BOX = { x: 38, y: 314, w: 262, h: 416 }
-const STROKE = '#c9bfa6'
+// The drawing is in a 600 x 800 box: a weathered red-sandstone wall with a cusped (scalloped) arched doorway, and two studded, panelled
+// timber doors hung at its sides. Shut, each covers half of the opening; the wall is one picture, each door another (box below, in the
+// wall's units, with its hinge on its outer edge). The picture sits behind the wall, so the wall's stone trims it to the arch.
+export const SHUTTER_BOX = { x: 100, y: 108, w: 200, h: 612 }
 
-/** Where a picture of the given aspect (w / h) lies inside the window's clear opening (below the rail, between the frame's sides), in the
- *  drawing's units: as wide as the opening, as tall as its shape needs, centred. The shut shutters cover it; it shows as they open. */
+// the cusped arch's outline: left half, from the foot up to the peak (lobes bulge outward and meet in inward cusps); mirrored for the right
+const ARCH_LEFT = 'M100 720 V330 Q98 292 122 262 Q132 223 170 208 Q187 164 232 150 Q256 114 300 108'
+const ARCH_RIGHT = 'Q344 114 368 150 Q413 164 430 208 Q468 223 478 262 Q502 292 500 330 V720'
+const OPENING = `${ARCH_LEFT} ${ARCH_RIGHT} Z`
+
+/** Where a picture of the given aspect (w / h) lies inside the doorway, in the drawing's units: as wide as the opening, centred on its
+ *  straight-sided lower part, so all of it shows (the arch above and any space around it is dark interior). */
 export function openingFit(aspect: number) {
-  const x = 38, y = 314, w = 524, h = 416
+  const x = 100, w = 400, y = 330, h = 390
   const fw = Math.min(w, h * aspect), fh = fw / aspect
   return { x: x + (w - fw) / 2, y: y + (h - fh) / 2, w: fw, h: fh }
 }
+/** the whole doorway's bounding box (drawing units): the dark interior behind the picture fills it */
+export const OPENING_BOX = { x: 100, y: 108, w: 400, h: 612 }
 
 const DEFS = `<defs>
-<linearGradient id="wood" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fdfbf6"/><stop offset=".55" stop-color="#f3eee1"/><stop offset="1" stop-color="#e6ddca"/></linearGradient>
-<linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#eef3f2" stop-opacity=".6"/><stop offset="1" stop-color="#d3dedd" stop-opacity=".3"/></linearGradient>
-<linearGradient id="brass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e0b563"/><stop offset=".5" stop-color="#b88a3e"/><stop offset="1" stop-color="#8f6628"/></linearGradient>
+<linearGradient id="stone" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#cf7352"/><stop offset=".5" stop-color="#c0603f"/><stop offset="1" stop-color="#ad5237"/></linearGradient>
+<linearGradient id="stone2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d98a68"/><stop offset="1" stop-color="#b9593c"/></linearGradient>
+<linearGradient id="wood" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#6d5953"/><stop offset=".5" stop-color="#7a645d"/><stop offset="1" stop-color="#5f4d48"/></linearGradient>
+<linearGradient id="panel" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5a4742"/><stop offset="1" stop-color="#4b3b37"/></linearGradient>
+<filter id="grain" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".035 .05" numOctaves="4" seed="7" result="n"/><feColorMatrix in="n" type="matrix" values="0 0 0 0 .35  0 0 0 0 .12  0 0 0 0 .06  0 0 0 .9 -.28"/></filter>
 </defs>`
 
-// one shutter, flat and shut, in its own box (262 x 416) with the hinge on its left edge (the right one is this mirrored)
-function shutter(): string {
-  const { w, h } = SHUTTER_BOX, stile = 11, bar = 8
-  const colW = (w - stile * 2 - bar) / 2, rowH = (h - stile * 2 - bar * 2) / 3
-  const panes = [0, 1].map((c) => [0, 1, 2].map((r) => {
-    const x = stile + c * (colW + bar), y = stile + r * (rowH + bar)
-    return `<rect x="${x}" y="${y}" width="${colW}" height="${rowH}" rx="1.5" fill="url(#glass)" stroke="#d3cab4" stroke-width="1.4"/>` +
-      `<rect x="${x + 3}" y="${y + 3}" width="${colW - 6}" height="${rowH - 6}" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="1"/>`
-  }).join('')).join('')
-  return `<rect x="1" y="1" width="${w - 2}" height="${h - 2}" fill="url(#wood)" stroke="${STROKE}" stroke-width="2" stroke-linejoin="round"/>` +
-    `<rect x="6" y="6" width="${w - 12}" height="${h - 12}" fill="none" stroke="#ebe5d5" stroke-width="2"/>` +
-    panes +
-    // the handle on the free edge, and the hinges on the hinge edge
-    `<path d="M${w - 16} 214 h-10 q-5 0 -5 5 v26" fill="none" stroke="url(#brass)" stroke-width="4" stroke-linecap="round"/><rect x="${w - 20}" y="200" width="6" height="24" rx="2" fill="url(#brass)"/>` +
-    [30, 197, 364].map((y) => `<rect x="0" y="${y}" width="10" height="22" rx="2" fill="url(#brass)"/>`).join('')
+// one door, flat and shut, in its own box (200 x 612) with the hinge on its left edge and the meeting edge on its right (the right door is this mirrored)
+function door(): string {
+  const { w, h } = SHUTTER_BOX
+  const shape = 'M0 612 V222 Q-2 184 22 154 Q32 115 70 100 Q87 56 132 42 Q156 6 200 0 V612 Z'
+  const rows = 9, pitch = h / rows
+  let body = `<clipPath id="dc"><path d="${shape}"/></clipPath><g clip-path="url(#dc)">` +
+    `<rect x="-4" y="0" width="${w + 4}" height="${h}" fill="url(#wood)"/>`
+  // recessed panels: two columns by nine rows, between the stiles and rails
+  for (let c = 0; c < 2; c++) for (let r = 0; r < rows; r++) {
+    const x = c === 0 ? 14 : 106, pw = c === 0 ? 80 : 74, y = r * pitch + 8
+    body += `<rect x="${x}" y="${y}" width="${pw}" height="${pitch - 16}" fill="url(#panel)" stroke="#3d2f2b" stroke-width="1.5"/>` +
+      `<path d="M${x} ${y + pitch - 16} H${x + pw}" stroke="#7d6862" stroke-opacity=".5" stroke-width="1.4"/>`
+  }
+  // rails and stiles stand proud: lighter edge lines, and iron studs where they cross
+  for (let r = 0; r <= rows; r++) body += `<path d="M0 ${r * pitch} H${w}" stroke="#86716a" stroke-opacity=".55" stroke-width="2"/>`
+  for (const x of [11, 100, 191]) body += `<path d="M${x} 0 V${h}" stroke="#86716a" stroke-opacity=".45" stroke-width="2"/>`
+  for (let r = 1; r < rows; r++) for (const x of [11, 100, 191]) body += `<circle cx="${x}" cy="${r * pitch}" r="2.6" fill="#b3a595" stroke="#2f2420" stroke-width=".8"/>`
+  // the iron strap down the meeting edge, in short links
+  body += `<rect x="${w - 11}" y="0" width="11" height="${h}" fill="#4a3f3a"/>`
+  for (let y = 12; y < h; y += 17) body += `<path d="M${w - 11} ${y} H${w}" stroke="#2c2420" stroke-width="2"/>`
+  body += '</g>' +
+    `<path d="${shape}" fill="none" stroke="#33261f" stroke-width="4" stroke-linejoin="round"/>`
+  return body
 }
 
 function svg(width: number, box: [number, number, number, number], body: string): string {
@@ -172,32 +188,33 @@ function svg(width: number, box: [number, number, number, number], body: string)
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="${box.join(' ')}">${DEFS}${body}</svg>`
 }
 
-/** The stationary part: the round-headed frame with its fan transom, the rail and the sill (the opening is clear, so the sky shows through). */
+/** The stationary part: the sandstone wall with the cusped doorway cut out of it (the opening is clear), its steps and its weathering. */
 export function frameSvg(width: number): string {
+  const wall = `M0 0 H600 V800 H0 Z ${OPENING}`
   const frame =
-    // the outer frame: a semicircular head and straight sides, with an evenodd opening
-    `<path fill-rule="evenodd" fill="url(#wood)" stroke="${STROKE}" stroke-width="2" d="M14 744 V300 A286 286 0 0 1 586 300 V744 Z M38 730 V300 A262 262 0 0 1 562 300 V730 Z"/>` +
-    '<path fill="none" stroke="#ebe5d5" stroke-width="3" d="M26 738 V300 A274 274 0 0 1 574 300 V738"/>' +
-    // the transom: a fan sash set in the head, its glass cut by a centre bar and two slanting bars
-    '<path fill="url(#wood)" stroke="#c9bfa6" stroke-width="2" d="M62 292 A238 238 0 0 1 538 292 Z"/>' +
-    '<path fill="url(#glass)" stroke="#d3cab4" stroke-width="1.6" d="M78 282 A222 222 0 0 1 522 282 Z"/>' +
-    '<path d="M300 60 V282 M300 282 L162 98 M300 282 L438 98" stroke="url(#wood)" stroke-width="9" fill="none"/>' +
-    '<path d="M300 60 V282 M300 282 L162 98 M300 282 L438 98" stroke="#c9bfa6" stroke-width="1.2" fill="none"/>' +
-    '<path fill="none" stroke="#ebe5d5" stroke-width="2" d="M70 288 A230 230 0 0 1 530 288"/>' +
-    '<rect x="276" y="46" width="48" height="9" rx="4" fill="url(#wood)" stroke="#c9bfa6" stroke-width="1.2"/>' +
-    // the rail between the transom and the shutters
-    '<rect x="38" y="292" width="524" height="22" fill="url(#wood)" stroke="#c9bfa6" stroke-width="2"/>' +
-    '<path d="M38 296 H562" stroke="#ebe5d5" stroke-width="2"/>' +
-    // the sill: a broad board that sticks out past the frame, with a lip and a groove
-    '<path d="M0 744 H600 V776 H0 Z" fill="url(#wood)" stroke="#c9bfa6" stroke-width="2" stroke-linejoin="round"/>' +
-    '<path d="M0 752 H600" stroke="#ebe5d5" stroke-width="2"/><path d="M0 768 H600" stroke="#d6ccb6" stroke-width="1.4"/>'
+    `<path fill-rule="evenodd" fill="url(#stone)" d="${wall}"/>` +
+    // the wall is built of big blocks: a lintel band across the top, pilaster strips down both sides, and a recessed panel round the arch
+    '<rect x="0" y="0" width="600" height="56" fill="url(#stone2)" opacity=".55"/>' +
+    '<path d="M0 56 H600 M52 56 V720 M548 56 V720 M0 720 H600" stroke="#8f3f29" stroke-opacity=".7" stroke-width="3" fill="none"/>' +
+    '<path d="M52 336 H100 M500 336 H548 M52 520 H100 M500 520 H548" stroke="#8f3f29" stroke-opacity=".55" stroke-width="2.5" fill="none"/>' +
+    '<path d="M64 70 H536 V710 H64 Z" fill="none" stroke="#e2977a" stroke-opacity=".5" stroke-width="2"/>' +
+    // weathering over the stone, not over the opening
+    `<path fill-rule="evenodd" filter="url(#grain)" d="${wall}"/>` +
+    // the reveal: a dark line and a lit line round the opening give the arch depth
+    `<path d="${OPENING}" fill="none" stroke="#6e2c1c" stroke-width="9" stroke-linejoin="round"/>` +
+    `<path d="${OPENING}" fill="none" stroke="#e8a88a" stroke-opacity=".6" stroke-width="2" stroke-linejoin="round" transform="translate(0 -5)"/>` +
+    // two steps up to the door
+    '<path d="M70 720 H530 V748 H70 Z" fill="#d9876a"/>' +
+    '<path d="M40 748 H560 V776 H40 Z" fill="#cf7a5c" stroke="#8f3f29" stroke-width="2"/>' +
+    '<path d="M0 776 H600 V800 H0 Z" fill="#c4694a" stroke="#8f3f29" stroke-width="2"/>' +
+    '<path d="M70 720 H530 M40 748 H560" stroke="#f0b69c" stroke-opacity=".6" stroke-width="2"/>'
   return svg(width, [0, 0, 600, 800], frame)
 }
 
-/** One shutter, shut, in its own box (SHUTTER_BOX): hinge on the left edge for the left one, on the right edge for the right one. */
+/** One door, shut, in its own box (SHUTTER_BOX): hinge on the left edge for the left one, on the right edge for the right one. */
 export function shutterSvg(width: number, side: 'left' | 'right'): string {
   const { w, h } = SHUTTER_BOX
-  return svg(width, [0, 0, w, h], side === 'left' ? shutter() : `<g transform="translate(${w} 0) scale(-1 1)">${shutter()}</g>`)
+  return svg(width, [0, 0, w, h], side === 'left' ? door() : `<g transform="translate(${w} 0) scale(-1 1)">${door()}</g>`)
 }
 
 const url = (s: string) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(s)}`

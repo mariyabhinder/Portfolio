@@ -38,7 +38,7 @@ import type { LandPlace } from './landing'
 import { landAt, launchAt, launchSit } from './land'
 import { createDrop, ABOUT_BG } from './drop'
 import { leaveFrame } from './leave'
-import { SHUTTER_BOX, launchProgress, openingFit, shutterStrips, windowAt, windowUrls } from './window'
+import { OPENING_BOX, SHUTTER_BOX, launchProgress, openingFit, shutterStrips, windowAt, windowUrls } from './window'
 import picstoryUrl from '@/assets/meadow/picstory.webp'
 import aboutBgUrl from '@/assets/meadow/about-bg.png'
 import { createTouch, touchAt, TOUCH_CONFIG } from './touch'
@@ -1087,16 +1087,18 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
         const u = wf.h / 800, ox = wf.x - (600 * u) / 2, oy = wf.y - wf.h / 2
         // the frame stands still; only the two shutters turn, each about its own hinge, swinging outward toward us to lie beside the
         // frame. Shut, each is one picture; swung, it is drawn in thin slices (shutterStrips) so the edge nearer to us is the bigger one
-        p.image(windowImg.frame, ox, oy, 600 * u, wf.h)
-        // the project picture sits in the opening from the start, behind the shutters, so it is revealed as they swing open
+        // behind the wall: a dark interior filling the doorway, then the whole project picture on it; the wall's stone trims both to
+        // the arch, and the doors, shut over them, reveal them as they swing open
+        const OB = OPENING_BOX
+        p.fill(34, 24, 20, 255 * wf.alpha)
+        p.rect(ox + OB.x * u, oy + OB.y * u, OB.w * u, OB.h * u)
         if (picstoryImg) {
-          // fill the whole opening: cover it, trimming the picture's overhang evenly from both sides
-          const iw = picstoryImg.width, ih = picstoryImg.height
-          const O = { x: 38, y: 314, w: 524, h: 416 }
-          const sw = Math.min(iw, ih * O.w / O.h), sh = sw * O.h / O.w
+          const O = openingFit(picstoryImg.width / picstoryImg.height)
           p.clearDepth()
-          p.image(picstoryImg, ox + O.x * u, oy + O.y * u, O.w * u, O.h * u, (iw - sw) / 2, (ih - sh) / 2, sw, sh)
+          p.image(picstoryImg, ox + O.x * u, oy + O.y * u, O.w * u, O.h * u)
         }
+        p.clearDepth()
+        p.image(windowImg.frame, ox, oy, 600 * u, wf.h)
         p.clearDepth()
         const B = SHUTTER_BOX
         const shut = wf.swing < 0.002

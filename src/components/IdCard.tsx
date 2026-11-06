@@ -27,15 +27,62 @@ function useFront() {
   const [url, setUrl] = useState(front)
   useEffect(() => {
     let dead = false
-    Promise.all([load(front), load(portrait)]).then(([f, p]) => {
+    Promise.all([load(front), load(portrait), load(back), document.fonts.load('500 100px Lora').catch(() => []), document.fonts.load('600 100px Lora').catch(() => [])]).then(([f, p, b]) => {
       const W = f.naturalWidth, H = f.naturalHeight
       const cv = document.createElement('canvas')
       cv.width = W; cv.height = H
       const g = cv.getContext('2d')
       if (!g) return
-      g.drawImage(f, 0, 0, W, H)
+      // fresh face: cream card with the dotted pattern, no flowers, no barcode
+      g.fillStyle = '#fdf9ec'
+      g.fillRect(0, 0, W, H)
+      g.fillStyle = 'rgba(205,195,170,0.55)'
+      for (let yy = 22; yy < H; yy += 66) for (let xx = 22; xx < W; xx += 66) { g.beginPath(); g.arc(xx, yy, 3, 0, Math.PI * 2); g.fill() }
+      // orange band, same as the back of the card
+      const by = H * 0.105, bh = H * 0.115
+      const grad = g.createLinearGradient(0, by, W, by + bh)
+      grad.addColorStop(0, '#e8804a'); grad.addColorStop(1, '#e06a35')
+      g.fillStyle = grad
+      g.fillRect(0, by, W, bh)
+      // crescentic logo + wordmark lifted from the back image (cream pixels only, so the orange drops out)
+      const cut = (sx: number, sy: number, sw: number, sh: number) => {
+        const c = document.createElement('canvas')
+        c.width = sw; c.height = sh
+        const x = c.getContext('2d')!
+        x.drawImage(b, sx, sy, sw, sh, 0, 0, sw, sh)
+        const d = x.getImageData(0, 0, sw, sh)
+        for (let i = 0; i < d.data.length; i += 4) {
+          const a = Math.min(1, Math.max(0, (d.data[i + 2] - 130) / 90))
+          d.data[i] = 253; d.data[i + 1] = 249; d.data[i + 2] = 236; d.data[i + 3] = Math.round(a * 255)
+        }
+        x.putImageData(d, 0, 0)
+        return c
+      }
+      const sx0 = b.naturalWidth / 1024, sy0 = b.naturalHeight / 1440
+      const icon = cut(385 * sx0, 360 * sy0, 255 * sx0, 245 * sy0)
+      const word = cut(255 * sx0, 630 * sy0, 515 * sx0, 115 * sy0)
+      const ih = bh * 0.78, iw = ih * icon.width / icon.height
+      const wh = bh * 0.5, ww = wh * word.width / word.height
+      const gap = W * 0.025, x0 = (W - (iw + gap + ww)) / 2
+      g.drawImage(icon, x0, by + (bh - ih) / 2, iw, ih)
+      g.drawImage(word, x0 + iw + gap, by + (bh - wh) / 2, ww, wh)
+      // name, both lines in Lora at the same size
+      g.textAlign = 'center'
+      g.textBaseline = 'alphabetic'
+      g.fillStyle = '#2b2523'
+      g.font = `500 ${W * 0.09}px Lora, Georgia, serif`
+      g.fillText('Mariyah', W / 2, H * 0.775)
+      g.fillText('Bhinderwala', W / 2, H * 0.775 + W * 0.115)
+      g.fillStyle = '#e06a35'
+      g.font = `600 ${W * 0.048}px Lora, Georgia, serif`
+      g.letterSpacing = `${W * 0.012}px`
+      g.fillText('UI/UX DESIGNER', W / 2 + W * 0.006, H * 0.775 + W * 0.115 + H * 0.085)
+      g.letterSpacing = '0px'
       // photo window, as fractions of the card
       const x = W * 0.246, y = H * 0.243, w = W * 0.508, h = H * 0.417
+      const pad = W * 0.018
+      g.beginPath(); g.roundRect(x - pad * 1.6, y - pad * 1.6, w + pad * 3.2, h + pad * 3.2, W * 0.055); g.fillStyle = '#e8dcc3'; g.fill()
+      g.beginPath(); g.roundRect(x - pad, y - pad, w + pad * 2, h + pad * 2, W * 0.05); g.fillStyle = '#fff'; g.fill()
       g.save()
       g.beginPath()
       g.roundRect(x, y, w, h, W * 0.04)
@@ -85,6 +132,7 @@ function GrassArt({ front }: { front: string }) {
 
 const IdLanyard = forwardRef<HTMLButtonElement, { rot: number }>(function IdLanyard({ rot }, ref) {
   const [open, setOpen] = useState(false)
+  const front = useFront()
   return (
     <>
       <button
@@ -120,9 +168,11 @@ function Hanging({ front, onClose }: { front: string; onClose: () => void }) {
     const stop = (e: Event) => e.preventDefault()
     window.addEventListener('keydown', onKey)
     window.addEventListener('wheel', stop, { passive: false })
+    window.addEventListener('touchmove', stop, { passive: false })
     return () => {
       window.removeEventListener('keydown', onKey)
       window.removeEventListener('wheel', stop)
+      window.removeEventListener('touchmove', stop)
     }
   }, [close])
 

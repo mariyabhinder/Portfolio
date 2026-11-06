@@ -856,7 +856,7 @@ export default function Lanyard({ frontImage, backImage, strapColor = "#111111",
         if (hit()) e.preventDefault();
       }
     };
-    host.style.touchAction = "pan-y pinch-zoom";
+    host.style.touchAction = "none";
     host.addEventListener("pointerdown", onDown);
     host.addEventListener("pointermove", onMove);
     host.addEventListener("pointerup", onUp);

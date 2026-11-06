@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@600;700;900&family=Lora:wght@500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@600;700;900&family=Lora:wght@500;700&display=swap');
 @import 'tailwindcss';
 
 /* The hero text over the opening meadow (DreamLanding.tsx): white Inter, the heading top left */
@@ -259,6 +259,8 @@
   inset: 0;
   z-index: 60;
   background: rgba(24, 38, 14, 0.42);
+  touch-action: none;
+  overscroll-behavior: contain;
   animation: id-fade 0.35s ease both;
 }
 .id-hang--leaving { animation: id-fade-out 0.38s ease both; }
@@ -720,9 +722,9 @@
   .strand-letter, .strand-letter::before, .strand-path, .strands-complete { transition: none !important; animation: none !important; }
 }
 
-/* waking up: once the wave has taken the About Me page away it is out of the way (no clicks on the meadow's grass go to the word game) */
 .about-gone .about-piece,
 .about-gone .girl-fx { visibility: hidden; pointer-events: none; }
+.about-idle .about-piece, .about-idle .about-piece * { pointer-events: none !important; }
 
 /* the About Me page and her effects share this layer; while the wake wave crosses, it is masked away inside the wave (as the canvas swaps
    to the meadow there) and bent by the displacement filter. DreamLanding sets --wr (wave radius) and --ws (viewport diagonal). */
@@ -821,3 +823,6 @@
   .flower-on .fl-bob, .flower-on .fl-links { animation: none; }
   .flower-on .fl-links { opacity: 1; }
 }
+
+/* while the ID card hangs, the hero's "[Click on different accessories] / scroll" cue stays out of the way of the card's own hint */
+body:has(.id-hang) .hero-text { opacity: 0 !important; visibility: hidden; }

@@ -32,7 +32,7 @@ const ID_PLACE = { x: 300, y: 318, w: 46, rot: -0.35 }
 
 // Debug: a corner label naming the storyboard frame (1-15) the scroll is on. Shown in dev, or with ?frames in the URL.
 // picstory.webp is 691 x 503, cropped to cover the opening
-const PICSTORY_ASPECT = 524 / 416 // the picture covers the whole opening
+const PICSTORY_ASPECT = 691 / 503 // the whole picture is shown in the doorway, as wide as the opening
 const SHOW_FRAMES = import.meta.env.DEV || new URLSearchParams(window.location.search).has('frames')
 const FRAMES: [number, string][] = [
   [1, 'Close on her sleeping face'],
@@ -427,6 +427,9 @@ export default function DreamLanding() {
       state.about = a * a * (3 - 2 * a)
       const next = state.about.toFixed(3)
       if (next !== about) camera.style.setProperty('--about', (about = next))
+      // before the About page has begun to appear it must not catch taps meant for the meadow (the word game sits over the ID card on phones)
+      const idle = state.about <= 0.001
+      if (idle !== camera.classList.contains('about-idle')) camera.classList.toggle('about-idle', idle)
       // the hero text is there on arrival and fades as the camera starts closing in on her
       const heroText = heroTextRef.current
       if (heroText) heroText.style.opacity = state.wake > 0 ? '0' : Math.max(0, 1 - state.zoom / 0.12).toFixed(3)
