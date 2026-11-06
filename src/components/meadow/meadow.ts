@@ -743,7 +743,13 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       dropper = createDrop(p)
       toucher = createTouch(p)
       Promise.all(RIGHT_SIDE.map((d) => p.loadImage(d.src))).then((imgs: any[]) => { if (!disposed) decoImgs = imgs }).catch(() => {})
-      landing.load().then(() => toucher?.load())
+      landing.load().then(() => toucher?.load()).then(() => {
+        // build the About Me lawn while the browser is idle, long before she lands on it
+        const idle = (window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number }).requestIdleCallback
+        const go = () => toucher?.prepare(p.width, p.height)
+        if (idle) idle(go, { timeout: 4000 })
+        else setTimeout(go, 500)
+      })
     }
 
     p.windowResized = () => {
@@ -769,9 +775,12 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       sparkleLive = false
       const wake = clamp(state.wake, 0, 1)
       // (waking, the meadow is back on screen and runs on the clock again)
+      // (the About Me lawn's grass sways on the clock, so while it is up the frame keeps being redrawn)
+      // (frames where only the grass moves are drawn at 30 fps: the sway is slow, and it halves the GPU work)
+      const lawnLive = !reduceMotion && state.touch > 0
       if (dream >= 1 && shown && wake <= 0 && !sparkling) {
         const key = [state.fall, state.land, state.window, !!windowImg, !!picstoryImg, !!aboutBgImg, state.leave, state.touch, state.remembered, p.width, p.height, !!landing?.ready, !!toucher?.ready, !!decoImgs].join()
-        if (key === stillKey) return
+        if (key === stillKey && (!lawnLive || p.frameCount % 2 === 1)) return
         stillKey = key
       } else stillKey = ''
       const t = (p.millis() - animStart) / 1000
@@ -797,7 +806,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       const aboutFrame = (fade = 1) => {
         p.push()
         p.translate(-p.width / 2, -p.height / 2)
-        touching = drawAbout(leave, fade)
+        touching = drawAbout(leave, fade, t)
         p.pop()
       }
 
@@ -1203,7 +1212,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
     // In viewport px. The plain About Me background the second wave reveals, with her already falling into it on the right (the lines
     // flow past her as the wave crosses); then the touchdown (touch.ts) carries her down onto the surface. Returns whether she is on it,
     // having reported where her head is for the DOM effects around it.
-    function drawAbout(leave: number, fade = 1) {
+    function drawAbout(leave: number, fade = 1, t = 0) {
       const vw = p.width, vh = p.height
       p.background(ABOUT_BG[0], ABOUT_BG[1], ABOUT_BG[2])
       if (aboutBgImg) {
@@ -1219,13 +1228,13 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       const portrait = vw / vh < 0.8
       const tf = touchAt(clamp(state.touch, 0, 1), df, (portrait ? 0.96 : TOUCH_CONFIG.surface) * vh, vw * 0.97, vh, reduceMotion, clamp(state.remembered, 0, 1), portrait)
       p.clearDepth()
-      toucher.drawSurface(tf, vw, vh)
+      toucher.drawSurface(tf, vw, vh, t)
       toucher.drawShadow(tf, vh)
       drawDecos(vw, vh)
       dropper.drawLines({ ...df, face: tf.fallFace, speed: tf.speed, travel: tf.travel }, df.base)
       p.clearDepth()
       toucher.draw(tf)
-      toucher.drawFront(tf, vw, vh)
+      toucher.drawFront(tf, vw, vh, t)
       if (state.touch <= 0) return false
       onAnchor?.({ face: tf.face, headTop: tf.headTop, headW: tf.headW, landed: tf.landed * fade, seated: tf.seated * fade })
       anchored = true
