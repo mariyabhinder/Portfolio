@@ -6,6 +6,7 @@ import AboutMe from './AboutMe'
 import { FALL_CONFIG } from './meadow/fall'
 import FlowerCard from './FlowerCard'
 import PostCard from './PostCard'
+import IdLanyard from './IdCard'
 import { createFallDynamics } from './meadow/fall'
 import { LAND_CONFIG } from './meadow/land'
 import { LEAVE_CONFIG } from './meadow/leave'
@@ -26,6 +27,8 @@ const DREAM_END = 0.1938
 const FALL_VH = 1400
 // the postcard on the meadow, in scene px (736 x 920): centre, width and tilt. It lies on her right side, a little below her hand
 const POST_PLACE = { x: 498, y: 488, w: 36, rot: -0.15 }
+// her ID card on its lanyard, dropped in the grass to the left of her head: centre, width of its box (scene px) and tilt
+const ID_PLACE = { x: 300, y: 318, w: 46, rot: -0.35 }
 
 // Debug: a corner label naming the storyboard frame (1-15) the scroll is on. Shown in dev, or with ?frames in the URL.
 // picstory.webp is 691 x 503, cropped to cover the opening
@@ -140,6 +143,7 @@ export default function DreamLanding() {
   }, [phone])
   // her tote lies on the meadow too: clicking it plays the bag reveal (meadow/bagItems.ts). The hotspot is placed like the phone's.
   const postRef = useRef<HTMLDivElement>(null)
+  const idRef = useRef<HTMLButtonElement>(null)
   const finaleRef = useRef(false)
   const [finale, setFinale] = useState(false)
   const bagRef = useRef<HTMLButtonElement>(null)
@@ -281,30 +285,38 @@ export default function DreamLanding() {
     }
 
     // The postcard lies on the grass between her hand and the bag; its wrapper is placed like the bag's hotspot (the tilt is the card's own)
-    let postKey = ''
-    const placePost = (resized: boolean) => {
-      const el = postRef.current
-      if (!el) return
+    // where a thing lying on the grass at scene (x, y) is on screen now, and how much the camera has scaled it
+    const onGrass = (x: number, y: number) => {
       const vw = camW, vh = camH
       const s = Math.max(vw / 736, vh / 920)
-      const w = POST_PLACE.w * s, h = w * (269 / 376)
       const ox = (vw - 736 * s) / 2, oy = (vh - 920 * s) / 2
       // like the bag, hat and cap drawn on the grass, the card is part of the scene: it stays at its spot and follows the camera (meadow.ts applyCamera)
       const k = Math.max(0, Math.min(1, state.zoom))
       const maxZoom = Math.max(3, Math.min(6, (0.55 * Math.min(vw, vh)) / (40 * s)))
       const z = 1 + (maxZoom - 1) * k
       const fx = ox + 388 * s, fy = oy + 305 * s
-      const cx = ox + POST_PLACE.x * s, cy = oy + POST_PLACE.y * s
+      const cx = ox + x * s, cy = oy + y * s
       const sx = fx + (vw / 2 - fx) * k + (cx - fx) * z, sy = fy + (vh / 2 - fy) * k + (cy - fy) * z
       // clicked bag: the camera closes in on the bag; the card stays on the grass where it lies, so it rides that same camera
       let px = sx, py = sy, pz = z
       if (bag.cam > 0) {
         const s0 = Math.max(vw / 736, vh / 920)
         const c = bagCamera(vw, vh, bag.cam, { w: 736, h: 920 }, s0, ox, oy)
-        px = c.tx + POST_PLACE.x * c.s
-        py = c.ty + POST_PLACE.y * c.s
+        px = c.tx + x * c.s
+        py = c.ty + y * c.s
         pz = c.s / s0
       }
+      return { s, px, py, pz }
+    }
+    // only on the meadow: the hero (before the dream begins) and the last section (once she has woken); hidden in between
+    const onMeadow = () => (state.dream <= 0 && state.wake <= 0) || state.wake >= WAKE_CONFIG.waveEnd + 0.02
+    let postKey = ''
+    const placePost = (resized: boolean) => {
+      const el = postRef.current
+      if (!el) return
+      const vw = camW, vh = camH
+      const { s, px, py, pz } = onGrass(POST_PLACE.x, POST_PLACE.y)
+      const w = POST_PLACE.w * s, h = w * (269 / 376)
       const key = `${vw}|${vh}|${pz.toFixed(3)}|${px.toFixed(1)}|${py.toFixed(1)}`
       if (resized || key !== postKey) {
         postKey = key
@@ -322,6 +334,26 @@ export default function DreamLanding() {
       const on = hero || last
       showHotspot(el, on)
       el.style.pointerEvents = on && (flipped || hero || state.wake >= 0.995) ? 'auto' : 'none'
+    }
+
+    // the ID card is placed the same way: laid out at 200px and scaled, so it stays sharp as the camera closes in
+    let idKey = ''
+    const placeId = (resized: boolean) => {
+      const el = idRef.current
+      if (!el) return
+      const { s, px, py, pz } = onGrass(ID_PLACE.x, ID_PLACE.y)
+      const w = ID_PLACE.w * s, R = 200 / w
+      const key = `${camW}|${camH}|${pz.toFixed(3)}|${px.toFixed(1)}|${py.toFixed(1)}`
+      if (resized || key !== idKey) {
+        idKey = key
+        el.style.width = `${w * R}px`
+        el.style.height = `${w * R}px`
+        el.style.transform = `translate(${px - (w * R) / 2}px, ${py - (w * R) / 2}px) scale(${(pz / R).toFixed(5)})`
+      }
+      // clickable while she is on the grass and the camera is still out
+      const on = onMeadow()
+      showHotspot(el, on)
+      if (on && state.zoom > 0.15) el.style.pointerEvents = 'none'
     }
 
     // The glasses' and hat's hotspots: over each on the grass, or over her face once she has it on, turned with it. The hat's
@@ -370,6 +402,7 @@ export default function DreamLanding() {
       // waking, the camera is on her face again and pulls back out (the hero's zoom, run the other way)
       if (state.wake > 0) state.zoom = wakeZoom(state.wake)
       placePost(resized)
+      placeId(resized)
       // the About Me page comes in while she settles (touch 0.5 - 0.8): its own 0-1, read by AboutMe's CSS; the wake wave carries it away again
       const wave = wakeWave(state.wake)
       const a = Math.max(0, Math.min(1, (state.touch - 0.5) / 0.3))
@@ -484,7 +517,7 @@ export default function DreamLanding() {
     // the bag's camera moves without any scroll, so the card is re-placed every frame while it plays
     let postFrame = 0
     const postTick = () => {
-      if (bagPlaying.current || bag.cam > 0) placePost(false)
+      if (bagPlaying.current || bag.cam > 0) { placePost(false); placeId(false) }
       postFrame = requestAnimationFrame(postTick)
     }
     postFrame = requestAnimationFrame(postTick)
@@ -558,6 +591,7 @@ export default function DreamLanding() {
         style={{ zIndex: 3, visibility: 'hidden', pointerEvents: 'none' }}
       />
       <PostCard ref={postRef} rot={POST_PLACE.rot} open={finale} />
+      <IdLanyard ref={idRef} rot={ID_PLACE.rot} />
       <button
         ref={bagRef}
         type="button"
