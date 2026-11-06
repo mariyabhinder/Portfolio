@@ -15,14 +15,14 @@ import deco9 from '../../assets/meadow/deco9.webp'
 
 export const ABOUT_DESIGN = { w: 1440, h: 1024 }
 
-export const RIGHT_SIDE: { src: string; x: number; y: number; w: number; at: number; rotate?: number }[] = [
+export const RIGHT_SIDE: { src: string; x: number; y: number; w: number; at: number; rotate?: number; flip?: boolean }[] = [
   { src: deco7, x: 954, y: 65, w: 532, at: 0.05 }, // pink grid paper with tape
   { src: deco8, x: 845, y: 499, w: 484, at: 0.1 }, // pink blob
-  { src: deco4, x: 1273, y: 112, w: 200, at: 0.15 }, // cloud
-  { src: deco3, x: 985, y: 123, w: 142, at: 0.2 }, // NYT T
+  { src: deco4, x: 1243, y: 112, w: 200, at: 0.15, flip: true }, // cloud
+  { src: deco3, x: 825, y: 785, w: 142, at: 0.2 }, // NYT T
   { src: deco5, x: 1300, y: 308, w: 170, at: 0.25 }, // Figma logo
-  { src: deco2, x: 862, y: 338, w: 218, at: 0.3 }, // iced coffee
-  { src: deco1, x: 890, y: 690, w: 152, at: 0.35 }, // flowers
+  { src: deco2, x: 862, y: 308, w: 218, at: 0.3 }, // iced coffee
+  { src: deco1, x: 890, y: 630, w: 152, at: 0.35 }, // flowers
   { src: deco9, x: 1052, y: 344, w: 376, at: 0.4 }, // her
-  { src: deco6, x: 765, y: 785, w: 295, at: 0.5, rotate: 80 }, // needle and thread
+  { src: deco6, x: 985, y: 123, w: 295, at: 0.5, rotate: 80 }, // needle and thread
 ]

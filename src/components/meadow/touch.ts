@@ -16,9 +16,12 @@
 import land1Url from '@/assets/meadow/land1.webp'
 import land2Url from '@/assets/meadow/land2.webp'
 import land3Url from '@/assets/meadow/land3.webp'
-import { DROP_POSES, ABOUT_BG } from './drop'
+import { DROP_POSES } from './drop'
+import { mulberry, blob, stroke, bleed, paper, css } from './cloud'
 import type { DropFrame } from './drop'
-import { createTris } from './tris'
+
+/** how far into the grass she lands, as a fraction of the viewport height */
+const LAWN_SINK = 0.055
 
 export const TOUCH_CONFIG = {
   /** extra scroll length for the touchdown, in viewport heights (the last part of it is the pinned rest) */
@@ -118,7 +121,9 @@ export function touchAt(u: number, df: DropFrame, surfaceCam: number, rightEdge:
   const surfaceY = Math.max(surfaceCam, feet0 + 0.1 * vh)
   // she picks up a little speed on the way down (ease in), the surface rises to meet her (ease out)
   const a = clamp(u / uc, 0, 1)
-  const feet = lerp(feet0, surfaceY, a * a)
+  // she lands a little way into the grass, not on its top edge (the blades in front of her, drawFront, hide her feet)
+  const sink = LAWN_SINK * vh
+  const feet = lerp(feet0, surfaceY + sink, a * a)
   const surface = lerp(surfaceY + C.rise * vh, surfaceY, easeOut(a))
 
   // the impact: squash and a tiny hop on the rebound, then it is gone
@@ -128,7 +133,7 @@ export function touchAt(u: number, df: DropFrame, surfaceCam: number, rightEdge:
   const squash = 1 - I.squash * press
   const spread = 1 + I.spread * press
   const hop = I.hop * vh * Math.max(0, -press)
-  const contactY = u < uc ? feet : surfaceY - hop
+  const contactY = u < uc ? feet : surfaceY + sink - hop
 
   // her seated size, a little closer as she settles; and her x easing to where her whole seated body fits on the screen
   // on a tall (phone) screen she is a little smaller and sits in the bottom left corner
@@ -187,7 +192,6 @@ export function createTouch(p: any) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let imgs: any[] | null = null
   let disposed = false
-  const tris = createTris(p)
 
   async function load() {
     // the falling picture is already loaded by drop.ts (the browser caches it); only the three landing pictures are new
@@ -195,40 +199,178 @@ export function createTouch(p: any) {
     if (!disposed) imgs = out
   }
 
-  /** the surface: a soft hand-drawn line with a faint warm shade fading away below it (it is gone before the bottom of the frame) */
+  // the lawn under the line, kept between frames: it only moves up and down with the surface. It is painted in watercolour, the way the
+  // falling scene's clouds are (cloud.ts): soft wobbly washes laid back to front, pale light on the upper left of each, loose sideways
+  // strokes through them, then bled together and given the paper's grain. The grass is rounded and quiet (no blades), with small soft
+  // daisies. Its top edge is a rolling crest scalloped with little mounds.
+  let lawnKey = ''
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let lawnImg: { img: any; w: number; h: number; front: any; fh: number; pad: number } | null = null
+  function lawnFor(vw: number, vh: number, x0: number, x1: number) {
+    const key = `${Math.round(vw)}x${Math.round(vh)}`
+    if (lawnImg && key === lawnKey) return lawnImg
+    lawnKey = key
+    lawnImg?.img.remove?.()
+    lawnImg?.front.remove?.()
+    const s = vh / 900, W = x1 - x0, H = vh * 0.4, PAD = 40 * s, DEEPEST = vh * 0.22
+    const K = Math.min(1.5, 4096 / W)
+    // the crest of the meadow: long gentle swells, never a straight line (y relative to the line, down is positive)
+    const ridge = (x: number) => (Math.sin(x * 0.0042 + 0.8) * 9 + Math.sin(x * 0.0113 + 2.1) * 5 + Math.sin(x * 0.027 + 4) * 1.6) * s
+    const canvasOf = (h: number) => {
+      const c = document.createElement('canvas')
+      c.width = Math.ceil(W * K)
+      c.height = Math.ceil((h + PAD) * K)
+      const ctx = c.getContext('2d')!
+      ctx.scale(K, K)
+      ctx.translate(0, PAD)
+      return { c, ctx }
+    }
+    const toImage = (c: HTMLCanvasElement) => {
+      const im = p.createImage(c.width, c.height)
+      im.loadPixels()
+      im.pixels.set(c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data)
+      im.updatePixels()
+      return im
+    }
+    const mixc = (a: number[], b: number[], t: number) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]
+    // soft, close greens (the washes of a gouache-and-water meadow), shaded toward blue-green in the deep and light toward the upper left
+    const PALE = [186, 216, 142], LIGHT = [160, 203, 124], MID = [134, 184, 108], DEEP = [106, 160, 92], SHADE = [88, 142, 88]
+    const rand = mulberry(11)
+    const wash = (g: CanvasRenderingContext2D, x: number, y: number, rx: number, ry: number, d: number) => {
+      const t = rand()
+      const col = mixc(t < 0.5 ? LIGHT : MID, t < 0.5 ? MID : DEEP, rand() * 0.8 + d * 0.3)
+      blob(g, x, y, rx, ry, col, 0.55 + rand() * 0.25, rand, 0.2)
+      // the light catching its upper left, like the cloud puffs
+      blob(g, x - rx * 0.22, y - ry * 0.3, rx * 0.6, ry * 0.5, PALE, 0.3 + rand() * 0.2, rand, 0.25)
+    }
+    const daisy = (g: CanvasRenderingContext2D, x: number, y: number, r: number) => {
+      const rot = rand() * 6.28
+      for (let q = 0; q < 5; q++) {
+        const a = rot + (q * Math.PI * 2) / 5
+        blob(g, x + Math.cos(a) * r * 0.55, y + Math.sin(a) * r * 0.55, r * 0.5, r * 0.4, [252, 252, 248], 0.9, rand, 0.2)
+      }
+      blob(g, x, y, r * 0.3, r * 0.28, [244, 186, 70], 0.95, rand, 0.15)
+    }
+
+    // a prettier flower, painted like the clouds: a thin stem and leaves, a ring of soft petals (each a shaded wash with a paler one over it
+    // toward the light), a second smaller ring, a bright dab of light and a warm heart with a few specks
+    const PETALS = [[246, 152, 178], [242, 138, 122], [186, 162, 232], [252, 214, 112], [250, 196, 210], [168, 190, 244]]
+    const flower = (g: CanvasRenderingContext2D, x: number, y: number, r: number, h: number) => {
+      const lean = (rand() - 0.5) * 5 * s, hx = x + lean, hy = y - h
+      stroke(g, x + lean / 2, y - h / 2, h, 1.5 * s, -Math.PI / 2 + lean * 0.01, [92, 146, 82], 0.85)
+      blob(g, x + 3.2 * s, y - h * 0.38, 3.4 * s, 1.4 * s, [112, 166, 92], 0.85, rand, 0.2)
+      blob(g, x - 3 * s, y - h * 0.22, 3 * s, 1.3 * s, [100, 154, 86], 0.85, rand, 0.2)
+      const col = PETALS[Math.floor(rand() * PETALS.length)]
+      const shade = mixc(col, [150, 110, 170], 0.3), lit = mixc(col, [255, 255, 255], 0.45)
+      const rot = rand() * 6.28
+      for (let q = 0; q < 6; q++) {
+        const a = rot + (q * Math.PI * 2) / 6
+        const px = hx + Math.cos(a) * r * 0.62, py = hy + Math.sin(a) * r * 0.5
+        blob(g, px, py, r * 0.52, r * 0.46, shade, 0.85, rand, 0.2)
+        blob(g, px - r * 0.07, py - r * 0.1, r * 0.4, r * 0.34, col, 0.9, rand, 0.2)
+      }
+      for (let q = 0; q < 5; q++) {
+        const a = rot + 0.5 + (q * Math.PI * 2) / 5
+        blob(g, hx + Math.cos(a) * r * 0.32, hy + Math.sin(a) * r * 0.27, r * 0.34, r * 0.3, lit, 0.8, rand, 0.2)
+      }
+      blob(g, hx - r * 0.22, hy - r * 0.3, r * 0.3, r * 0.2, [255, 255, 255], 0.4, rand, 0.25)
+      blob(g, hx, hy, r * 0.24, r * 0.22, [244, 182, 66], 0.95, rand, 0.15)
+      for (let q = 0; q < 3; q++) blob(g, hx + (rand() - 0.5) * r * 0.3, hy + (rand() - 0.5) * r * 0.26, r * 0.06, r * 0.06, [200, 120, 40], 0.7, rand, 0.1)
+    }
+
+    // ---- the lawn behind her ----
+    const { c: cv, ctx: g } = canvasOf(H)
+    const ground = g.createLinearGradient(0, -PAD, 0, H)
+    ground.addColorStop(0, css(LIGHT, 1))
+    ground.addColorStop(0.5, css(MID, 1))
+    ground.addColorStop(1, css(DEEP, 1))
+    g.beginPath()
+    g.moveTo(0, H)
+    for (let x = 0; x <= W; x += 6) g.lineTo(x, ridge(x))
+    g.lineTo(W, H)
+    g.closePath()
+    g.fillStyle = ground
+    g.fill()
+    // washes back to front, each row over the one behind it, bigger toward the viewer
+    for (let y = -2 * s, row = 0; y < H; y += 6 * s, row++) {
+      const d = Math.min(1, Math.max(0, y / DEEPEST)), sc = 0.75 + 0.8 * d
+      for (let k = 0, n = Math.round(W / (62 * s)); k < n; k++) {
+        const x = rand() * W
+        wash(g, x, y + ridge(x) + (rand() - 0.5) * 5 * s, (22 + rand() * 38) * s * sc, (4.5 + rand() * 6) * s * sc, d)
+      }
+      // loose strokes lying sideways through the washes
+      for (let k = 0, n = Math.round(W / (90 * s)); k < n; k++) {
+        const x = rand() * W, light = rand() < 0.55
+        stroke(g, x, y + ridge(x), (20 + rand() * 40) * s * sc, (2 + rand() * 2.5) * s * sc, (rand() - 0.5) * 0.18, light ? PALE : SHADE, 0.16 + rand() * 0.2)
+      }
+      // buttercup dabs and daisies, in loose drifts
+      for (let k = 0, n = Math.round(W / (80 * s)); k < n; k++) {
+        const x = rand() * W
+        blob(g, x, y + ridge(x) + (rand() - 0.5) * 6 * s, (1.2 + rand() * 0.8) * s * sc, (1.3 + rand() * 0.8) * s * sc, [232, 196, 84], 0.7, rand, 0.2)
+      }
+      for (let k = 0, n = Math.round((W / (110 * s)) * (0.7 + d * 0.6)); k < n; k++) {
+        const cx = rand() * W, m = rand() < 0.3 ? 2 + Math.floor(rand() * 2) : 1
+        for (let j = 0; j < m; j++) {
+          const x = cx + (rand() - 0.5) * 22 * s * sc
+          daisy(g, x, y + ridge(x) + (rand() - 0.5) * 7 * s, (2.2 + rand() * 1.2) * s * sc)
+        }
+      }
+      for (let k = 0, n = Math.round((W / (230 * s)) * (0.7 + d * 0.6)); k < n; k++) {
+        const x = rand() * W, m = rand() < 0.35 ? 2 : 1
+        for (let j = 0; j < m; j++) {
+          const fx = x + j * (9 + rand() * 6) * s * sc
+          flower(g, fx, y + ridge(fx) + (rand() - 0.5) * 5 * s, (3.6 + rand() * 2) * s * sc, (11 + rand() * 12) * s * sc)
+        }
+      }
+    }
+    // the crest: little rounded mounds along the edge, so the hill is scalloped and soft and not a ruled line
+    for (let x = 0; x < W; x += (14 + rand() * 20) * s) {
+      const r = (10 + rand() * 16) * s
+      wash(g, x, ridge(x) - r * 0.08, r, r * (0.28 + rand() * 0.14), 0)
+    }
+    const body = bleed(cv, Math.max(1.4, 1.5 * s * K), 0.35)
+    paper(body, rand, body.width * 0.012, Math.max(2, body.width * 0.0016))
+
+    // ---- the front: soft low mounds over her feet and hem, so she sits in the grass ----
+    const FH = vh * 0.2
+    const { c: fc, ctx: fg } = canvasOf(FH)
+    const base = LAWN_SINK * vh
+    for (let j = 0; j < 2; j++) {
+      for (let x = rand() * 8 * s; x < W; x += (12 + rand() * 16) * s) {
+        const r = (13 + rand() * 14) * s
+        wash(fg, x, base + j * 7 * s + ridge(x) * 0.6 + (rand() - 0.5) * 3 * s, r, r * (0.3 + rand() * 0.14), 0.15 + j * 0.35)
+      }
+    }
+    for (let x = 80 * s; x < W; x += (260 + rand() * 260) * s) flower(fg, x, base + (9 + rand() * 8) * s + ridge(x) * 0.6, (4 + rand() * 1.5) * s, (13 + rand() * 8) * s)
+    for (let x = 30 * s; x < W; x += (130 + rand() * 170) * s) daisy(fg, x, base + (7 + rand() * 11) * s + ridge(x) * 0.6, (2.8 + rand() * 1.4) * s)
+    const front = bleed(fc, Math.max(1.2, 1.2 * s * K), 0.4)
+    paper(front, rand, front.width * 0.012, Math.max(2, front.width * 0.0016))
+    return (lawnImg = { img: toImage(body), w: W, h: H, front: toImage(front), fh: FH, pad: PAD })
+  }
+
+  /** the surface: the lawn she lands on, its rolling edge is the line. It rises into place with f.surface */
   function drawSurface(f: TouchFrame, vw: number, vh: number) {
     if (f.surface <= 0.003 || f.surfaceY > vh * 2) return
-    const [r, g, b] = ABOUT_BG
-    const shade = [lerp(r, 214, 0.9), lerp(g, 203, 0.9), lerp(b, 180, 0.9)]
-    const x0 = -vw * 0.2, x1 = vw * 1.2, cols = 64, rows = 6, band = vh * 0.15
-    const wob = (x: number) => (Math.sin(x * 0.011 + 1.3) * 1.6 + Math.sin(x * 0.031) * 0.9) * (vh / 900)
-    p.noStroke()
-    tris.begin()
-    const put = (x: number, y: number, alpha: number) => tris.vertex(x, y, shade[0], shade[1], shade[2], 255 * alpha)
-    for (let c = 0; c < cols; c++) {
-      const xa = lerp(x0, x1, c / cols), xb = lerp(x0, x1, (c + 1) / cols)
-      for (let i = 0; i < rows; i++) {
-        const ta = i / rows, tb = (i + 1) / rows
-        const ya = f.surfaceY + wob(xa) + band * ta * ta, yb = f.surfaceY + wob(xa) + band * tb * tb
-        const yc = f.surfaceY + wob(xb) + band * ta * ta, yd = f.surfaceY + wob(xb) + band * tb * tb
-        const aa = 0.34 * (1 - ta) * (1 - ta) * f.surface, ab = 0.34 * (1 - tb) * (1 - tb) * f.surface
-        put(xa, ya, aa); put(xb, yc, aa); put(xa, yb, ab)
-        put(xb, yc, aa); put(xb, yd, ab); put(xa, yb, ab)
-      }
+    const lawn = lawnFor(vw, vh, -vw * 0.2, vw * 1.2)
+    p.tint(255, 255 * f.surface)
+    p.image(lawn.img, -vw * 0.2, f.surfaceY - lawn.pad, lawn.w, lawn.h + lawn.pad)
+    p.noTint()
+  }
+
+  /** the tufts in front of her feet and hem, drawn after her. Only round her (fading out to both sides), so the decorations on the right stay clear of it */
+  function drawFront(f: TouchFrame, vw: number, vh: number) {
+    if (f.surface <= 0.003 || f.surfaceY > vh * 2 || !lawnImg) return
+    const P = TOUCH_POSES[1], sc = P.scale * f.base, s = vh / 900
+    const x0 = -vw * 0.2, fade = 70 * s, step = 10
+    const left = f.x - P.face[0] * sc * f.spread - 20 * s, right = f.x + (P.w - P.face[0]) * sc * f.spread + 20 * s
+    const k = lawnImg.front.width / lawnImg.w, y = f.surfaceY - lawnImg.pad, h = lawnImg.fh + lawnImg.pad
+    for (let x = left - fade; x < right + fade; x += step) {
+      const a = Math.min(1, (x - (left - fade)) / fade, (right + fade - x) / fade) * f.surface
+      if (a <= 0.003) continue
+      p.tint(255, 255 * a)
+      p.image(lawnImg.front, x, y, step + 0.5, h, (x - x0) * k, 0, (step + 0.5) * k, lawnImg.front.height)
     }
-    tris.end()
-    // the line itself: thin, a little darker at the top of the shade, only where the wobble puts it
-    const hairline = 0.5 * f.surface
-    tris.begin()
-    for (let c = 0; c < cols; c++) {
-      const xa = lerp(x0, x1, c / cols), xb = lerp(x0, x1, (c + 1) / cols)
-      const ya = f.surfaceY + wob(xa), yb = f.surfaceY + wob(xb), th = Math.max(1, vh / 600)
-      const col = [188, 174, 150]
-      for (const [x, y] of [[xa, ya], [xb, yb], [xa, ya + th], [xb, yb], [xb, yb + th], [xa, ya + th]] as const) {
-        tris.vertex(x, y, col[0], col[1], col[2], 255 * hairline)
-      }
-    }
-    tris.end()
+    p.noTint()
   }
 
   /** her soft contact shadow, on the surface under her */
@@ -238,8 +380,8 @@ export function createTouch(p: any) {
     p.noStroke()
     for (let i = 0; i < 5; i++) {
       const t = i / 4
-      p.fill(120, 100, 70, 255 * 0.07 * f.shadow)
-      p.ellipse(f.x + w * 0.05, f.surfaceY + vh * 0.004, w * (1 - 0.5 * t), vh * 0.032 * (1 - 0.4 * t))
+      p.fill(36, 70, 34, 255 * 0.09 * f.shadow)
+      p.ellipse(f.x + w * 0.05, f.surfaceY + (LAWN_SINK + 0.004) * vh, w * (1 - 0.5 * t), vh * 0.032 * (1 - 0.4 * t))
     }
   }
 
@@ -263,5 +405,5 @@ export function createTouch(p: any) {
     p.pop()
   }
 
-  return { load, draw, drawSurface, drawShadow, get ready() { return !!imgs }, dispose() { disposed = true; tris.dispose() } }
+  return { load, draw, drawSurface, drawFront, drawShadow, get ready() { return !!imgs }, dispose() { disposed = true } }
 }

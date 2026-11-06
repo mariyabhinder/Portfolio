@@ -16,6 +16,7 @@ import sitFlow from '@/assets/meadow/sit-flow.json'
 import position2Url from '@/assets/meadow/position2.webp'
 import position5Url from '@/assets/meadow/position5.webp'
 import position6Url from '@/assets/meadow/position6.webp'
+import position6MobileUrl from '@/assets/meadow/position6-1.webp'
 import j1Url from '@/assets/meadow/j1.webp'
 import j2Url from '@/assets/meadow/j2.webp'
 import j3Url from '@/assets/meadow/j3.webp'
@@ -100,6 +101,7 @@ export const SIT_POSES = [
   { w: 970, h: 1014, face: [535, 185], s: 0.32, hip: [500, 520],
     marks: [[535, 185], [645, 310], [320, 300], [500, 520], [540, 900], [700, 640], [675, 245], [300, 215], [590, 880], [520, 70], [400, 330], [480, 460], [520, 330], [500, 800]] },
 ]
+const POSITION6_POSE = SIT_POSES[3] // the original (desktop) position6 pose; SIT_POSES[3] is swapped for a remapped copy on phones
 // the baked dense alignment between neighbouring pictures (scripts/bake-sit-flow.cjs): per picture, a G x G grid of residuals (1/8 px of that picture) toward the next and the previous picture
 const decodeFlow = (b64: string | null) => {
   if (!b64) return null
@@ -350,6 +352,19 @@ export function createLanding(p: any, reduceMotion: boolean) {
     spin: (wispRand() - 0.5) * 0.8,
   }))
 
+  // position6 comes in two sizes: the original and the smaller position6-1.webp for phones (a tighter crop, ~0.267 of the original's px, offset 17 px in x; its poses are the original's remapped onto it)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sixImgs: { desktop?: any; mobile?: any } = {}
+  const sixPose: { mobile?: (typeof SIT_POSES)[number] } = {}
+  const isPhone = () => window.innerWidth < 768 || window.matchMedia('(pointer: coarse) and (max-width: 1024px)').matches
+  /** puts the right position6 (picture and pose) in place for the screen as it is now */
+  function syncSix() {
+    if (!sitImgs || !sixImgs.mobile || !sixPose.mobile) return
+    const phone = isPhone()
+    SIT_POSES[3] = phone ? sixPose.mobile : POSITION6_POSE
+    sitImgs[3] = phone ? sixImgs.mobile : sixImgs.desktop
+  }
+
   const loadHtml = (url: string) => { const im = new Image(); im.src = url; return im.decode().then(() => im) }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -380,6 +395,11 @@ export function createLanding(p: any, reduceMotion: boolean) {
 
   /** loads her picture and builds the mesh and shader: the quick part, done with the rest of the sky's setup */
   async function load() {
+    // the sit-up pictures start downloading now (not after the cloud is painted), so they are cached by the time she needs them, on the first visit too
+    // both position6 pictures are loaded (the 9th is the phone one): which is shown is decided each frame, as the screen is not known to be a phone until it is on screen
+    const sitUrls = [position2Url, position5Url, position6Url, j1Url, j2Url, j3Url, j4Url, j5Url, position6MobileUrl]
+    const sitLoad = Promise.all([Promise.all(sitUrls.map(loadHtml)), Promise.all(sitUrls.map((u) => p.loadImage(u)))])
+    sitLoad.catch(() => {})
     const [spr, html, closed, open] = await Promise.all([p.loadImage(landingGirlUrl), loadHtml(landingGirlUrl), p.loadImage(eyesCloseUrl), p.loadImage(eyesOpenUrl)])
     if (disposed) return
     sprite = spr
@@ -420,8 +440,12 @@ export function createLanding(p: any, reduceMotion: boolean) {
       cloudImgs = { body: imageFromCanvas(cloud!.body), front: imageFromCanvas(cloud!.front), hollow: imageFromCanvas(cloud!.hollow), wisps: cloud!.wisps.map(imageFromCanvas) }
     })
     // the sit-up pictures come last (she is not sitting up for a good while after she lands): the landing's own mesh for the first, a plain grid (no loose fabric: the morph moves it all) for the other two
-    const sitUrls = [position2Url, position5Url, position6Url, j1Url, j2Url, j3Url, j4Url, j5Url]
-    const [sitHtml, sitP5] = await Promise.all([Promise.all(sitUrls.map(loadHtml)), Promise.all(sitUrls.map((u) => p.loadImage(u)))])
+    // on a phone, position6 is the smaller position6-1.webp (a tighter crop, ~0.267 of the original's px, offset 17 px in x): its poses are the original's remapped onto it
+    {
+      const A = 0.267, OX = -17, o = POSITION6_POSE, map = ([x, y]: number[]) => [x * A + OX, y * A]
+      sixPose.mobile = { ...o, w: 316, h: 323, s: o.s / A, face: map(o.face), hip: map(o.hip), marks: o.marks.map(map) }
+    }
+    const [sitHtml, sitP5] = await sitLoad
     if (disposed) return
     // each picture is a grid mesh (no loose fabric here: the morph moves it all) carrying its baked residuals, one pair per vertex
     const sitMesh = (k: number, st: number) => {
@@ -442,6 +466,15 @@ export function createLanding(p: any, reduceMotion: boolean) {
       const sh = makeShadow(sitHtml[i], P.w, P.h, 7 / P.s)
       sitImgs!.push({ img: sitP5[i], geom: sitMesh(i + 1, 22), shadow: imageFromCanvas(sh.cv), pad: sh.pad })
     })
+    // the phone's position6 (built with its own pose), kept beside the desktop one; syncSix() swaps them in
+    sixImgs.desktop = sitImgs[3]
+    SIT_POSES[3] = sixPose.mobile
+    {
+      const sh = makeShadow(sitHtml[8], sixPose.mobile.w, sixPose.mobile.h, 7 / sixPose.mobile.s)
+      sixImgs.mobile = { img: sitP5[8], geom: sitMesh(3, 22), shadow: imageFromCanvas(sh.cv), pad: sh.pad }
+    }
+    SIT_POSES[3] = POSITION6_POSE
+    syncSix()
     sitShader = p.createShader(SIT_VERT, SIT_FRAG)
     const jump = await p.loadImage(jump11Url)
     if (!disposed) jumpImg = jump
@@ -449,6 +482,7 @@ export function createLanding(p: any, reduceMotion: boolean) {
 
   /** the girl's placement for this frame; the falling picture is moved by `offset`, the landing picture goes at `anchor` */
   function place(f: LandFrame, input: LandingInput): LandPlace {
+    syncSix() // every frame draws after place(), so the position6 in use always matches the screen
     const { vw, vh, fall } = input
     const sc = fall.scale
     const gh = LANDER.h * sc // her height in px

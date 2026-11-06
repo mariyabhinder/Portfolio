@@ -40,6 +40,7 @@ import { createDrop, ABOUT_BG } from './drop'
 import { leaveFrame } from './leave'
 import { SHUTTER_BOX, launchProgress, openingFit, shutterStrips, windowAt, windowUrls } from './window'
 import picstoryUrl from '@/assets/meadow/picstory.webp'
+import aboutBgUrl from '@/assets/meadow/about-bg.png'
 import { createTouch, touchAt, TOUCH_CONFIG } from './touch'
 import { WAKE_CONFIG, wakeWave } from './wake'
 import { ABOUT_DESIGN, RIGHT_SIDE } from './aboutDecos'
@@ -667,7 +668,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
         Promise.all(SHOTS.map((s) => p.loadImage(s.sprite))),
         fetch(bladesUrl).then((r) => r.json()),
         loadHtmlImage(bagUrl),
-        Promise.all(BAG_ITEMS.map((it) => loadHtmlImage(it.image))),
+        Promise.all(BAG_ITEMS.map((it) => (it.image ? loadHtmlImage(it.image) : null))),
         ...CLOUDS.flatMap((c) => [p.loadImage(c.spr), p.loadImage(c.shadow)]),
       ])
       // the poster is on screen meanwhile; let the browser breathe between the heavier steps
@@ -701,12 +702,16 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
         const { sky, clouds } = paintFallSky()
         skyImg = fromCanvas(sky)
         skyClouds = fromCanvas(clouds)
-        aboutBgImg = fromCanvas(paintAboutBg())
       }
+      p.loadImage(aboutBgUrl).then((img: any) => { if (!disposed) aboutBgImg = img }).catch(() => { if (!disposed) aboutBgImg = fromCanvas(paintAboutBg()) })
       await breathe()
       if (disposed) return
       props = paintProps({ bag: bagImg }).map(({ sprite, shadow, ...rest }) => ({ ...rest, spr: fromCanvas(sprite), shadow: fromCanvas(shadow) }))
       bagItems = itemImgs.map((img, i) => {
+        if (!img) {
+          const q = props.find((o) => o.id === BAG_ITEMS[i].prop)!
+          return { w: q.w, h: q.h, spr: q.spr, shadow: q.shadow }
+        }
         const { sprite, shadow, w, h } = paintPicture(img, BAG_ITEMS[i].height, 1, 0)
         return { w, h, spr: fromCanvas(sprite), shadow: fromCanvas(shadow) }
       })
@@ -1202,10 +1207,11 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       const vw = p.width, vh = p.height
       p.background(ABOUT_BG[0], ABOUT_BG[1], ABOUT_BG[2])
       if (aboutBgImg) {
-        // the square covers the viewport, its rings centred on it
-        const s = Math.max(vw, vh)
+        // the picture covers the viewport, centred
+        const k = Math.max(vw / aboutBgImg.width, vh / aboutBgImg.height)
+        const w = aboutBgImg.width * k, h = aboutBgImg.height * k
         p.noStroke()
-        p.image(aboutBgImg, (vw - s) / 2, (vh - s) / 2, s, s)
+        p.image(aboutBgImg, (vw - w) / 2, (vh - h) / 2, w, h)
       }
       if (!toucher?.ready || !dropper) return false
       const df = leaveFrame(vw, vh)
@@ -1219,6 +1225,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       dropper.drawLines({ ...df, face: tf.fallFace, speed: tf.speed, travel: tf.travel }, df.base)
       p.clearDepth()
       toucher.draw(tf)
+      toucher.drawFront(tf, vw, vh)
       if (state.touch <= 0) return false
       onAnchor?.({ face: tf.face, headTop: tf.headTop, headW: tf.headW, landed: tf.landed * fade, seated: tf.seated * fade })
       anchored = true
@@ -1241,7 +1248,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
         p.translate(left + d.x * sc + w / 2, top + d.y * sc + h / 2)
         if (d.rotate) p.rotate((d.rotate * Math.PI) / 180)
         p.translate(0, (1 - k) * 0.03 * stageH)
-        p.scale(0.92 + 0.08 * k)
+        p.scale((d.flip ? -1 : 1) * (0.92 + 0.08 * k), 0.92 + 0.08 * k)
         p.tint(255, 255 * k)
         p.image(im, -w / 2, -h / 2, w, h)
         p.pop()
@@ -1379,7 +1386,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       const lift = (q: (typeof props)[number]) => (reduceMotion ? 0 : hovers[q.id ?? ''] ?? 0)
       // once they have been picked up, her glasses and hat are drawn over her instead (drawWorn)
       // and while the gallery holds her phone, it and its strap are off the grass
-      const lying = props.filter((q) => !(q.id === 'glasses' && state.glasses.u > 0) && !(q.id === 'hat' && state.hat.u > 0) && !(q.id === 'cap' && state.cap.u > 0) && !(state.phone.up && (q.id === 'phone' || q.id === 'strap')))
+      const lying = props.filter((q) => !(q.id === 'glasses' && state.glasses.u > 0) && !(q.id === 'hat' && state.hat.u > 0) && q.id !== 'cap' && !(state.phone.up && (q.id === 'phone' || q.id === 'strap')))
       p.tint(22, 42, 10, 120)
       for (const q of lying) draw(q.shadow, q, q.lift * 0.7 + lift(q) * 2, q.lift + lift(q) * 4, 1 + lift(q) * 0.03)
       p.noTint()

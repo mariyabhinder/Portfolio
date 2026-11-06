@@ -15,7 +15,9 @@ import { BAG_PLACE } from './props'
 
 export interface BagItemConfig {
   /** the picture: drop the file in src/assets/meadow/ and import it above. Its transparent margins are trimmed, its aspect ratio kept */
-  image: string
+  image?: string
+  /** instead of a picture: the id of a painted prop (props.ts) that lives in the bag, drawn at its own size */
+  prop?: string
   /** how tall it is once it is out, in scene px (the bag is 80 tall, so 40 is about half the bag) */
   height: number
   /** where it ends up, in scene px from the centre of the bag: x to the right, y down (so negative y is above the bag) */
@@ -41,6 +43,7 @@ export const BAG_ITEMS: BagItemConfig[] = [
   { image: item4, height: 42, x: -88, y: 8, rot: -9, arc: 20, startRot: 55 },
   { image: item5, height: 44, x: -68, y: 68, rot: 14, arc: 18, startRot: -50 },
   { image: item6, height: 46, x: -22, y: 88, rot: -6, arc: 22, startRot: 45 },
+  { prop: 'cap', height: 40, x: -30, y: 34, rot: -20, arc: 24, startRot: 50 },
 ]
 
 export const BAG_TIMING = {
@@ -81,23 +84,23 @@ const easeInOutCubic = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2
 const easeOutBack = (t: number) => 1 + 2.2 * Math.pow(t - 1, 3) + 1.2 * Math.pow(t - 1, 2)
 
 /** the moments of the sequence (s): when each item starts coming out and going back in, and when the camera starts to leave */
-function schedule() {
+function schedule(hold = BAG_TIMING.hold) {
   const T = BAG_TIMING, n = BAG_ITEMS.length
   const out = BAG_ITEMS.map((it, i) => T.zoom + T.settle + i * T.emergeGap + (it.delay ?? 0))
   const outEnd = Math.max(...out) + T.emerge
-  const backStart = outEnd + T.hold
+  const backStart = outEnd + hold
   // reverse order: the last item out is the first back in
   const back = BAG_ITEMS.map((it, i) => backStart + (n - 1 - i) * T.backGap + (it.delay ?? 0))
   const backEnd = Math.max(...back) + T.back
   const zoomOut = backEnd + T.pause
-  return { out, back, zoomOut, end: zoomOut + T.zoom }
+  return { out, back, outEnd, backStart, zoomOut, end: zoomOut + T.zoom }
 }
 
 export const bagDuration = () => schedule().end
 
 /** sets `bag` to where the sequence is `t` seconds after the click. Returns true once it has finished. With reduced motion the camera cuts and the items fade in place. */
-export function bagFrame(bag: BagReveal, t: number, reduced: boolean): boolean {
-  const T = BAG_TIMING, s = schedule()
+export function bagFrame(bag: BagReveal, t: number, reduced: boolean, hold = BAG_TIMING.hold): boolean {
+  const T = BAG_TIMING, s = schedule(hold)
   const zin = clamp(t / T.zoom, 0, 1), zout = clamp((t - s.zoomOut) / T.zoom, 0, 1)
   bag.cam = reduced ? (t > 0 && t < s.zoomOut ? 1 : 0) : easeInOutCubic(zin) * (1 - easeInOutCubic(zout))
   BAG_ITEMS.forEach((_, i) => {
@@ -115,19 +118,25 @@ export function bagFrame(bag: BagReveal, t: number, reduced: boolean): boolean {
 /** Plays the sequence on the clock. Returns a function that stops it and puts everything back. */
 export function playBagReveal(bag: BagReveal, reduced: boolean, onDone: () => void) {
   const t0 = performance.now()
-  let id = 0, stopped = false
+  let id = 0, stopped = false, hold = BAG_TIMING.hold
   const tick = () => {
     if (stopped) return
-    if (bagFrame(bag, (performance.now() - t0) / 1000, reduced)) onDone()
+    if (bagFrame(bag, (performance.now() - t0) / 1000, reduced, hold)) onDone()
     else id = requestAnimationFrame(tick)
   }
   id = requestAnimationFrame(tick)
-  return () => {
+  const stop = () => {
     stopped = true
     cancelAnimationFrame(id)
     bag.cam = 0
     bag.items.fill(0)
   }
+  // a click once everything is out sends it all back in right away (before that, or once it is going back, it does nothing)
+  stop.dismiss = () => {
+    const t = (performance.now() - t0) / 1000, s = schedule(hold)
+    if (t >= s.outEnd && t < s.backStart) hold = t - s.outEnd
+  }
+  return stop
 }
 
 /**
