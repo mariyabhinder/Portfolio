@@ -32,14 +32,20 @@ interface Album {
   color: string
   /** image urls shown in the album; empty = placeholder colours */
   photos: string[]
+  /** small versions of `photos` (same order) for the grid and the scrubber strip */
+  thumbs: string[]
   /** how many placeholder tiles to show while there are no photos */
   count: number
 }
 
+// the thumbnails (assets/meadow/thumbs: each photo at 480 px on its short side) are named like the photos: udp1.webp, cc2.webp...
+const THUMBS = import.meta.glob<string>('/src/assets/meadow/thumbs/*.webp', { eager: true, import: 'default' })
+const thumbs = (prefix: string, n: number) => Array.from({ length: n }, (_, i) => THUMBS[`/src/assets/meadow/thumbs/${prefix}${i + 1}.webp`])
+
 const ALBUMS: Album[] = [
-  { id: 'udaipur', name: 'Udaipur ☀️🥂👒', color: '#f4a6b8', photos: [udp1, udp2, udp3, udp4, udp5, udp6, udp7, udp8, udp9, udp10, udp11, udp12, udp13, udp14], count: 30 },
-  { id: 'colorful', name: 'Colorful Corner 🎨', color: '#a8d8f0', photos: [cc1, cc2, cc3], count: 16 },
-  { id: 'stitches', name: 'Little Stitches 🧵🌸', color: '#f3e08a', photos: [ls1, ls2, ls3, ls4, ls5], count: 34 },
+  { id: 'udaipur', name: 'Udaipur ☀️🥂👒', color: '#f4a6b8', photos: [udp1, udp2, udp3, udp4, udp5, udp6, udp7, udp8, udp9, udp10, udp11, udp12, udp13, udp14], thumbs: thumbs('udp', 14), count: 30 },
+  { id: 'colorful', name: 'Colorful Corner 🎨', color: '#a8d8f0', photos: [cc1, cc2, cc3], thumbs: thumbs('cc', 3), count: 16 },
+  { id: 'stitches', name: 'Little Stitches 🧵🌸', color: '#f3e08a', photos: [ls1, ls2, ls3, ls4, ls5], thumbs: thumbs('ls', 5), count: 34 },
 ]
 
 const PALETTE = ['#f4a6b8', '#a8d8f0', '#f3e08a', '#b9a6e8', '#9fdcb4', '#f7b88a', '#8fc7e8', '#e8a0d0']
@@ -47,7 +53,7 @@ const tileColor = (album: Album, i: number) => PALETTE[(i + ALBUMS.indexOf(album
 const countOf = (a: Album) => (a.photos.length || a.count)
 
 function Tile({ album, i, heart }: { album: Album; i: number; heart?: boolean }) {
-  const src = album.photos[i]
+  const src = album.thumbs[i] ?? album.photos[i]
   return (
     <div className="relative w-full h-full" style={{ background: src ? undefined : tileColor(album, i) }}>
       {src ? <img alt="" src={src} className="w-full h-full object-cover" draggable={false} loading="lazy" decoding="async" /> : null}
@@ -172,6 +178,14 @@ function PhotoViewer({ album, index, onIndex, onClose, immersive, onImmersive }:
   const [liked, setLiked] = useState<Record<string, boolean>>({})
   const key = `${album.id}/${index}`
   const go = (i: number) => onIndex(Math.max(0, Math.min(n - 1, i)))
+
+  // fetch the neighbouring photos ahead, so a swipe shows them at once
+  useEffect(() => {
+    for (const i of [index + 1, index - 1]) {
+      const src = album.photos[i]
+      if (src) new Image().src = src
+    }
+  }, [album, index])
 
   // keep the current photo centred in the scrubber strip
   useEffect(() => {

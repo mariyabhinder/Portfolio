@@ -597,6 +597,20 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
     let animStart = 0, lastT = 0, shown = false
     // what the last still frame was drawn from (see p.draw)
     let stillKey = ''
+    // Low-end phones: if the canvas cannot keep up at 2x (most frames over 28 ms, ~35 fps, for two seconds of steady drawing),
+    // it drops to 1.5x once. A fast device never gets there, so it keeps the full resolution. (The framebuffers follow the canvas.)
+    let readyAt = 0, timedFrames = 0, slowFrames = 0
+    const adaptDensity = () => {
+      if (p.pixelDensity() <= 1.5 || p.millis() - readyAt < 3000) return
+      const dt = p.deltaTime
+      // a long gap is a pause (the tab hidden, the loop stopped), not a slow frame
+      if (dt > 100) { timedFrames = slowFrames = 0; return }
+      timedFrames++
+      if (dt > 28) slowFrames++
+      if (timedFrames < 120) return
+      if (slowFrames > 90) { p.pixelDensity(1.5); stillKey = '' }
+      timedFrames = slowFrames = 0
+    }
     // the starry eyes in the face close-up (sparkle.ts): when they popped in (s, -1 = not showing), and whether the last frame drew them
     // (then the canvas keeps redrawing for their twinkle, scroll or not)
     let sparkleStart = -1, sparkleLive = false
@@ -735,6 +749,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       // start the clock where the poster frame was taken, so the live meadow picks up from it
       animStart = p.millis() - POSTER_T * 1000
       ready = true
+      readyAt = p.millis()
       if (visible) p.loop()
       // her landing picture, the cloud and the face painter load after the meadow is up (the cloud and face in slices, ~1 s of work)
       landing = createLanding(p, reduceMotion)
@@ -768,6 +783,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
 
     p.draw = () => {
       if (!ready) return
+      adaptDensity()
       const dream = clamp(state.dream, 0, 1)
       // Once the dream wave has passed, the frame is a pure function of the scroll and of what has loaded (only the meadow runs on
       // the clock): while none of that changes the canvas keeps the last frame (p5 preserves its drawing buffer) and nothing is redrawn

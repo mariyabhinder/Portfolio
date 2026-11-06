@@ -23,7 +23,11 @@ export default defineConfig(({ mode }) => {
       figmaErrorOverlayReplay(),
       figmaReactRefreshBoundaryFallback(),
       figmaMakeKitPlugin({ storiesGlob: '/src/**/*.stories.{ts,tsx,js,jsx}' }),
-      preloadHeroImages([/^assets\/poster-.*\.webp$/]),
+      preloadHeroImages([
+        // phones and larger screens each preload only their own poster (the same breakpoint as index.html and index.css)
+        { pattern: /^assets\/poster-phone-.*\.webp$/, media: '(max-width: 600px)' },
+        { pattern: /^assets\/poster-(?!phone-).*\.webp$/, media: '(min-width: 601px)' },
+      ]),
     ],
     resolve: {
       alias: {
@@ -361,7 +365,7 @@ function figmaMakeKitPlugin(options: { storiesGlob: string | string[] }): Plugin
  * would only discover them after the bundle runs. Emit high-priority preloads
  * for them into the built index.html so they download in parallel with the JS.
  */
-function preloadHeroImages(patterns: RegExp[]): Plugin {
+function preloadHeroImages(images: { pattern: RegExp; media?: string }[]): Plugin {
   let base = '/'
   return {
     name: 'preload-hero-images',
@@ -373,13 +377,13 @@ function preloadHeroImages(patterns: RegExp[]): Plugin {
       order: 'post',
       handler(_html, ctx) {
         if (!ctx.bundle) return []
-        return Object.keys(ctx.bundle)
-          .filter((fileName) => patterns.some((pattern) => pattern.test(fileName)))
-          .map((fileName) => ({
-            tag: 'link',
-            attrs: { rel: 'preload', as: 'image', href: base + fileName, fetchpriority: 'high' },
-            injectTo: 'head',
-          }))
+        return Object.keys(ctx.bundle).flatMap((fileName) => {
+          const image = images.find(({ pattern }) => pattern.test(fileName))
+          if (!image) return []
+          const attrs: Record<string, string> = { rel: 'preload', as: 'image', href: base + fileName, fetchpriority: 'high' }
+          if (image.media) attrs.media = image.media
+          return [{ tag: 'link', attrs, injectTo: 'head' as const }]
+        })
       },
     },
   }

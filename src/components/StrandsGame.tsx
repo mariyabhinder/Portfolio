@@ -3,6 +3,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import type { PointerEvent as ReactPointerEvent } from "react"
+import { BOARD_WORDS } from "./strandsWords"
 
 const COLS = 8
 const VB_W = 800
@@ -15,7 +16,6 @@ const REVEAL_STEP = 900
 const REVEAL_AFTER_MISSES = 6
 const CLOSE_WORDS = ["DESIGN", "CLOUD", "FLOWER", "GAME"] // near-misses of the real words; tracing one flashes "Very close!"
 const HINT_MS = 2200
-const DICTIONARY_URL = `${import.meta.env.BASE_URL}english-words.txt`
 
 type Hint = "close" | "wrong" | "nonword" | null
 
@@ -55,7 +55,6 @@ export default function StrandsGame({ onComplete }: { onComplete?: (done: boolea
   const [misses, setMisses] = useState(0)
   const [hint, setHint] = useState<Hint>(null)
   const hintTimer = useRef<number>(undefined)
-  const dictionary = useRef<Set<string> | null>(null)
   const selRef = useRef<number[]>([])
   const solvedRef = useRef<string[]>([])
 
@@ -84,19 +83,6 @@ export default function StrandsGame({ onComplete }: { onComplete?: (done: boolea
   useEffect(() => () => {
     clearTimers()
     window.clearTimeout(hintTimer.current)
-  }, [])
-  // lazy-load the English word list so "wrong word" can tell real words from random letters
-  useEffect(() => {
-    let live = true
-    fetch(DICTIONARY_URL)
-      .then((r) => (r.ok ? r.text() : ""))
-      .then((t) => {
-        if (live && t) dictionary.current = new Set(t.split("\n"))
-      })
-      .catch(() => {})
-    return () => {
-      live = false
-    }
   }, [])
   const flashHint = (h: Hint) => {
     setHint(h)
@@ -143,7 +129,8 @@ export default function StrandsGame({ onComplete }: { onComplete?: (done: boolea
     } else if (sel.length > 1) {
       setMisses((m) => m + 1)
       if (CLOSE_WORDS.includes(text)) flashHint("close")
-      else if (dictionary.current && text.length >= 3) flashHint(dictionary.current.has(text.toLowerCase()) ? "wrong" : "nonword")
+      // BOARD_WORDS holds every dictionary word that can be traced on this board, so "wrong word" tells real words from random letters
+      else if (text.length >= 3) flashHint(BOARD_WORDS.has(text.toLowerCase()) ? "wrong" : "nonword")
       setFading((f) => [...f, sel])
       window.setTimeout(() => setFading((f) => f.slice(1)), 400)
     }

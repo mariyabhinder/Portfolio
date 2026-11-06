@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import PhoneGallery, { type PhoneSpot } from './PhoneGallery'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import type { PhoneSpot } from './PhoneGallery'
 import type { GirlAnchor, MeadowHandle, MeadowState } from './meadow/meadow'
 import GirlFx from './GirlFx'
 import AboutMe from './AboutMe'
@@ -11,11 +11,15 @@ import { createFallDynamics } from './meadow/fall'
 import { LAND_CONFIG } from './meadow/land'
 import { LEAVE_CONFIG } from './meadow/leave'
 import { WINDOW_CONFIG, launchProgress, openingFit, windowAt } from './meadow/window'
-import { TOUCH_CONFIG } from './meadow/touch'
+import { TOUCH_CONFIG } from './meadow/touchConfig'
 import { WAKE_CONFIG, wakeWave, wakeZoom } from './meadow/wake'
 import { BAG_PLACE, PHONE_PLACE } from './meadow/props'
 import { bagCamera, createBagReveal, playBagReveal } from './meadow/bagItems'
 import { createWear, playWear, CAP_WEAR, GLASSES_WEAR, HAT_WEAR, type WearConfig, type WearState } from './meadow/wear'
+
+// the Photos gallery is its own chunk: it is fetched while the page is idle, and opening the phone waits for it (see openPhone)
+const loadGallery = () => import('./PhoneGallery')
+const PhoneGallery = lazy(loadGallery)
 // Scroll progress (0-1): the camera closes in on her face until ZOOM_END, she falls asleep, the dream wave
 // crosses from DREAM_START to DREAM_END, and from there to FALL_VH she falls through the sky. The scroll after that is the
 // landing on the cloud (meadow/land.ts): LAND_CONFIG.scrollVh more viewport heights, with its own progress (state.land), then a second
@@ -132,9 +136,17 @@ export default function DreamLanding() {
     return { x: r.left + r.width / 2, y: r.top + r.height / 2, h: PHONE_PLACE.h * s, rot: PHONE_PLACE.rot }
   }, [])
   const openPhone = useCallback(() => {
-    phone.up = true
-    setGalleryOpen(true)
+    // the phone leaves the meadow only once the gallery that lifts it is here (already fetched in the background, normally)
+    loadGallery().then(() => {
+      phone.up = true
+      setGalleryOpen(true)
+    })
   }, [phone])
+  useEffect(() => {
+    const prefetch = () => { loadGallery().catch(() => {}) }
+    const id = window.setTimeout(() => ('requestIdleCallback' in window ? requestIdleCallback(prefetch) : prefetch()), 3000)
+    return () => window.clearTimeout(id)
+  }, [])
   const closePhone = useCallback(() => {
     phone.up = false
     setGalleryOpen(false)
@@ -150,9 +162,12 @@ export default function DreamLanding() {
   const bag = useRef(createBagReveal()).current
   const bagPlaying = useRef(false)
   const bagStop = useRef<(() => void) | null>(null)
+  // starts the per-frame re-placing of the post and ID cards while the bag's camera moves (set up in the scroll effect)
+  const followBag = useRef<(() => void) | null>(null)
   const startBag = useCallback(() => {
     if (bagPlaying.current) return
     bagPlaying.current = true
+    followBag.current?.()
     bag.hover = 0
     const btn = bagRef.current
     if (btn) btn.style.pointerEvents = 'none'
@@ -518,16 +533,20 @@ export default function DreamLanding() {
     visibility.observe(section)
     window.addEventListener('scroll', onScroll, { passive: true })
     // the bag's camera moves without any scroll, so the card is re-placed every frame while it plays
+    // (the loop runs only then: startBag starts it, and it stops itself once the camera is back, so an idle page schedules no frames)
     let postFrame = 0
     const postTick = () => {
-      if (bagPlaying.current || bag.cam > 0) { placePost(false); placeId(false) }
-      postFrame = requestAnimationFrame(postTick)
+      if (bagPlaying.current || bag.cam > 0) {
+        placePost(false); placeId(false)
+        postFrame = requestAnimationFrame(postTick)
+      } else postFrame = 0
     }
-    postFrame = requestAnimationFrame(postTick)
+    followBag.current = () => { if (!postFrame) postFrame = requestAnimationFrame(postTick) }
     measure()
     update(true)
     return () => {
       cancelAnimationFrame(postFrame)
+      followBag.current = null
       resizeObserver.disconnect()
       visibility.disconnect()
       cancelled = true
@@ -634,7 +653,7 @@ export default function DreamLanding() {
         style={{ zIndex: 3, background: 'transparent' }}
       />
     </div>
-    {galleryOpen ? <PhoneGallery spot={phoneSpot} onClose={closePhone} /> : null}
+    {galleryOpen ? <Suspense fallback={null}><PhoneGallery spot={phoneSpot} onClose={closePhone} /></Suspense> : null}
   </section>
   )
 }

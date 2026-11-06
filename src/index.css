@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@600;700;900&family=Lora:wght@500;700&display=swap');
+/* Inter and Lora (Google Fonts) are linked from index.html, so the browser finds them while parsing the HTML, not after this file */
 @import 'tailwindcss';
 
 /* The hero text over the opening meadow (DreamLanding.tsx): white Inter, the heading top left */
@@ -347,8 +347,15 @@
   inset: 0;
   background: url('./assets/meadow/poster.webp') center / cover no-repeat;
 }
+@media (max-width: 600px) {
+  .meadow-stage {
+    background-image: url('./assets/meadow/poster-phone.webp');
+  }
+}
 
 .meadow-stage canvas {
+  /* p5 2.x sets an inline touch-action: none on every canvas after setup, which stops finger swipes from scrolling the page on phones */
+  touch-action: pan-y !important;
   display: block;
   opacity: 0;
   transition: opacity 0.6s ease;
