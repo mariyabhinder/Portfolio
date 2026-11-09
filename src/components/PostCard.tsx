@@ -4,10 +4,10 @@
 
 import { forwardRef, useCallback, useEffect, useRef, useState } from 'react'
 import front from '../assets/meadow/frontpost.webp'
+import backArt from '../assets/meadow/postback.webp'
 import { EMAIL, GmailLogo, LINKEDIN_HREF, LinkedInLogo } from './FlowerCard'
 
 // The back of the card, drawn as vector art (it was a 379px picture, which blurred when the card opens big). 376 x 269 units, like the card.
-const PETALS = Array.from({ length: 12 }, (_, i) => i * 30 + 8 * ((i % 3) - 1))
 const BackArt = () => (
   <svg viewBox="0 0 376 269" preserveAspectRatio="none" width="100%" height="100%" aria-hidden="true" style={{ display: 'block' }}>
     <rect width="376" height="269" rx="3" fill="#fcefe7" />
@@ -20,13 +20,7 @@ const BackArt = () => (
         <path key={y} d={`M238 ${y}q6-8 12 0t12 0t12 0t12 0`} />
       ))}
     </g>
-    {PETALS.map((a) => (
-      <g key={a} transform={`rotate(${a} 94 130)`}>
-        <ellipse cx="94" cy="96" rx="8.5" ry="19" fill="#eba72c" />
-        <path d="M94 84V106" stroke="#b5541d" strokeWidth="1.6" strokeLinecap="round" />
-      </g>
-    ))}
-    <circle cx="94" cy="130" r="19" fill="#a24a33" />
+    <image href={backArt} x="34" y="58" width="121" height="175" preserveAspectRatio="xMidYMid slice" />
     <g stroke="#2b2523" strokeWidth="1.1">
       {[131, 169, 207, 245].map((y) => (
         <path key={y} d={`M173 ${y}H362`} />
@@ -77,14 +71,15 @@ const PostCard = forwardRef<HTMLDivElement, { rot: number; open?: boolean }>(fun
   useEffect(() => {
     if (!flipped) return
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setFlipped(false) }
-    const onDown = (e: PointerEvent) => {
+    // a click (not pointerdown): on a phone, touching the screen to scroll must not close the card that just opened itself
+    const onDown = (e: MouseEvent) => {
       if (!(e.target instanceof Node) || !wrapRef.current?.contains(e.target)) setFlipped(false)
     }
     window.addEventListener('keydown', onKey)
-    window.addEventListener('pointerdown', onDown)
+    window.addEventListener('click', onDown)
     return () => {
       window.removeEventListener('keydown', onKey)
-      window.removeEventListener('pointerdown', onDown)
+      window.removeEventListener('click', onDown)
     }
   }, [flipped])
 

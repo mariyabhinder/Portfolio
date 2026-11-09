@@ -437,7 +437,7 @@ export default function DreamLanding() {
       const gone = wave >= 0.87
       if (gone !== camera.classList.contains('about-gone')) camera.classList.toggle('about-gone', gone)
       // at the very end of the scroll the postcard opens by itself (PostCard's `open`)
-      const end = state.wake >= 0.995
+      const end = state.wake >= 0.97
       if (end !== finaleRef.current) { finaleRef.current = end; setFinale(end) }
       state.about = a * a * (3 - 2 * a)
       const next = state.about.toFixed(3)

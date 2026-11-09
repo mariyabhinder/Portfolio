@@ -636,7 +636,7 @@ export function createTouch(p: any) {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  function drawBlades(geoms: any[], x0: number, y0: number, t: number, alpha: number, fade: number[]) {
+  function drawBlades(geoms: any[], x0: number, y0: number, t: number, alpha: number, fade: number[], still = false) {
     if (!geoms.length || alpha <= 0.003) return
     p.push()
     p.translate(x0, y0)
@@ -646,7 +646,7 @@ export function createTouch(p: any) {
     grassShader.setUniform('uTime', t * WIND.pace)
     grassShader.setUniform('uPace', WIND.pace)
     grassShader.setUniform('uSecs', t)
-    grassShader.setUniform('uAmp', reduceMotion ? 0 : GRASS.amp)
+    grassShader.setUniform('uAmp', reduceMotion || still ? 0 : GRASS.amp)
     grassShader.setUniform('uHz', GRASS.hz)
     grassShader.setUniform('uAlpha', alpha)
     grassShader.setUniform('uFade', fade)
@@ -663,7 +663,7 @@ export function createTouch(p: any) {
     if (arch?.key === key) return arch.geoms
     arch?.geoms.forEach((g) => p.freeGeometry?.(g))
     const rand = mulberry(29)
-    const rx = w / 2 + 46, topY = -h / 2 - 46, ry = Math.min(rx * 1.05, h * 0.55), cy = topY + ry, botY = h / 2 - 4
+    const rx = w / 2 + 130, topY = -h / 2 - 100, ry = Math.min(rx * 1.05, h * 0.55), cy = topY + ry, botY = h / 2 - 4
     const Ls = Math.max(0, botY - cy), La = Math.PI * Math.sqrt((rx * rx + ry * ry) / 2), L = 2 * Ls + La
     const at = (s: number) => {
       if (s < Ls) return { x: -rx, y: botY - s, nx: -1, ny: 0 }
@@ -675,21 +675,33 @@ export function createTouch(p: any) {
     }
     const blades: Blade[] = []
     const fl: Blade[] = []
-    for (let k = 0, n = Math.round(L / 34); k < n; k++) {
-      const q = at(rand() * L), off = (rand() * 1.1 - 0.15) * 18
-      const x = q.x + q.nx * off, y = q.y + q.ny * off, size = 5 + rand() * 4
-      const col = rand() < 0.75 ? [250, 238 + rand() * 12, 214] : [235 + rand() * 20, 150 + rand() * 40, 25 + rand() * 25]
-      const a0 = rand() * Math.PI * 2
+    // green leaves first (underneath), then big white roses on top, like a rose-covered trellis
+    const roses: { x: number; y: number; size: number; nx: number; ny: number }[] = []
+    for (let k = 0, n = Math.round(L / 15); k < n; k++) {
+      const q = at(rand() * L), off = (rand() * 2 - 1) * 26
+      if (q.x < -rx * 0.3 && rand() < 0.3) continue // thin out the left side a little
+      roses.push({ x: q.x + q.nx * off, y: q.y + q.ny * off, size: 11 + rand() * 10, nx: q.nx, ny: q.ny })
+    }
+    for (const r of roses) {
+      for (let j = 0; j < 3; j++) {
+        const a = Math.atan2(r.ny, r.nx) + (rand() * 2 - 1) * 2.4, ll = r.size * (1.0 + rand() * 0.7)
+        fl.push({ x: r.x + Math.cos(a) * (r.size * 0.8 + ll / 2), y: r.y + Math.sin(a) * (r.size * 0.8 + ll / 2), a, len: ll, bend: 0, w: ll * 0.5, col: saturate(mixc(LAWN.mid, LAWN.top, rand()), 1.1), h: 0.95, leaf: true, anchor: 14 })
+      }
+    }
+    for (const r of roses) {
+      const { x, y, size } = r, a0 = rand() * Math.PI * 2, yellow = rand() < 0.3
+      // outer ring of broad petals (white, or yellow for some), an inner ring a shade deeper, then a golden heart
+      for (let j = 0; j < 8; j++) {
+        const a = a0 + (j / 8) * Math.PI * 2
+        const col = yellow ? [255, 214 - rand() * 14, 60 + rand() * 20] : [255, 253 - rand() * 6, 248 - rand() * 8]
+        fl.push({ x: x + Math.cos(a) * size * 0.45, y: y + Math.sin(a) * size * 0.4, a, len: size, bend: 0, w: size * 0.7, col, h: 0.95, leaf: true, anchor: 14 })
+      }
       for (let j = 0; j < 6; j++) {
-        const a = a0 + (j / 6) * Math.PI * 2
-        fl.push({ x: x + Math.cos(a) * size * 0.5, y: y + Math.sin(a) * size * 0.4, a, len: size, bend: 0, w: size * 0.5, col, h: 0.95, leaf: true, anchor: 14 })
+        const a = a0 + 0.4 + (j / 6) * Math.PI * 2
+        const col = yellow ? [244, 184 - rand() * 10, 30] : [246, 240 - rand() * 8, 214]
+        fl.push({ x: x + Math.cos(a) * size * 0.25, y: y + Math.sin(a) * size * 0.22, a, len: size * 0.6, bend: 0, w: size * 0.5, col, h: 0.95, leaf: true, anchor: 14 })
       }
-      fl.push({ x, y, a: 0, len: size * 0.45, bend: 0, w: size * 0.35, col: [110, 62, 14], h: 0.95, leaf: true, anchor: 14 })
-      // a couple of small leaves beside it, just a little greenery
-      for (let j = 0; j < 2; j++) {
-        const a = Math.atan2(q.ny, q.nx) + (j ? 1 : -1) * (0.9 + rand() * 0.6), ll = size * (1.1 + rand() * 0.6)
-        fl.push({ x: x + Math.cos(a) * (size * 0.7 + ll / 2), y: y + Math.sin(a) * (size * 0.7 + ll / 2), a, len: ll, bend: 0, w: ll * 0.42, col: saturate(mixc(LAWN.mid, LAWN.top, rand()), 1.1), h: 0.95, leaf: true, anchor: 14 })
-      }
+      fl.push({ x, y, a: 0, len: size * 0.35, bend: 0, w: size * 0.32, col: yellow ? [214, 140, 20] : [236, 200, 70], h: 0.95, leaf: true, anchor: 14 })
     }
     if (!grassShader) grassShader = p.createShader(GRASS_VERT, GRASS_FRAG)
     arch = { key, at, L, geoms: [...buildGeoms(blades, rand, 'about-arch'), ...buildGeoms(fl, rand, 'about-arch-flowers')] }
@@ -716,11 +728,11 @@ export function createTouch(p: any) {
         }
         p.endShape()
       }
-      rail(0, 15, [226, 232, 230])
-      rail(1.5, 12, [252, 252, 250])
-      rail(-17, 5, [236, 240, 238])
+      rail(0, 32, [226, 232, 230])
+      rail(1.5, 27, [252, 252, 250])
+      rail(-29, 9, [236, 240, 238])
     }
-    drawBlades(geoms, 0, 0, t, alpha, [0, 0, 0])
+    drawBlades(geoms, 0, 0, t, alpha, [0, 0, 0], true)
     p.pop()
   }
 

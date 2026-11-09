@@ -21,6 +21,8 @@ import udp11 from '@/assets/meadow/udp11.webp'
 import udp12 from '@/assets/meadow/udp12.webp'
 import udp13 from '@/assets/meadow/udp13.webp'
 import udp14 from '@/assets/meadow/udp14.webp'
+import udp15 from '@/assets/meadow/udp15.webp'
+import udp16 from '@/assets/meadow/udp16.webp'
 import wallpaper from '@/assets/meadow/phone-wallpaper.webp'
 import { HANGING_CHARM, NAME_CHARM, paintHangingCharm, paintNameCharm } from '@/components/meadow/props'
 
@@ -43,7 +45,7 @@ const THUMBS = import.meta.glob<string>('/src/assets/meadow/thumbs/*.webp', { ea
 const thumbs = (prefix: string, n: number) => Array.from({ length: n }, (_, i) => THUMBS[`/src/assets/meadow/thumbs/${prefix}${i + 1}.webp`])
 
 const ALBUMS: Album[] = [
-  { id: 'udaipur', name: 'Udaipur ☀️🥂👒', color: '#f4a6b8', photos: [udp1, udp2, udp3, udp4, udp5, udp6, udp7, udp8, udp9, udp10, udp11, udp12, udp13, udp14], thumbs: thumbs('udp', 14), count: 30 },
+  { id: 'udaipur', name: 'Udaipur ☀️🥂👒', color: '#f4a6b8', photos: [udp1, udp2, udp3, udp4, udp5, udp6, udp7, udp8, udp9, udp10, udp11, udp12, udp13, udp14, udp15, udp16], thumbs: thumbs('udp', 16), count: 30 },
   { id: 'colorful', name: 'Colorful Corner 🎨', color: '#a8d8f0', photos: [cc1, cc2, cc3], thumbs: thumbs('cc', 3), count: 16 },
   { id: 'stitches', name: 'Little Stitches 🧵🌸', color: '#f3e08a', photos: [ls1, ls2, ls3, ls4, ls5], thumbs: thumbs('ls', 5), count: 34 },
 ]
@@ -193,9 +195,24 @@ function PhotoViewer({ album, index, onIndex, onClose, immersive, onImmersive }:
     if (s && t) s.scrollTo({ left: t.offsetLeft - s.clientWidth / 2 + t.offsetWidth / 2, behavior: 'smooth' })
   }, [index])
 
-  const onDown = (e: React.PointerEvent) => { start.current = e.clientX; e.currentTarget.setPointerCapture(e.pointerId) }
+  // the three slides (previous, current, next) sit side by side on a track that follows the finger; on release the track
+  // glides to the nearest slide, and only then does the index change and the track reset, so there is never a jump
+  const stage = useRef<HTMLDivElement>(null)
+  const last = useRef({ x: 0, t: 0, v: 0 })
+  const [settling, setSettling] = useState(false)
+  const busy = useRef(false)
+  const SETTLE_MS = 280
+  const onDown = (e: React.PointerEvent) => {
+    if (busy.current) return
+    start.current = e.clientX
+    last.current = { x: e.clientX, t: e.timeStamp, v: 0 }
+    setSettling(false)
+    e.currentTarget.setPointerCapture(e.pointerId)
+  }
   const onMove = (e: React.PointerEvent) => {
     if (start.current === null) return
+    const dt = e.timeStamp - last.current.t
+    if (dt > 0) last.current = { x: e.clientX, t: e.timeStamp, v: (e.clientX - last.current.x) / dt }
     const d = e.clientX - start.current
     setDx((index === 0 && d > 0) || (index === n - 1 && d < 0) ? d / 3 : d)
   }
@@ -203,10 +220,22 @@ function PhotoViewer({ album, index, onIndex, onClose, immersive, onImmersive }:
     if (start.current === null) return
     const d = e.clientX - start.current
     start.current = null
-    setDx(0)
-    if (d < -50) go(index + 1)
-    else if (d > 50) go(index - 1)
-    else if (Math.abs(d) < 6) onImmersive(!immersive)
+    if (Math.abs(d) < 6) { setDx(0); onImmersive(!immersive); return }
+    const w = stage.current?.clientWidth || 300
+    const v = last.current.v
+    let dir = 0
+    if ((d < -w * 0.2 || v < -0.4) && index < n - 1) dir = 1
+    else if ((d > w * 0.2 || v > 0.4) && index > 0) dir = -1
+    setSettling(true)
+    setDx(-dir * w)
+    if (!dir) return
+    busy.current = true
+    window.setTimeout(() => {
+      busy.current = false
+      setSettling(false)
+      onIndex(index + dir)
+      setDx(0)
+    }, SETTLE_MS)
   }
 
   const chrome = `transition-opacity duration-200 ${immersive ? 'pointer-events-none opacity-0' : ''}`
@@ -222,13 +251,17 @@ function PhotoViewer({ album, index, onIndex, onClose, immersive, onImmersive }:
         <span className="w-16 text-right text-[17px]" style={{ color: BLUE }}>Edit</span>
       </div>
 
-      <div className="group relative min-h-0 flex-1 touch-pan-y select-none overflow-hidden" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
-        <div className="h-full w-full" style={{ transform: `translateX(${dx}px)`, transition: dx ? 'none' : 'transform 0.2s ease-out' }}>
-          {album.photos[index] ? (
-            <img alt="" src={album.photos[index]} className="pointer-events-none h-full w-full object-contain" draggable={false} />
-          ) : (
-            <div className="h-full w-full" style={{ background: tileColor(album, index) }} />
-          )}
+      <div ref={stage} className="group relative min-h-0 flex-1 touch-pan-y select-none overflow-hidden" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
+        <div className="absolute inset-0 will-change-transform" style={{ transform: `translate3d(${dx}px, 0, 0)`, transition: settling ? `transform ${SETTLE_MS}ms cubic-bezier(.25,.8,.3,1)` : 'none' }}>
+          {[index - 1, index, index + 1].filter((i) => i >= 0 && i < n).map((i) => (
+            <div key={i} className="absolute inset-y-0 w-full" style={{ left: `${(i - index) * 100}%` }}>
+              {album.photos[i] ? (
+                <img alt="" src={album.photos[i]} className="pointer-events-none h-full w-full object-contain" draggable={false} decoding="async" />
+              ) : (
+                <div className="h-full w-full" style={{ background: tileColor(album, i) }} />
+              )}
+            </div>
+          ))}
         </div>
         {index > 0 ? <button onPointerDown={(e) => e.stopPropagation()} onClick={() => go(index - 1)} aria-label="Previous photo" className={`${arrow} left-2`}><Sym d={ICON.back} size={18} /></button> : null}
         {index < n - 1 ? <button onPointerDown={(e) => e.stopPropagation()} onClick={() => go(index + 1)} aria-label="Next photo" className={`${arrow} right-2`}><Sym d={ICON.chevron} size={18} /></button> : null}

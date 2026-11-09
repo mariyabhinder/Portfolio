@@ -190,7 +190,9 @@
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
 }
-.pc-face img { display: block; width: 100%; height: 100%; }
+.pc-face img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.pc-front { background: #fcefe7; border-radius: 3px; box-sizing: border-box; padding: 5%; }
+.pc-front img { width: 100%; height: 100%; }
 .pc-back { transform: rotateY(180deg); }
 .pc-links {
   position: absolute;
@@ -583,7 +585,7 @@
   pointer-events: auto;
 }
 @media (max-aspect-ratio: 4/5) {
-  .about-game { width: calc(var(--s) * 0.64); left: calc(var(--s) * 0.18); top: 17vh; }
+  .about-game { width: calc(var(--s) * 0.78); left: calc(var(--s) * 0.11); top: 16vh; }
 }
 
 .strands-game {
