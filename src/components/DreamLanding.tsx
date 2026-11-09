@@ -489,12 +489,12 @@ export default function DreamLanding() {
         const op = w > 0 && state.leave <= 0 ? k(0.04, 0.3, w) * (1 - k(0.5, 0.62, w)) : 0
         tag.style.opacity = op.toFixed(3)
       }
-      // the project picture in the window is a link, over the picture, live only once the shutters are fully open
+      // the project picture in the window is a link, over the picture, live from the moment the shutters start to open and the picture shows
       const link = picstoryRef.current
       if (link) {
-        const open = state.window >= WINDOW_CONFIG.phases.open[1] * (1 - WINDOW_CONFIG.launchShare) && state.leave <= 0
+        const open = state.window > WINDOW_CONFIG.phases.open[0] * (1 - WINDOW_CONFIG.launchShare) && state.leave <= 0
         if (open) {
-          const wf = windowAt(state.window, camW, camH), f = openingFit(PICSTORY_ASPECT), u = wf.h / 800
+          const wf = windowAt(state.window, camW, camH), f = openingFit(), u = wf.h / 800
           link.style.width = `${f.w * u}px`
           link.style.height = `${f.h * u}px`
           link.style.transform = `translate(${wf.x - 300 * u + f.x * u}px, ${wf.y - wf.h / 2 + f.y * u}px)`

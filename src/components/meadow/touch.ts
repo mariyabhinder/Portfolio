@@ -655,6 +655,75 @@ export function createTouch(p: any) {
     p.pop()
   }
 
+  // The semi-oval frame round a picture on the About Me page: a band of the same swaying blades as the lawn, standing out from an arch
+  // (straight sides, half-oval top), with little star flowers among them. Built once in the picture's own units (w x h, centred on 0,0).
+  let arch: { key: string; geoms: any[]; at: (s: number) => { x: number; y: number; nx: number; ny: number }; L: number } | null = null // eslint-disable-line @typescript-eslint/no-explicit-any
+  function archFor(w: number, h: number) {
+    const key = `${Math.round(w)}x${Math.round(h)}`
+    if (arch?.key === key) return arch.geoms
+    arch?.geoms.forEach((g) => p.freeGeometry?.(g))
+    const rand = mulberry(29)
+    const rx = w / 2 + 46, topY = -h / 2 - 46, ry = Math.min(rx * 1.05, h * 0.55), cy = topY + ry, botY = h / 2 - 4
+    const Ls = Math.max(0, botY - cy), La = Math.PI * Math.sqrt((rx * rx + ry * ry) / 2), L = 2 * Ls + La
+    const at = (s: number) => {
+      if (s < Ls) return { x: -rx, y: botY - s, nx: -1, ny: 0 }
+      if (s < Ls + La) {
+        const th = Math.PI - ((s - Ls) / La) * Math.PI, nx = Math.cos(th) / rx, ny = -Math.sin(th) / ry, nl = Math.hypot(nx, ny)
+        return { x: rx * Math.cos(th), y: cy - ry * Math.sin(th), nx: nx / nl, ny: ny / nl }
+      }
+      return { x: rx, y: cy + (s - Ls - La), nx: 1, ny: 0 }
+    }
+    const blades: Blade[] = []
+    const fl: Blade[] = []
+    for (let k = 0, n = Math.round(L / 34); k < n; k++) {
+      const q = at(rand() * L), off = (rand() * 1.1 - 0.15) * 18
+      const x = q.x + q.nx * off, y = q.y + q.ny * off, size = 5 + rand() * 4
+      const col = rand() < 0.75 ? [250, 238 + rand() * 12, 214] : [235 + rand() * 20, 150 + rand() * 40, 25 + rand() * 25]
+      const a0 = rand() * Math.PI * 2
+      for (let j = 0; j < 6; j++) {
+        const a = a0 + (j / 6) * Math.PI * 2
+        fl.push({ x: x + Math.cos(a) * size * 0.5, y: y + Math.sin(a) * size * 0.4, a, len: size, bend: 0, w: size * 0.5, col, h: 0.95, leaf: true, anchor: 14 })
+      }
+      fl.push({ x, y, a: 0, len: size * 0.45, bend: 0, w: size * 0.35, col: [110, 62, 14], h: 0.95, leaf: true, anchor: 14 })
+      // a couple of small leaves beside it, just a little greenery
+      for (let j = 0; j < 2; j++) {
+        const a = Math.atan2(q.ny, q.nx) + (j ? 1 : -1) * (0.9 + rand() * 0.6), ll = size * (1.1 + rand() * 0.6)
+        fl.push({ x: x + Math.cos(a) * (size * 0.7 + ll / 2), y: y + Math.sin(a) * (size * 0.7 + ll / 2), a, len: ll, bend: 0, w: ll * 0.42, col: saturate(mixc(LAWN.mid, LAWN.top, rand()), 1.1), h: 0.95, leaf: true, anchor: 14 })
+      }
+    }
+    if (!grassShader) grassShader = p.createShader(GRASS_VERT, GRASS_FRAG)
+    arch = { key, at, L, geoms: [...buildGeoms(blades, rand, 'about-arch'), ...buildGeoms(fl, rand, 'about-arch-flowers')] }
+    return arch.geoms
+  }
+
+  /** draws the frame for a picture w x h (its own units) centred at (cx, cy), scaled by sc */
+  function drawArch(cx: number, cy: number, sc: number, w: number, h: number, alpha: number, t = 0) {
+    const geoms = archFor(w, h)
+    p.push()
+    p.translate(cx, cy)
+    p.scale(sc, sc)
+    // the white trellis: a main rail and a slim inner one, following the arch
+    if (arch) {
+      const A = arch
+      p.noStroke()
+      const rail = (off: number, wd: number, col: number[]) => {
+        p.fill(col[0], col[1], col[2], 255 * alpha)
+        p.beginShape(p.TRIANGLE_STRIP)
+        for (let s = 0; s <= A.L; s += 4) {
+          const q = A.at(s)
+          p.vertex(q.x + q.nx * (off + wd / 2), q.y + q.ny * (off + wd / 2))
+          p.vertex(q.x + q.nx * (off - wd / 2), q.y + q.ny * (off - wd / 2))
+        }
+        p.endShape()
+      }
+      rail(0, 15, [226, 232, 230])
+      rail(1.5, 12, [252, 252, 250])
+      rail(-17, 5, [236, 240, 238])
+    }
+    drawBlades(geoms, 0, 0, t, alpha, [0, 0, 0])
+    p.pop()
+  }
+
   /** where she is across the lawn (viewport px), padded, and how wide the fade to either side of her is */
   function herSpan(f: TouchFrame, vh: number) {
     const P = TOUCH_POSES[1], sc = P.scale * f.base, s = vh / 900
@@ -741,5 +810,5 @@ export function createTouch(p: any) {
     p.pop()
   }
 
-  return { load, prepare, draw, drawSurface, drawFront, drawShadow, get ready() { return !!imgs }, dispose() { disposed = true; clearTimeout(resizeTimer) } }
+  return { load, prepare, draw, drawArch, drawSurface, drawFront, drawShadow, get ready() { return !!imgs }, dispose() { disposed = true; clearTimeout(resizeTimer) } }
 }

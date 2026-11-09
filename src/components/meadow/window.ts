@@ -130,8 +130,8 @@ export function shutterStrips(swing: number, n: number): Strip[] {
 /** width / height of the drawing below */
 export const WINDOW_ASPECT = 600 / 800
 
-// The drawing is in a 600 x 800 box: a weathered red-sandstone wall with a cusped (scalloped) arched doorway, and two studded, panelled
-// timber doors hung at its sides. Shut, each covers half of the opening; the wall is one picture, each door another (box below, in the
+// The drawing is in a 600 x 800 box: a carved cream sandstone wall with a cusped (scalloped) arched doorway, and two jade-green, panelled
+// doors hung at its sides. Shut, each covers half of the opening; the wall is one picture, each door another (box below, in the
 // wall's units, with its hinge on its outer edge). The picture sits behind the wall, so the wall's stone trims it to the arch.
 export const SHUTTER_BOX = { x: 100, y: 108, w: 200, h: 612 }
 
@@ -140,46 +140,68 @@ const ARCH_LEFT = 'M100 720 V330 Q98 292 122 262 Q132 223 170 208 Q187 164 232 1
 const ARCH_RIGHT = 'Q344 114 368 150 Q413 164 430 208 Q468 223 478 262 Q502 292 500 330 V720'
 const OPENING = `${ARCH_LEFT} ${ARCH_RIGHT} Z`
 
-/** Where a picture of the given aspect (w / h) lies inside the doorway, in the drawing's units: as wide as the opening, centred on its
- *  straight-sided lower part, so all of it shows (the arch above and any space around it is dark interior). */
-export function openingFit(aspect: number) {
-  const x = 100, w = 400, y = 330, h = 390
-  const fw = Math.min(w, h * aspect), fh = fw / aspect
-  return { x: x + (w - fw) / 2, y: y + (h - fh) / 2, w: fw, h: fh }
-}
 /** the whole doorway's bounding box (drawing units): the dark interior behind the picture fills it */
 export const OPENING_BOX = { x: 100, y: 108, w: 400, h: 612 }
 
+/** Where a picture of the given aspect (w / h) lies inside the doorway, in the drawing's units: as wide as the opening, centred on its
+ *  straight-sided lower part, so all of it shows (the arch above and any space around it is dark interior). */
+export function openingFit(_aspect?: number) {
+  return { ...OPENING_BOX }
+}
+/** the part of the picture (fractions 0-1: x, y, w, h) that fills the doorway edge to edge, centred, nothing stretched */
+export function openingCrop(aspect: number) {
+  const target = OPENING_BOX.w / OPENING_BOX.h
+  if (aspect > target) { const w = target / aspect; return { x: (1 - w) / 2, y: 0, w, h: 1 } }
+  const h = aspect / target
+  return { x: 0, y: (1 - h) / 2, w: 1, h }
+}
+
 const DEFS = `<defs>
-<linearGradient id="stone" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#cf7352"/><stop offset=".5" stop-color="#c0603f"/><stop offset="1" stop-color="#ad5237"/></linearGradient>
-<linearGradient id="stone2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d98a68"/><stop offset="1" stop-color="#b9593c"/></linearGradient>
-<linearGradient id="wood" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#6d5953"/><stop offset=".5" stop-color="#7a645d"/><stop offset="1" stop-color="#5f4d48"/></linearGradient>
-<linearGradient id="panel" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5a4742"/><stop offset="1" stop-color="#4b3b37"/></linearGradient>
-<filter id="grain" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".035 .05" numOctaves="4" seed="7" result="n"/><feColorMatrix in="n" type="matrix" values="0 0 0 0 .35  0 0 0 0 .12  0 0 0 0 .06  0 0 0 .9 -.28"/></filter>
+<linearGradient id="stone" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f1e6c8"/><stop offset=".55" stop-color="#e6d6ad"/><stop offset="1" stop-color="#d6c08f"/></linearGradient>
+<linearGradient id="carve" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f6edd3"/><stop offset="1" stop-color="#dcc796"/></linearGradient>
+<linearGradient id="jade" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#34a070"/><stop offset="1" stop-color="#1f7a55"/></linearGradient>
+<linearGradient id="leaf" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#2a6b4d"/><stop offset=".5" stop-color="#35805c"/><stop offset="1" stop-color="#235a40"/></linearGradient>
+<radialGradient id="boss" cx=".4" cy=".35" r=".7"><stop offset="0" stop-color="#f4f1e4"/><stop offset="1" stop-color="#a9b59c"/></radialGradient>
+<filter id="grain" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".03 .045" numOctaves="4" seed="5" result="n"/><feColorMatrix in="n" type="matrix" values="0 0 0 0 .55  0 0 0 0 .38  0 0 0 0 .16  0 0 0 .8 -.3" result="c"/><feComposite in="c" in2="SourceGraphic" operator="in"/></filter>
 </defs>`
+
+// a carved eight-petal rosette, centred on (0, 0)
+function rosette(r: number): string {
+  let s = `<circle r="${r}" fill="#e0cb9a" stroke="#b79a62" stroke-width="2"/>`
+  for (let i = 0; i < 8; i++) s += `<ellipse cx="0" cy="${-r * 0.55}" rx="${r * 0.24}" ry="${r * 0.4}" fill="#f3e8c9" stroke="#b79a62" stroke-width="1.6" transform="rotate(${i * 45})"/>`
+  return s + `<circle r="${r * 0.3}" fill="#c9ad74" stroke="#a88a52" stroke-width="1.6"/><circle r="${r * 0.12}" fill="#f3e8c9"/>`
+}
+
+// a white four-pointed ornament between the door's panels, centred on (0, 0)
+const star = (r: number) => `<path d="M0 ${-r} Q${r * 0.25} ${-r * 0.25} ${r} 0 Q${r * 0.25} ${r * 0.25} 0 ${r} Q${-r * 0.25} ${r * 0.25} ${-r} 0 Q${-r * 0.25} ${-r * 0.25} 0 ${-r} Z" fill="#dfe3ea" stroke="#52605a" stroke-width="1.4"/>`
 
 // one door, flat and shut, in its own box (200 x 612) with the hinge on its left edge and the meeting edge on its right (the right door is this mirrored)
 function door(): string {
   const { w, h } = SHUTTER_BOX
   const shape = 'M0 612 V222 Q-2 184 22 154 Q32 115 70 100 Q87 56 132 42 Q156 6 200 0 V612 Z'
-  const rows = 9, pitch = h / rows
   let body = `<clipPath id="dc"><path d="${shape}"/></clipPath><g clip-path="url(#dc)">` +
-    `<rect x="-4" y="0" width="${w + 4}" height="${h}" fill="url(#wood)"/>`
-  // recessed panels: two columns by nine rows, between the stiles and rails
-  for (let c = 0; c < 2; c++) for (let r = 0; r < rows; r++) {
-    const x = c === 0 ? 14 : 106, pw = c === 0 ? 80 : 74, y = r * pitch + 8
-    body += `<rect x="${x}" y="${y}" width="${pw}" height="${pitch - 16}" fill="url(#panel)" stroke="#3d2f2b" stroke-width="1.5"/>` +
-      `<path d="M${x} ${y + pitch - 16} H${x + pw}" stroke="#7d6862" stroke-opacity=".5" stroke-width="1.4"/>`
+    `<rect x="-4" y="0" width="${w + 4}" height="${h}" fill="#1d4a39"/>` +
+    // the carved leaf border running round the door, olive on dark green
+    `<path d="M16 ${h - 10} V232 Q14 196 34 170 Q44 134 80 120 Q98 74 140 62 Q166 26 ${w - 22} 20 V${h - 10} Z" fill="url(#leaf)" stroke="#8d9a4c" stroke-width="3"/>`
+  // two panels: an upper one under the arch and a taller lower one, each a rounded jade slab with a pale boss
+  const panels: [number, number][] = [[200, 130], [372, 200]]
+  for (const [y, ph] of panels) {
+    const x = 34, pw = 142
+    body += `<rect x="${x}" y="${y}" width="${pw}" height="${ph}" rx="22" fill="url(#jade)" stroke="#7d8a45" stroke-width="5"/>` +
+      `<rect x="${x + 8}" y="${y + 8}" width="${pw - 16}" height="${ph - 16}" rx="16" fill="none" stroke="#16543a" stroke-width="2" stroke-opacity=".7"/>` +
+      `<circle cx="${x + pw / 2}" cy="${y + ph / 2}" r="15" fill="url(#boss)" stroke="#2b3a32" stroke-width="1.6"/><circle cx="${x + pw / 2}" cy="${y + ph / 2}" r="5" fill="#16231d"/>`
   }
-  // rails and stiles stand proud: lighter edge lines, and iron studs where they cross
-  for (let r = 0; r <= rows; r++) body += `<path d="M0 ${r * pitch} H${w}" stroke="#86716a" stroke-opacity=".55" stroke-width="2"/>`
-  for (const x of [11, 100, 191]) body += `<path d="M${x} 0 V${h}" stroke="#86716a" stroke-opacity=".45" stroke-width="2"/>`
-  for (let r = 1; r < rows; r++) for (const x of [11, 100, 191]) body += `<circle cx="${x}" cy="${r * pitch}" r="2.6" fill="#b3a595" stroke="#2f2420" stroke-width=".8"/>`
-  // the iron strap down the meeting edge, in short links
-  body += `<rect x="${w - 11}" y="0" width="11" height="${h}" fill="#4a3f3a"/>`
-  for (let y = 12; y < h; y += 17) body += `<path d="M${w - 11} ${y} H${w}" stroke="#2c2420" stroke-width="2"/>`
-  body += '</g>' +
-    `<path d="${shape}" fill="none" stroke="#33261f" stroke-width="4" stroke-linejoin="round"/>`
+  // the bands between and below the panels carry a boss and white ornaments at each end
+  for (const cy of [338, h - 22]) {
+    body += `<circle cx="100" cy="${cy}" r="12" fill="url(#boss)" stroke="#2b3a32" stroke-width="1.6"/><circle cx="100" cy="${cy}" r="4.5" fill="#16231d"/>` +
+      `<g transform="translate(34 ${cy})">${star(22)}</g><g transform="translate(176 ${cy})">${star(22)}</g>`
+  }
+  // studs up the arch
+  for (const [cx, cy] of [[44, 190], [166, 190], [100, 132], [66, 150]]) body += `<circle cx="${cx}" cy="${cy}" r="5" fill="#c9d0bd" stroke="#26332c" stroke-width="1"/>`
+  // the meeting stile: dark, with studs
+  body += `<rect x="${w - 16}" y="0" width="16" height="${h}" fill="#143528"/>`
+  for (let y = 40; y < h; y += 46) body += `<circle cx="${w - 8}" cy="${y}" r="3.2" fill="#9fb08a"/>`
+  body += '</g>' + `<path d="${shape}" fill="none" stroke="#10281e" stroke-width="4" stroke-linejoin="round"/>`
   return body
 }
 
@@ -188,26 +210,35 @@ function svg(width: number, box: [number, number, number, number], body: string)
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="${box.join(' ')}">${DEFS}${body}</svg>`
 }
 
-/** The stationary part: the sandstone wall with the cusped doorway cut out of it (the opening is clear), its steps and its weathering. */
+/** The stationary part: the cream carved-sandstone wall with the cusped doorway cut out of it (the opening is clear), its rosettes and its sill. */
 export function frameSvg(width: number): string {
   const wall = `M0 0 H600 V800 H0 Z ${OPENING}`
   const frame =
+    `<clipPath id="wallclip"><path clip-rule="evenodd" d="${wall}"/></clipPath>` +
     `<path fill-rule="evenodd" fill="url(#stone)" d="${wall}"/>` +
-    // the wall is built of big blocks: a lintel band across the top, pilaster strips down both sides, and a recessed panel round the arch
-    '<rect x="0" y="0" width="600" height="56" fill="url(#stone2)" opacity=".55"/>' +
-    '<path d="M0 56 H600 M52 56 V720 M548 56 V720 M0 720 H600" stroke="#8f3f29" stroke-opacity=".7" stroke-width="3" fill="none"/>' +
-    '<path d="M52 336 H100 M500 336 H548 M52 520 H100 M500 520 H548" stroke="#8f3f29" stroke-opacity=".55" stroke-width="2.5" fill="none"/>' +
-    '<path d="M64 70 H536 V710 H64 Z" fill="none" stroke="#e2977a" stroke-opacity=".5" stroke-width="2"/>' +
+    '<g clip-path="url(#wallclip)">' +
+    // the cornice across the top, and the pilasters at both sides
+    '<rect x="0" y="0" width="600" height="46" fill="url(#carve)" stroke="#b79a62" stroke-width="2"/>' +
+    '<rect x="0" y="46" width="600" height="14" fill="#cdb480"/>' +
+    '<path d="M44 60 V720 M556 60 V720" stroke="#b79a62" stroke-width="3"/>' +
+    // the carved border round the arch: a wide pale band along the doorway's outline with a darker groove outside it
+    `<path d="${OPENING}" fill="none" stroke="#b79a62" stroke-width="82" stroke-linejoin="round"/>` +
+    `<path d="${OPENING}" fill="none" stroke="url(#carve)" stroke-width="74" stroke-linejoin="round"/>` +
+    // rosettes above the arch's shoulders and at its crown
+    `<g transform="translate(150 118)">${rosette(36)}</g><g transform="translate(450 118)">${rosette(36)}</g>` +
+    `<g transform="translate(300 78)">${rosette(20)}</g>` +
+    // small carved capitals on the pilasters
+    '<rect x="30" y="300" width="28" height="22" rx="4" fill="#e0cb9a" stroke="#b79a62" stroke-width="2"/><rect x="542" y="300" width="28" height="22" rx="4" fill="#e0cb9a" stroke="#b79a62" stroke-width="2"/>' +
+    '</g>' +
     // weathering over the stone, not over the opening
     `<path fill-rule="evenodd" filter="url(#grain)" d="${wall}"/>` +
-    // the reveal: a dark line and a lit line round the opening give the arch depth
-    `<path d="${OPENING}" fill="none" stroke="#6e2c1c" stroke-width="9" stroke-linejoin="round"/>` +
-    `<path d="${OPENING}" fill="none" stroke="#e8a88a" stroke-opacity=".6" stroke-width="2" stroke-linejoin="round" transform="translate(0 -5)"/>` +
-    // two steps up to the door
-    '<path d="M70 720 H530 V748 H70 Z" fill="#d9876a"/>' +
-    '<path d="M40 748 H560 V776 H40 Z" fill="#cf7a5c" stroke="#8f3f29" stroke-width="2"/>' +
-    '<path d="M0 776 H600 V800 H0 Z" fill="#c4694a" stroke="#8f3f29" stroke-width="2"/>' +
-    '<path d="M70 720 H530 M40 748 H560" stroke="#f0b69c" stroke-opacity=".6" stroke-width="2"/>'
+    // the reveal: a brown line and a lit line round the opening give the arch depth
+    `<path d="${OPENING}" fill="none" stroke="#8a5a2e" stroke-width="10" stroke-linejoin="round"/>` +
+    `<path d="${OPENING}" fill="none" stroke="#f7efd8" stroke-opacity=".7" stroke-width="2" stroke-linejoin="round" transform="translate(0 -6)"/>` +
+    // the sill: a white slab, then the base
+    '<path d="M30 720 H570 V756 H30 Z" fill="#f4efe2" stroke="#b9ad92" stroke-width="2"/>' +
+    '<path d="M0 756 H600 V800 H0 Z" fill="#e3d6b4" stroke="#b79a62" stroke-width="2"/>' +
+    '<path d="M30 726 H570" stroke="#ffffff" stroke-opacity=".8" stroke-width="2"/>'
   return svg(width, [0, 0, 600, 800], frame)
 }
 

@@ -38,7 +38,7 @@ import type { LandPlace } from './landing'
 import { landAt, launchAt, launchSit } from './land'
 import { createDrop, ABOUT_BG } from './drop'
 import { leaveFrame } from './leave'
-import { OPENING_BOX, SHUTTER_BOX, launchProgress, openingFit, shutterStrips, windowAt, windowUrls } from './window'
+import { OPENING_BOX, SHUTTER_BOX, launchProgress, openingCrop, openingFit, shutterStrips, windowAt, windowUrls } from './window'
 import picstoryUrl from '@/assets/meadow/picstory.webp'
 import aboutBgUrl from '@/assets/meadow/about-bg.png'
 import { createTouch, touchAt, TOUCH_CONFIG } from './touch'
@@ -1109,9 +1109,9 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
         p.fill(34, 24, 20, 255 * wf.alpha)
         p.rect(ox + OB.x * u, oy + OB.y * u, OB.w * u, OB.h * u)
         if (picstoryImg) {
-          const O = openingFit(picstoryImg.width / picstoryImg.height)
+          const O = openingFit(), C = openingCrop(picstoryImg.width / picstoryImg.height)
           p.clearDepth()
-          p.image(picstoryImg, ox + O.x * u, oy + O.y * u, O.w * u, O.h * u)
+          p.image(picstoryImg, ox + O.x * u, oy + O.y * u, O.w * u, O.h * u, C.x * picstoryImg.width, C.y * picstoryImg.height, C.w * picstoryImg.width, C.h * picstoryImg.height)
         }
         p.clearDepth()
         p.image(windowImg.frame, ox, oy, 600 * u, wf.h)
@@ -1248,7 +1248,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       p.clearDepth()
       toucher.drawSurface(tf, vw, vh, t)
       toucher.drawShadow(tf, vh)
-      drawDecos(vw, vh)
+      drawDecos(vw, vh, t)
       dropper.drawLines({ ...df, face: tf.fallFace, speed: tf.speed, travel: tf.travel }, df.base)
       p.clearDepth()
       toucher.draw(tf)
@@ -1261,7 +1261,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
 
     // The decorations on the right of the About Me page, placed like the DOM page was: the 1440 x 1024 design fitted into the viewport and resting
     // on its bottom right corner; each piece eases in from its `at` (fades, settles up 3% of the page height, grows from 92%)
-    function drawDecos(vw: number, vh: number) {
+    function drawDecos(vw: number, vh: number, t = 0) {
       if (!decoImgs) return
       // on a tall (phone) screen the decorations are drawn a little bigger (the page is laid out to the full height, see index.css)
       const stageW = Math.min(vw, 1.40625 * vh) * (vw / vh < 0.8 ? 1.05 : 1), sc = stageW / ABOUT_DESIGN.w, stageH = ABOUT_DESIGN.h * sc
@@ -1271,6 +1271,10 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
         const k = clamp((clamp(state.about, 0, 1) - d.at) * 5, 0, 1)
         if (k <= 0.003) return
         const im = decoImgs![i], w = d.w * sc, h = (w * im.height) / im.width
+        if (d.arch && toucher) {
+          const e = 0.92 + 0.08 * k
+          toucher.drawArch(left + d.x * sc + w / 2, top + d.y * sc + h / 2 + (1 - k) * 0.03 * stageH, sc * e, d.w, h / sc, k, t)
+        }
         p.push()
         p.translate(left + d.x * sc + w / 2, top + d.y * sc + h / 2)
         if (d.rotate) p.rotate((d.rotate * Math.PI) / 180)
