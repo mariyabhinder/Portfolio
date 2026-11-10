@@ -96,6 +96,17 @@ export interface MeadowHandle {
   dispose(): void
 }
 
+/** the scroll-driven numbers of MeadowState: what a warm-up sample sets */
+export const SCROLL_KEYS = ['zoom', 'dream', 'fall', 'land', 'window', 'leave', 'touch', 'about', 'wake'] as const
+export type ScrollSample = Record<(typeof SCROLL_KEYS)[number], number>
+
+export interface MeadowOptions {
+  /** the states along the whole scroll to draw once, off screen, before the scene is shown (see prepareJob) */
+  samples?: () => ScrollSample[]
+  /** 0-1: how far loading and warming up have come, for the loader */
+  onProgress?: (k: number) => void
+}
+
 // The painting is a 736 x 920 scene; it covers the viewport, centred.
 const W = 736
 const H = 920
@@ -120,6 +131,34 @@ const SLEEP_AT = 0.85
 const SLEEP = { drop: 0.3, hold: 0.55, shut: 0.45 }
 // seconds into the animation at which poster.webp (shown while the meadow loads) was taken
 const POSTER_T = 1.4
+// the drifting petals' colours (drawPetals): the soft shadow, then the petal
+const PETAL_SHADE = [70, 90, 40, 60] as const
+const PETAL_FILL = [252, 252, 244, 235] as const
+
+// p5 2.x turns every colour it uses (each fill(), tint() and image() call, several times over) into numbers through
+// Color._getRGBA, which deep-copies the colour (structuredClone) and converts it from sRGB to sRGB: in a profile of the About Me
+// scroll it was the largest single cost on the CPU. Nearly every colour here is already sRGB, so for those the numbers are read
+// straight off; any other space takes p5's own way.
+{
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const C = (p5 as any).Color
+  const slow = C?.prototype?._getRGBA
+  if (slow) {
+    C.prototype._getRGBA = function (maxes: (number | number[])[] = [1, 1, 1, 1]) {
+      const c = this._color
+      const id = typeof c?.space === 'string' ? c.space : c?.space?.id
+      if (id !== 'srgb') return slow.call(this, maxes)
+      const v = [c.coords[0], c.coords[1], c.coords[2], c.alpha]
+      for (let i = 0; i < 4; i++) {
+        const m = maxes[i]
+        v[i] = Array.isArray(m) ? m[0] + v[i] * (m[1] - m[0]) : v[i] * m
+      }
+      return v
+    }
+  }
+}
+// how long (ms) the loader waits for the pictures of the later scenes before it shows the page with what it has
+const LOAD_WAIT = 20000
 
 // Overall drift multiplier for the per-cloud speeds below
 const CLOUD_SPEED = 1.6
@@ -557,11 +596,13 @@ function bladeCurve(b: Blade) {
   return pts
 }
 
-export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: () => void, onAnchor?: (a: GirlAnchor | null) => void): MeadowHandle {
+export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: () => void, onAnchor?: (a: GirlAnchor | null) => void, opts: MeadowOptions = {}): MeadowHandle {
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches
   let disposed = false
   let visible = true
   let ready = false
+  // true once loading and the warm-up are over: only then does setVisible start and stop the draw loop
+  let live = false
   let disposeLanding: (() => void) | null = null
   let dropper: ReturnType<typeof createDrop> | null = null
   let toucher: ReturnType<typeof createTouch> | null = null
@@ -597,20 +638,129 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
     let animStart = 0, lastT = 0, shown = false
     // what the last still frame was drawn from (see p.draw)
     let stillKey = ''
-    // Low-end phones: if the canvas cannot keep up at 2x (most frames over 28 ms, ~35 fps, for two seconds of steady drawing),
-    // it drops to 1.5x once. A fast device never gets there, so it keeps the full resolution. (The framebuffers follow the canvas.)
+    // Low-end devices: if the canvas cannot keep up (half the frames over 28 ms, ~35 fps, across two seconds of steady drawing),
+    // it steps its resolution down one rung, and again if that is still not enough, to 1x at the lowest. Below 1.5x a frame
+    // counts as slow only past 36 ms, so a phone capped at 30 fps (battery saver) is not blurred for nothing. A fast device
+    // never gets there, so it keeps the full resolution. (The framebuffers follow the canvas.)
+    const DENSITY_STEPS = [2, 1.5, 1.25, 1]
     let readyAt = 0, timedFrames = 0, slowFrames = 0
     const adaptDensity = () => {
-      if (p.pixelDensity() <= 1.5 || p.millis() - readyAt < 3000) return
+      const d = p.pixelDensity()
+      if (d <= 1 || p.millis() - readyAt < 3000) return
       const dt = p.deltaTime
       // a long gap is a pause (the tab hidden, the loop stopped), not a slow frame
       if (dt > 100) { timedFrames = slowFrames = 0; return }
       timedFrames++
-      if (dt > 28) slowFrames++
+      if (dt > (d > 1.5 ? 28 : 36)) slowFrames++
       if (timedFrames < 120) return
-      if (slowFrames > 90) { p.pixelDensity(1.5); stillKey = '' }
+      if (slowFrames > 60) {
+        p.pixelDensity(DENSITY_STEPS.find((s) => s < d - 0.01) ?? 1)
+        stillKey = ''
+        // give the new size a moment to settle before it is judged
+        readyAt = p.millis() - 1500
+      }
       timedFrames = slowFrames = 0
     }
+
+    // ---------- loading and warming up (behind the loader) ----------
+    // Progress: every tracked download counts the same; the warm-up is the last WARM_SHARE of the bar
+    const WARM_SHARE = 0.25
+    let loadsTotal = 0, loadsDone = 0, lastProgress = -1
+    const progress = (k: number) => {
+      // (it never runs backwards: a download that joins later raises the total)
+      const v = Math.round(clamp(k, 0, 1) * 100) / 100
+      if (v > lastProgress) { lastProgress = v; opts.onProgress?.(v) }
+    }
+    const track = <X,>(pr: Promise<X>) => {
+      loadsTotal++
+      const tick = () => { loadsDone++; progress((loadsDone / loadsTotal) * (1 - WARM_SHARE)) }
+      pr.then(tick, tick)
+      return pr
+    }
+    // the downloads that used to come in after the meadow was up; now waited for (see setup)
+    const later: Promise<unknown>[] = []
+    // the warm-up and calibration (prepareJob), stepped from the draw loop until it is done; null once the scene is live
+    let job: Generator<number, void, unknown> | null = null
+
+    // Applies one scroll state for an off-screen frame; returns a function that puts the real state (and her blink and sleep clocks,
+    // which run on real time) back as they were
+    const applySample = (s: ScrollSample) => {
+      const keep = SCROLL_KEYS.map((k) => state[k])
+      const clocks = [sleepS, lastMs, nextBlink, blinkAt, blinkOpen, sparkleStart, lastT]
+      for (const k of SCROLL_KEYS) state[k] = s[k]
+      stillKey = ''
+      return () => {
+        SCROLL_KEYS.forEach((k, i) => { state[k] = keep[i] })
+        ;[sleepS, lastMs, nextBlink, blinkAt, blinkOpen, sparkleStart, lastT] = clocks
+        stillKey = ''
+      }
+    }
+    // waits for the GPU to finish what it was given, so a frame can be timed whole (CPU and GPU)
+    const px = new Uint8Array(4)
+    const syncGpu = () => {
+      const gl = p.drawingContext as WebGLRenderingContext
+      gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px)
+    }
+
+    // The first time a picture is drawn WebGL uploads it to the GPU, the first time a shader is used it is compiled, and the lawn,
+    // the arch and the cloud's meshes are built the first time they are needed: each a stall of tens to hundreds of ms, which used to
+    // land in the middle of the scroll as a hitch. Here every part of the scroll is drawn once onto the (still hidden) canvas, so all
+    // of that is paid for behind the loader. Then the heaviest frames are timed at the screen's resolution, and on a device too slow for
+    // it the canvas starts one rung lower (instead of stuttering for the seconds adaptDensity needs to notice). Yields between slices.
+    function* prepareJob(samples: ScrollSample[]): Generator<number, void, unknown> {
+      const FRAME_BUDGET = 22 // ms of warm-up per animation frame, so the loader keeps moving
+      let t0 = performance.now()
+      for (let i = 0; i < samples.length; i++) {
+        const restore = applySample(samples[i])
+        try { renderFrame(true) } finally { restore() }
+        if (performance.now() - t0 > FRAME_BUDGET) {
+          yield (0.85 * (i + 1)) / samples.length
+          t0 = performance.now()
+        }
+      }
+      // the frames that cost the most: the dream wave (two scenes and the wave), the fall, the cloud landing, the About Me lawn
+      const pick = (f: (s: ScrollSample) => boolean) => samples.find(f)
+      const bench = [
+        pick((s) => s.dream > 0.4 && s.dream < 0.7),
+        pick((s) => s.fall > 0.5),
+        pick((s) => s.land > 0.25 && s.land < 0.4),
+        pick((s) => s.touch > 0.7 && s.wake <= 0),
+        pick((s) => s.wake > 0.3 && s.wake < 0.6),
+      ].filter((s): s is ScrollSample => !!s)
+      if (!bench.length) return
+      // a frame (CPU + GPU) has to fit in this to hold 60 fps with room for the page's own compositing
+      const BUDGET = 13
+      const start = p.pixelDensity()
+      // the density it starts at first (a 1.75x screen is tried at 1.75x), then each lower rung
+      const steps = [start, ...DENSITY_STEPS.filter((s) => s < start - 0.01)]
+      let done = 0
+      for (const d of steps) {
+        if (Math.abs(p.pixelDensity() - d) > 0.01) {
+          p.pixelDensity(d)
+          yield 0.85 + (0.15 * done) / (steps.length * bench.length)
+        }
+        let worst = 0
+        for (const s of bench) {
+          const restore = applySample(s)
+          try {
+            // once to settle (a new size reallocates), then timed; the best of two, so a single GC pause does not decide it
+            renderFrame(true)
+            syncGpu()
+            let best = Infinity
+            for (let r = 0; r < 2; r++) {
+              const t = performance.now()
+              renderFrame(true)
+              syncGpu()
+              best = Math.min(best, performance.now() - t)
+            }
+            worst = Math.max(worst, best)
+          } finally { restore() }
+          yield 0.85 + (0.15 * ++done) / (steps.length * bench.length)
+        }
+        if (worst <= BUDGET) break
+      }
+    }
+
     // the starry eyes in the face close-up (sparkle.ts): when they popped in (s, -1 = not showing), and whether the last frame drew them
     // (then the canvas keeps redrawing for their twinkle, scroll or not)
     let sparkleStart = -1, sparkleLive = false
@@ -669,29 +819,33 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
 
     p.setup = async () => {
       p.createCanvas(parent.clientWidth || window.innerWidth, parent.clientHeight || window.innerHeight, p.WEBGL)
-      p.pixelDensity(Math.min(window.devicePixelRatio || 1, 2))
+      // a device that is plainly low-end (little memory, as Chrome reports it, or very few cores) starts at 1.5x rather than
+      // finding out the hard way (Safari reports neither reliably, so iPhones are left to adaptDensity)
+      const nav = navigator as Navigator & { deviceMemory?: number }
+      const weak = (nav.deviceMemory || 8) <= 4 || (nav.hardwareConcurrency || 8) <= 2
+      p.pixelDensity(Math.min(window.devicePixelRatio || 1, weak ? 1.5 : 2))
       p.noLoop()
 
       const [ground, girlImg, eyesOpenImg, eyesDrowsyImg, girlShadow, fallingImg, shotImgs, bladeData, bagImg, itemImgs, ...sprites] = await Promise.all([
-        p.loadImage(groundUrl),
-        loadHtmlImage(girlUrl),
-        loadHtmlImage(eyesOpenUrl),
-        loadHtmlImage(eyesDrowsyUrl),
-        p.loadImage(girlShadowUrl),
-        p.loadImage(FALL_ASSETS.girl),
-        Promise.all(SHOTS.map((s) => p.loadImage(s.sprite))),
-        fetch(bladesUrl).then((r) => r.json()),
-        loadHtmlImage(bagUrl),
-        Promise.all(BAG_ITEMS.map((it) => (it.image ? loadHtmlImage(it.image) : null))),
-        ...CLOUDS.flatMap((c) => [p.loadImage(c.spr), p.loadImage(c.shadow)]),
+        track(p.loadImage(groundUrl)),
+        track(loadHtmlImage(girlUrl)),
+        track(loadHtmlImage(eyesOpenUrl)),
+        track(loadHtmlImage(eyesDrowsyUrl)),
+        track(p.loadImage(girlShadowUrl)),
+        track(p.loadImage(FALL_ASSETS.girl)),
+        track(Promise.all(SHOTS.map((s) => p.loadImage(s.sprite)))),
+        track(fetch(bladesUrl).then((r) => r.json())),
+        track(loadHtmlImage(bagUrl)),
+        track(Promise.all(BAG_ITEMS.map((it) => (it.image ? loadHtmlImage(it.image) : null)))),
+        ...CLOUDS.flatMap((c) => [track(p.loadImage(c.spr)), track(p.loadImage(c.shadow))]),
       ])
       // the poster is on screen meanwhile; let the browser breathe between the heavier steps
       const breathe = () => new Promise((r) => setTimeout(r, 0))
       if (disposed) return
       groundImg = ground
       // the window is drawn from code (window.ts); its picture is rasterised by the browser, off the critical path
-      p.loadImage(picstoryUrl).then((img: any) => { if (!disposed) picstoryImg = img }).catch(() => {})
-      Promise.all(Object.values(windowUrls()).map((u) => p.loadImage(u))).then(([frame, left, right]: any[]) => { if (!disposed) windowImg = { frame, left, right } }).catch(() => {})
+      later.push(track(p.loadImage(picstoryUrl).then((img: any) => { if (!disposed) picstoryImg = img }).catch(() => {})))
+      later.push(track(Promise.all(Object.values(windowUrls()).map((u) => p.loadImage(u))).then(([frame, left, right]: any[]) => { if (!disposed) windowImg = { frame, left, right } }).catch(() => {})))
       const cloudImgs = sprites
       clouds = CLOUDS.map((c, i) => ({ ...c, spr: featherEdges(cloudImgs[i * 2], 24), shadow: featherEdges(cloudImgs[i * 2 + 1], 16) }))
       const box = girlBox()
@@ -717,7 +871,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
         skyImg = fromCanvas(sky)
         skyClouds = fromCanvas(clouds)
       }
-      p.loadImage(aboutBgUrl).then((img: any) => { if (!disposed) aboutBgImg = img }).catch(() => { if (!disposed) aboutBgImg = fromCanvas(paintAboutBg()) })
+      later.push(track(p.loadImage(aboutBgUrl).then((img: any) => { if (!disposed) aboutBgImg = img }).catch(() => { if (!disposed) aboutBgImg = fromCanvas(paintAboutBg()) })))
       await breathe()
       if (disposed) return
       props = paintProps({ bag: bagImg }).map(({ sprite, shadow, ...rest }) => ({ ...rest, spr: fromCanvas(sprite), shadow: fromCanvas(shadow) }))
@@ -750,26 +904,33 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       animStart = p.millis() - POSTER_T * 1000
       ready = true
       readyAt = p.millis()
-      if (visible) p.loop()
-      // her landing picture, the cloud and the face painter load after the meadow is up (the cloud and face in slices, ~1 s of work)
+      // her landing picture, the cloud and the face painter (the cloud in slices, ~1 s of work)
       landing = createLanding(p, reduceMotion)
       disposeLanding = landing.dispose
       // the drop's wind lines are drawn past her as she falls onto the About Me surface (they need no pictures of their own)
       dropper = createDrop(p)
       toucher = createTouch(p)
-      Promise.all(RIGHT_SIDE.map((d) => p.loadImage(d.src))).then((imgs: any[]) => { if (!disposed) decoImgs = imgs }).catch(() => {})
-      landing.load().then(() => toucher?.load()).then(() => {
-        // build the About Me lawn while the browser is idle, long before she lands on it
-        const idle = (window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number }).requestIdleCallback
-        const go = () => toucher?.prepare(p.width, p.height)
-        if (idle) idle(go, { timeout: 4000 })
-        else setTimeout(go, 500)
-      })
+      later.push(track(Promise.all(RIGHT_SIDE.map((d) => p.loadImage(d.src))).then((imgs: any[]) => { if (!disposed) decoImgs = imgs }).catch(() => {})))
+      later.push(track(landing.load().then(() => toucher?.load()).catch(() => {})))
+      // Everything the scroll will ever show is loaded before the scene is shown (the loader is up meanwhile), so nothing is fetched,
+      // decoded or painted mid-scroll. A very slow connection does not hold the page forever: after LOAD_WAIT ms it goes ahead with
+      // what it has, and the rest is drawn as it arrives, as before.
+      await Promise.race([Promise.all(later), new Promise((r) => setTimeout(r, LOAD_WAIT))])
+      if (disposed) return
+      // the About Me lawn, built now rather than the moment she lands on it
+      toucher.prepare(p.width, p.height)
+      job = prepareJob(opts.samples?.() ?? [])
+      // the warm-up runs in the draw loop (a slice per frame), whether or not the section is on screen; setVisible takes over after it
+      p.loop()
     }
 
     p.windowResized = () => {
+      const w = parent.clientWidth || window.innerWidth, h = parent.clientHeight || window.innerHeight
+      // On phones the toolbar showing or hiding as the page scrolls fires a resize, but the canvas (100vh, the large viewport) keeps its
+      // size: p5 would still reallocate the canvas and both framebuffers and redraw, a long stall in the middle of a scroll
+      if (w === p.width && h === p.height) return
       stillKey = ''
-      p.resizeCanvas(parent.clientWidth || window.innerWidth, parent.clientHeight || window.innerHeight)
+      p.resizeCanvas(w, h)
     }
 
     function startDrift() {
@@ -783,7 +944,29 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
 
     p.draw = () => {
       if (!ready) return
+      if (job) {
+        const r = job.next()
+        if (!r.done) {
+          progress(1 - WARM_SHARE + WARM_SHARE * r.value)
+          return
+        }
+        job = null
+        live = true
+        progress(1)
+        // the meadow's clock starts again where the poster frame was taken, so the live meadow fades in over a matching picture
+        animStart = p.millis() - POSTER_T * 1000
+        lastT = POSTER_T
+        // judged from here on; the live scene starts now
+        readyAt = p.millis()
+        timedFrames = slowFrames = 0
+        if (!visible) p.noLoop()
+      }
       adaptDensity()
+      renderFrame(false)
+    }
+
+    // one frame of the scene, from `state`; `warm` = an off-screen frame of the warm-up (it never reveals the canvas)
+    function renderFrame(warm: boolean) {
       const dream = clamp(state.dream, 0, 1)
       // Once the dream wave has passed, the frame is a pure function of the scroll and of what has loaded (only the meadow runs on
       // the clock): while none of that changes the canvas keeps the last frame (p5 preserves its drawing buffer) and nothing is redrawn
@@ -861,7 +1044,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
         onAnchor?.(null)
       }
 
-      if (!shown) {
+      if (!shown && !warm) {
         shown = true
         // reveal the canvas only once its first frame is on screen, so nothing flashes
         requestAnimationFrame(() => !disposed && onReady?.())
@@ -1560,24 +1743,39 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
     }
 
     // little white petals torn off the meadow flowers, tumbling downwind faster in the gusts
+    // The petals (and their shadows) are 60 little turning ovals: drawn as one batch of triangles (tris.ts) rather than 60 ellipse()
+    // calls, each of which p5 tessellates and colours anew every frame (whole milliseconds a frame on a phone)
+    const PETAL_SEG = 8
+    const petalRing = Array.from({ length: PETAL_SEG + 1 }, (_, i) => [Math.cos((i / PETAL_SEG) * TWO_PI), Math.sin((i / PETAL_SEG) * TWO_PI)])
+    let petalTris: ReturnType<typeof createTris> | null = null
     function drawPetals(t: number, dt: number) {
       if (reduceMotion) return
       p.noStroke()
+      const tris = (petalTris ??= createTris(p))
+      tris.begin()
+      // an oval of radii rx, ry centred at (ox, oy) in the petal's own turned frame, which sits at (x, y) turned by (c, s)
+      const oval = (x: number, y: number, c: number, s: number, ox: number, oy: number, rx: number, ry: number, col: readonly number[]) => {
+        const cx = x + ox * c - oy * s, cy = y + ox * s + oy * c
+        for (let k = 0; k < PETAL_SEG; k++) {
+          const a = petalRing[k], b = petalRing[k + 1]
+          const ax = a[0] * rx, ay = a[1] * ry, bx = b[0] * rx, by = b[1] * ry
+          tris.vertex(cx, cy, col[0], col[1], col[2], col[3])
+          tris.vertex(cx + ax * c - ay * s, cy + ax * s + ay * c, col[0], col[1], col[2], col[3])
+          tris.vertex(cx + bx * c - by * s, cy + bx * s + by * c, col[0], col[1], col[2], col[3])
+        }
+      }
       for (const q of petals) {
         const g = gust(t * WIND.pace, q.x, q.y), sp = (10 + 50 * g * g) * q.k
         q.x += (windDir[0] * sp + Math.sin(t * 0.6 + q.ph) * 7) * dt
         q.y += (windDir[1] * sp + Math.cos(t * 0.45 + q.ph) * 8) * dt
         if (q.x > W + 10) { q.x = -10; q.y = p.random(-60, H) }
         if (q.y > H + 10) { q.y = -10; q.x = p.random(-60, W) }
-        p.push()
-        p.translate(q.x, q.y)
-        p.rotate(t * q.spin + q.ph)
-        p.fill(70, 90, 40, 60)
-        p.ellipse(1.5, 2.5, q.r * 2, q.r * 2 * Math.abs(Math.sin(t * q.spin + q.ph)) + 0.6)
-        p.fill(252, 252, 244, 235)
-        p.ellipse(0, 0, q.r * 2, q.r * 2 * Math.abs(Math.sin(t * q.spin + q.ph)) + 0.6)
-        p.pop()
+        const ang = t * q.spin + q.ph, c = Math.cos(ang), s = Math.sin(ang)
+        const rx = q.r, ry = (q.r * 2 * Math.abs(Math.sin(ang)) + 0.6) / 2
+        oval(q.x, q.y, c, s, 1.5, 2.5, rx, ry, PETAL_SHADE)
+        oval(q.x, q.y, c, s, 0, 0, rx, ry, PETAL_FILL)
       }
+      tris.end()
     }
 
   }
@@ -1588,8 +1786,8 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
   return {
     setVisible(v: boolean) {
       visible = v
-      // the draw loop starts once setup has finished loading
-      if (!ready) return
+      // the draw loop starts once setup has finished loading, and runs on through the warm-up (which then applies `visible`)
+      if (!live) return
       if (v) instance.loop()
       else instance.noLoop()
     },

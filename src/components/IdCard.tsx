@@ -5,6 +5,7 @@
 
 import { forwardRef, lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { lockScroll } from '@/lib/smoothScroll'
 import front from '../assets/meadow/id-front.webp'
 import back from '../assets/meadow/id-back.webp'
 import portrait from '../assets/meadow/idcard.webp'
@@ -166,10 +167,12 @@ function Hanging({ front, onClose }: { front: string; onClose: () => void }) {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close() }
     // the page stays put while it hangs there
     const stop = (e: Event) => e.preventDefault()
+    const unlock = lockScroll()
     window.addEventListener('keydown', onKey)
     window.addEventListener('wheel', stop, { passive: false })
     window.addEventListener('touchmove', stop, { passive: false })
     return () => {
+      unlock()
       window.removeEventListener('keydown', onKey)
       window.removeEventListener('wheel', stop)
       window.removeEventListener('touchmove', stop)

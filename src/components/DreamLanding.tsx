@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import type { PhoneSpot } from './PhoneGallery'
-import type { GirlAnchor, MeadowHandle, MeadowState } from './meadow/meadow'
+import type { GirlAnchor, MeadowHandle, MeadowState, ScrollSample } from './meadow/meadow'
 import GirlFx from './GirlFx'
 import AboutMe from './AboutMe'
 import { FALL_CONFIG } from './meadow/fall'
@@ -16,6 +16,7 @@ import { WAKE_CONFIG, wakeWave, wakeZoom } from './meadow/wake'
 import { BAG_PLACE, PHONE_PLACE } from './meadow/props'
 import { bagCamera, createBagReveal, playBagReveal } from './meadow/bagItems'
 import { createWear, playWear, CAP_WEAR, GLASSES_WEAR, HAT_WEAR, type WearConfig, type WearState } from './meadow/wear'
+import { lockScroll, startSmoothScroll } from '@/lib/smoothScroll'
 
 // the Photos gallery is its own chunk: it is fetched while the page is idle, and opening the phone waits for it (see openPhone)
 const loadGallery = () => import('./PhoneGallery')
@@ -72,6 +73,35 @@ const FALL_TEXTS = [
 ] as const
 const FALL_TEXT_Z = { far: 2.2, near: 0.7 } // like SKY_LAYERS zFar / zNear: size = 1 / z
 const fallDynamics = createFallDynamics()
+// the whole section's length, viewport heights: the fall, then the landing, window, leave, touchdown and waking
+const TOTAL_VH = FALL_VH + LAND_CONFIG.scrollVh + WINDOW_CONFIG.scrollVh + LEAVE_CONFIG.scrollVh + TOUCH_CONFIG.scrollVh + WAKE_CONFIG.scrollVh
+// the warm-up draws the scene once every this many viewport heights of scroll (meadow.ts prepareJob)
+const SAMPLE_VH = 40
+// phones and tablets: the costly DOM effects (the blur on the falling lines, the wake's SVG warp) are left out there
+const COARSE = matchMedia('(pointer: coarse)').matches
+
+// Holds the page still while the loader is up (wheel, touch and keys, and Lenis); returns the release
+function holdForLoad() {
+  const root = document.documentElement
+  const unlock = lockScroll()
+  const stop = (e: Event) => e.preventDefault()
+  const keys = (e: KeyboardEvent) => { if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(e.key)) e.preventDefault() }
+  const overflow = root.style.overflow
+  root.style.overflow = 'hidden'
+  window.addEventListener('wheel', stop, { passive: false })
+  window.addEventListener('touchmove', stop, { passive: false })
+  window.addEventListener('keydown', keys)
+  let done = false
+  return () => {
+    if (done) return
+    done = true
+    root.style.overflow = overflow
+    unlock()
+    window.removeEventListener('wheel', stop)
+    window.removeEventListener('touchmove', stop)
+    window.removeEventListener('keydown', keys)
+  }
+}
 
 function frameIndex(s: { zoom: number; dream: number; fall: number; land: number; window: number }) {
   const land = s.land, d = s.dream, f = FALL_CONFIG.start + (1 - FALL_CONFIG.start) * s.fall, contact = LAND_CONFIG.approach.contact / LAND_CONFIG.duration
@@ -103,6 +133,10 @@ export default function DreamLanding() {
   const scrollCueRef = useRef<HTMLParagraphElement>(null)
   const layerRef = useRef<HTMLDivElement>(null)
   const dispRef = useRef<SVGFEDisplacementMapElement>(null)
+  const loaderRef = useRef<HTMLDivElement>(null)
+  // false while the loader is up; once true it fades out (and is removed after its fade)
+  const [loaded, setLoaded] = useState(false)
+  const [loaderGone, setLoaderGone] = useState(false)
   // the function GirlFx gives us to move its effects, called by the scene each frame with where her head is
   const fxRef = useRef<((a: GirlAnchor | null) => void) | null>(null)
   // the word game on the About Me page tells us when every word is found: she changes pose (eased over 0.7 s, read by the scene each frame)
@@ -174,6 +208,7 @@ export default function DreamLanding() {
     // the page stays where it is while the camera is on the bag
     const stopScroll = (e: Event) => e.preventDefault()
     const stopKeys = (e: KeyboardEvent) => { if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(e.key)) e.preventDefault() }
+    const unlock = lockScroll()
     window.addEventListener('wheel', stopScroll, { passive: false })
     window.addEventListener('touchmove', stopScroll, { passive: false })
     window.addEventListener('keydown', stopKeys)
@@ -182,6 +217,7 @@ export default function DreamLanding() {
     window.addEventListener('pointerdown', dismiss)
     const stop = playBagReveal(bag, matchMedia('(prefers-reduced-motion: reduce)').matches, () => finish())
     const finish = () => {
+      unlock()
       window.removeEventListener('wheel', stopScroll)
       window.removeEventListener('touchmove', stopScroll)
       window.removeEventListener('keydown', stopKeys)
@@ -236,24 +272,78 @@ export default function DreamLanding() {
     let meadow: MeadowHandle | null = null
     let visible = true
     let cancelled = false
+    // until the canvas is up, the poster is what is on screen: it rides the camera like the cards (placePoster), so the
+    // cards don't slide across a still picture when the page is scrolled before the meadow has loaded
+    let meadowReady = false
+    // Until every scene is loaded and drawn once (meadow.ts prepareJob) the loader is up and the page holds still, so the scroll
+    // never reaches a part that is not ready yet
+    const releaseLoad = holdForLoad()
+    const loader = loaderRef.current
+    const onProgress = (k: number) => {
+      if (!loader) return
+      loader.style.setProperty('--p', k.toFixed(3))
+      const label = loader.querySelector('.dream-loader__pct')
+      if (label) label.textContent = `${Math.round(k * 100)}%`
+    }
+    // the states to draw ahead of time: the whole scroll, every SAMPLE_VH viewport heights, worked out exactly as a scroll would
+    const samples = () => {
+      const vh = section.offsetHeight / TOTAL_VH, end = section.offsetHeight - window.innerHeight
+      const out: ScrollSample[] = []
+      for (let y = 0; y <= end; y += SAMPLE_VH * vh) out.push(stateAt(y, { ...state }))
+      out.push(stateAt(end, { ...state }))
+      return out
+    }
     import('./meadow/meadow').then(({ createMeadow }) => {
       if (cancelled) return
-      meadow = createMeadow(stage, state, () => camera.classList.add('meadow-ready'), (a) => fxRef.current?.(a))
+      meadow = createMeadow(stage, state, () => {
+        meadowReady = true
+        camera.classList.add('meadow-ready')
+        releaseLoad()
+        setLoaded(true)
+      }, (a) => fxRef.current?.(a), { samples, onProgress })
       meadow.setVisible(visible)
-    })
+    }).catch(() => { releaseLoad(); setLoaded(true) })
+
+    // read once, not on every scroll event
+    const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)')
 
     const measure = () => {
       camW = camera.clientWidth
       camH = camera.clientHeight
       sectionStart = section.getBoundingClientRect().top + window.scrollY
       // the section is (FALL_VH + landing + leave + touchdown) vh tall: the fall keeps the scroll length it always had, then the rest in order
-      const vh = section.offsetHeight / (FALL_VH + LAND_CONFIG.scrollVh + WINDOW_CONFIG.scrollVh + LEAVE_CONFIG.scrollVh + TOUCH_CONFIG.scrollVh + WAKE_CONFIG.scrollVh)
+      const vh = section.offsetHeight / TOTAL_VH
       scrollDistance = Math.max(1, FALL_VH * vh - window.innerHeight)
       landDistance = Math.max(1, LAND_CONFIG.scrollVh * vh)
       windowDistance = Math.max(1, WINDOW_CONFIG.scrollVh * vh)
       leaveDistance = Math.max(1, LEAVE_CONFIG.scrollVh * vh)
       touchDistance = Math.max(1, TOUCH_CONFIG.scrollVh * vh)
       wakeDistance = Math.max(1, WAKE_CONFIG.scrollVh * vh)
+    }
+
+    // Where everything is at `scrolled` px into the section: written into `s` (the live state, or a warm-up sample)
+    const clamp01 = (x: number) => Math.max(0, Math.min(1, x))
+    const stateAt = <S extends ScrollSample>(scrolled: number, s: S) => {
+      const progress = clamp01(scrolled / scrollDistance)
+      s.zoom = Math.min(progress / ZOOM_END, 1)
+      s.dream = clamp01((progress - DREAM_START) / (DREAM_END - DREAM_START))
+      s.fall = clamp01((progress - DREAM_END) / (1 - DREAM_END))
+      let rest = scrolled - scrollDistance
+      s.land = clamp01(rest / landDistance)
+      rest -= landDistance
+      s.window = clamp01(rest / windowDistance)
+      rest -= windowDistance
+      s.leave = clamp01(rest / leaveDistance)
+      rest -= leaveDistance
+      s.touch = clamp01(rest / touchDistance)
+      rest -= touchDistance
+      s.wake = clamp01(rest / wakeDistance)
+      // waking, the camera is on her face again and pulls back out (the hero's zoom, run the other way)
+      if (s.wake > 0) s.zoom = wakeZoom(s.wake)
+      // the About Me page comes in while she settles (touch 0.5 - 0.8): its own 0-1, read by AboutMe's CSS; the wake wave carries it away again
+      const a = clamp01((s.touch - 0.5) / 0.3)
+      s.about = a * a * (3 - 2 * a)
+      return s
     }
 
     // a hotspot is clickable only while its thing is on screen (startBag also switches the bag's off directly)
@@ -322,6 +412,19 @@ export default function DreamLanding() {
         pz = c.s / s0
       }
       return { s, px, py, pz }
+    }
+    // the loading poster (the 736 x 920 scene, as a background) placed with the same camera as the cards. Once the canvas is up
+    // it keeps its last placement, so the canvas fades in over a matching picture
+    let posterKey = ''
+    const placePoster = () => {
+      if (meadowReady) return
+      const o = onGrass(0, 0)
+      const size = 736 * o.s * o.pz
+      const key = `${o.px.toFixed(1)}|${o.py.toFixed(1)}|${size.toFixed(1)}`
+      if (key === posterKey) return
+      posterKey = key
+      stage.style.backgroundSize = `${size}px ${(size * 920) / 736}px`
+      stage.style.backgroundPosition = `${o.px}px ${o.py}px`
     }
     // only on the meadow: the hero (before the dream begins) and the last section (once she has woken); hidden in between
     const onMeadow = () => (state.dream <= 0 && state.wake <= 0) || state.wake >= WAKE_CONFIG.waveEnd + 0.02
@@ -404,23 +507,11 @@ export default function DreamLanding() {
       placeGlasses(glassesRef.current, resized)
       placeHat(hatRef.current, resized)
       placeCap(capRef.current, resized)
-      const scrolled = window.scrollY - sectionStart
-      const progress = Math.max(0, Math.min(1, scrolled / scrollDistance))
-      state.zoom = Math.min(progress / ZOOM_END, 1)
-      state.dream = Math.max(0, Math.min(1, (progress - DREAM_START) / (DREAM_END - DREAM_START)))
-      state.fall = Math.max(0, Math.min(1, (progress - DREAM_END) / (1 - DREAM_END)))
-      state.land = Math.max(0, Math.min(1, (scrolled - scrollDistance) / landDistance))
-      state.window = Math.max(0, Math.min(1, (scrolled - scrollDistance - landDistance) / windowDistance))
-      state.leave = Math.max(0, Math.min(1, (scrolled - scrollDistance - landDistance - windowDistance) / leaveDistance))
-      state.touch = Math.max(0, Math.min(1, (scrolled - scrollDistance - landDistance - windowDistance - leaveDistance) / touchDistance))
-      state.wake = Math.max(0, Math.min(1, (scrolled - scrollDistance - landDistance - windowDistance - leaveDistance - touchDistance) / wakeDistance))
-      // waking, the camera is on her face again and pulls back out (the hero's zoom, run the other way)
-      if (state.wake > 0) state.zoom = wakeZoom(state.wake)
+      stateAt(window.scrollY - sectionStart, state)
       placePost(resized)
       placeId(resized)
-      // the About Me page comes in while she settles (touch 0.5 - 0.8): its own 0-1, read by AboutMe's CSS; the wake wave carries it away again
+      placePoster()
       const wave = wakeWave(state.wake)
-      const a = Math.max(0, Math.min(1, (state.touch - 0.5) / 0.3))
       // the page itself is taken by the same wave as the canvas (meadow.ts drawDream): masked away inside the wave's radius, and bent
       // by the displacement filter around its front. The canvas has fully swapped by wave 0.87
       const layer = layerRef.current, disp = dispRef.current
@@ -430,7 +521,8 @@ export default function DreamLanding() {
           const span = Math.hypot(camW, camH)
           layer.style.setProperty('--wr', `${wave * (span / 2) * 1.62}px`)
           layer.style.setProperty('--ws', `${span}px`)
-          disp.setAttribute('scale', (Math.pow(Math.sin(Math.PI * wave), 1.15) * span * 0.06).toFixed(1))
+          // (phones skip the displacement: an SVG filter over the whole page is redrawn on the CPU every frame there; see index.css)
+          if (!COARSE) disp.setAttribute('scale', (Math.pow(Math.sin(Math.PI * wave), 1.15) * span * 0.06).toFixed(1))
         }
         if (waking !== layer.classList.contains('waking')) layer.classList.toggle('waking', waking)
       }
@@ -439,7 +531,6 @@ export default function DreamLanding() {
       // at the very end of the scroll the postcard opens by itself (PostCard's `open`)
       const end = state.wake >= 0.97
       if (end !== finaleRef.current) { finaleRef.current = end; setFinale(end) }
-      state.about = a * a * (3 - 2 * a)
       const next = state.about.toFixed(3)
       if (next !== about) camera.style.setProperty('--about', (about = next))
       // before the About page has begun to appear it must not catch taps meant for the meadow (the word game sits over the ID card on phones)
@@ -456,7 +547,7 @@ export default function DreamLanding() {
         const k = (a: number, b: number, x: number) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t) }
         const falling = state.fall > 0 && state.land <= 0 && state.wake <= 0
         const fr = falling ? fallDynamics.at(state.fall) : null
-        const still = matchMedia('(prefers-reduced-motion: reduce)').matches
+        const still = reduceMotion.matches
         FALL_TEXTS.forEach((t, i) => {
           const el = fallText.children[i] as HTMLElement | undefined
           if (!el) return
@@ -475,7 +566,9 @@ export default function DreamLanding() {
           const x = tall ? t.m.x * camW : vx + t.dx * camW * zoom
           const y = tall ? t.m.y * camH + out : vy + t.dy * camH * zoom
           // blurred by the speed while it is still far or already past, sharp while it reads
-          const blur = still ? 0 : (1 - env) * 5 * Math.min(1, fr.u * 1.4)
+          // (not on phones: a changing blur makes the browser repaint the big shadowed text every frame, where transform and
+          // opacity alone are only composited)
+          const blur = still || COARSE ? 0 : (1 - env) * 5 * Math.min(1, fr.u * 1.4)
           el.style.opacity = env.toFixed(3)
           el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -50%) rotate(${(still ? 0 : fr.camRoll).toFixed(4)}rad) scale(${zoom.toFixed(3)})`
           el.style.filter = blur > 0.2 ? `blur(${blur.toFixed(1)}px)` : ''
@@ -524,6 +617,7 @@ export default function DreamLanding() {
       update(true)
     }
 
+    const stopSmooth = startSmoothScroll()
     const resizeObserver = new ResizeObserver(onResize)
     resizeObserver.observe(section)
     const visibility = new IntersectionObserver(([entry]) => {
@@ -553,12 +647,14 @@ export default function DreamLanding() {
       bagStop.current?.()
       wearStops.forEach((stop) => stop())
       meadow?.dispose()
+      releaseLoad()
+      stopSmooth()
       window.removeEventListener('scroll', onScroll)
     }
   }, [])
 
   return (
-  <section ref={sectionRef} className="dream-section" style={{ height: `${FALL_VH + LAND_CONFIG.scrollVh + WINDOW_CONFIG.scrollVh + LEAVE_CONFIG.scrollVh + TOUCH_CONFIG.scrollVh + WAKE_CONFIG.scrollVh}vh` }}>
+  <section ref={sectionRef} className="dream-section" style={{ height: `${TOTAL_VH}vh` }}>
     <div ref={cameraRef} className="dream-camera">
       <div
         ref={stageRef}
@@ -653,6 +749,20 @@ export default function DreamLanding() {
         style={{ zIndex: 3, background: 'transparent' }}
       />
     </div>
+    {loaderGone ? null : (
+      <div
+        ref={loaderRef}
+        className={`dream-loader${loaded ? ' dream-loader--done' : ''}`}
+        role="progressbar"
+        aria-label="Loading"
+        onTransitionEnd={(e) => { if (loaded && e.target === e.currentTarget) setLoaderGone(true) }}
+      >
+        <div className="dream-loader__box">
+          <p className="dream-loader__text">Loading the dream <span className="dream-loader__pct">0%</span></p>
+          <div className="dream-loader__bar"><i /></div>
+        </div>
+      </div>
+    )}
     {galleryOpen ? <Suspense fallback={null}><PhoneGallery spot={phoneSpot} onClose={closePhone} /></Suspense> : null}
   </section>
   )

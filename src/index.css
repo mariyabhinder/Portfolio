@@ -835,3 +835,54 @@
 
 /* while the ID card hangs, the hero's "[Click on different accessories] / scroll" cue stays out of the way of the card's own hint */
 body:has(.id-hang) .hero-text { opacity: 0 !important; visibility: hidden; }
+
+/* ===== Loader (DreamLanding.tsx) =====
+   Over the poster until every scene has loaded and been drawn once (meadow.ts prepareJob); DreamLanding sets --p (0-1).
+   Only opacity and transform change, so it stays smooth while the page works underneath. */
+.dream-loader {
+  --p: 0;
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: max(56px, env(safe-area-inset-bottom));
+  background: linear-gradient(to top, rgba(10, 24, 10, 0.55), rgba(10, 24, 10, 0.1) 45%, rgba(10, 24, 10, 0.1));
+  transition: opacity 0.6s ease;
+  touch-action: none;
+}
+.dream-loader--done { opacity: 0; pointer-events: none; }
+.dream-loader__box { width: min(280px, 70vw); text-align: center; }
+.dream-loader__text {
+  margin: 0 0 12px;
+  color: #fff;
+  font-family: Inter, "Helvetica Neue", Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.3);
+}
+.dream-loader__pct { font-variant-numeric: tabular-nums; opacity: 0.8; }
+.dream-loader__bar {
+  height: 3px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.25);
+}
+.dream-loader__bar i {
+  display: block;
+  height: 100%;
+  background: #fff;
+  transform-origin: left center;
+  transform: scaleX(var(--p));
+  transition: transform 0.3s ease-out;
+}
+
+/* Phones and tablets: no animated blur on the falling lines (it repaints the big shadowed text every frame; transform and
+   opacity alone are composited), and no SVG warp on the About Me page as the wake wave takes it (an SVG filter over the whole
+   page is redrawn on the CPU every frame there); the wave's mask still carries it away */
+@media (pointer: coarse) {
+  .fall-text__line { will-change: transform, opacity; }
+  .about-layer.waking { filter: none; }
+}
