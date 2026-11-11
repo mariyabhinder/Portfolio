@@ -21,6 +21,7 @@ import udp11 from '@/assets/meadow/udp11.webp'
 import udp12 from '@/assets/meadow/udp12.webp'
 import udp13 from '@/assets/meadow/udp13.webp'
 import udp14 from '@/assets/meadow/udp14.webp'
+import udp17 from '@/assets/meadow/udp17.webp'
 import udp15 from '@/assets/meadow/udp15.webp'
 import udp16 from '@/assets/meadow/udp16.webp'
 import wallpaper from '@/assets/meadow/phone-wallpaper.webp'
@@ -34,6 +35,8 @@ interface Album {
   color: string
   /** image urls shown in the album; empty = placeholder colours */
   photos: string[]
+  /** optional caption under each photo in the viewer (same order as `photos`): a bold place line and a line of text */
+  captions?: ([string, string] | undefined)[]
   /** small versions of `photos` (same order) for the grid and the scrubber strip */
   thumbs: string[]
   /** how many placeholder tiles to show while there are no photos */
@@ -44,8 +47,32 @@ interface Album {
 const THUMBS = import.meta.glob<string>('/src/assets/meadow/thumbs/*.webp', { eager: true, import: 'default' })
 const thumbs = (prefix: string, n: number) => Array.from({ length: n }, (_, i) => THUMBS[`/src/assets/meadow/thumbs/${prefix}${i + 1}.webp`])
 
+const UDAIPUR_CAPTIONS: [string, string][] = [
+  ['Lake Pichola, Udaipur', 'A little blue poetry, written one wave at a time.'], // udp1
+  ['Jawai, Udaipur', 'A million little stars, and not one of them out of place.'], // udp2
+  ['City Palace, Udaipur', "If these walls could talk, they'd have a thousand royal tales to tell."], // udp3
+  ['Lake Pichola, Udaipur', 'A city that decided to wear its own constellation.'], // udp4
+  ['Lake Pichola, Udaipur', 'The sun clocking out, Udaipur stealing the spotlight.'], // udp5
+  ['City Palace, Udaipur', 'Centuries of artistry, hiding in every little detail.'], // udp6
+]
+
 const ALBUMS: Album[] = [
-  { id: 'udaipur', name: 'Udaipur ☀️🥂👒', color: '#f4a6b8', photos: [udp1, udp2, udp3, udp4, udp5, udp6, udp7, udp8, udp9, udp10, udp11, udp12, udp13, udp14, udp15, udp16], thumbs: thumbs('udp', 16), count: 30 },
+  {
+    id: 'udaipur', name: 'Udaipur ☀️🥂👒', color: '#f4a6b8',
+    photos: [udp1, udp2, udp3, udp4, udp5, udp6, udp7, udp8, udp9, udp10, udp11, udp12, udp13, udp14, udp15, udp16, udp17],
+    captions: [
+      ...UDAIPUR_CAPTIONS, undefined, undefined, undefined, // udp7-9 have no caption yet
+      ['Jawai, Udaipur', 'Where the wild has a home, and humans are just visitors.'], // udp10
+      ['Lake Pichola, Udaipur', 'Some cities have roads. This one has reflections.'], // udp11
+      ['Paradise Lake, Udaipur', 'Somewhere between the sky and the water, time forgot to move.'], // udp12
+      ['Jagdish Mishtan Bhandar, Udaipur', "Calories don't count when they're part of the itinerary. Ghevar and kachori chaat, please!"], // udp13
+      ['Old City, Udaipur', 'Took a wrong turn, found a hundred stories.'], // udp14
+      ['Jawai, Udaipur', 'The hills have eyes, and one of them is beautifully spotted.'], // udp15
+      undefined, // udp16
+      ['Jawai, Udaipur', 'A little game of hide-and-seek. Can you spot who\'s watching?'], // udp17
+    ],
+    thumbs: [], count: 30,
+  },
   { id: 'colorful', name: 'Colorful Corner 🎨', color: '#a8d8f0', photos: [cc1, cc2, cc3], thumbs: thumbs('cc', 3), count: 16 },
   { id: 'stitches', name: 'Little Stitches 🧵🌸', color: '#f3e08a', photos: [ls1, ls2, ls3, ls4, ls5], thumbs: thumbs('ls', 5), count: 34 },
 ]
@@ -254,12 +281,18 @@ function PhotoViewer({ album, index, onIndex, onClose, immersive, onImmersive }:
       <div ref={stage} className="group relative min-h-0 flex-1 touch-pan-y select-none overflow-hidden" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
         <div className="absolute inset-0 will-change-transform" style={{ transform: `translate3d(${dx}px, 0, 0)`, transition: settling ? `transform ${SETTLE_MS}ms cubic-bezier(.25,.8,.3,1)` : 'none' }}>
           {[index - 1, index, index + 1].filter((i) => i >= 0 && i < n).map((i) => (
-            <div key={i} className="absolute inset-y-0 w-full" style={{ left: `${(i - index) * 100}%` }}>
+            <div key={i} className="absolute inset-y-0 flex w-full flex-col justify-center" style={{ left: `${(i - index) * 100}%` }}>
               {album.photos[i] ? (
-                <img alt="" src={album.photos[i]} className="pointer-events-none h-full w-full object-contain" draggable={false} decoding="async" />
+                <img alt="" src={album.photos[i]} className={`pointer-events-none min-h-0 w-full ${album.captions?.[i] ? 'h-auto max-h-full object-cover' : 'h-full object-contain'}`} draggable={false} decoding="async" />
               ) : (
                 <div className="h-full w-full" style={{ background: tileColor(album, i) }} />
               )}
+              {album.captions?.[i] ? (
+                <div className="shrink-0 px-8 pb-5 pt-7 text-center">
+                  <div className={`text-[14px] font-semibold leading-tight tracking-tight transition-colors duration-200 ${immersive ? 'text-white' : 'text-black'}`}>{album.captions[i]![0]}</div>
+                  <div className={`mx-auto mt-2 max-w-[17rem] text-[10px] font-normal leading-snug transition-colors duration-200 ${immersive ? 'text-neutral-400' : 'text-neutral-500'}`}>{album.captions[i]![1]}</div>
+                </div>
+              ) : null}
             </div>
           ))}
         </div>
