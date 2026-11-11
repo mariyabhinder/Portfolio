@@ -38,6 +38,7 @@ import type { LandPlace } from './landing'
 import { landAt, launchAt, launchSit } from './land'
 import { createDrop, ABOUT_BG } from './drop'
 import { leaveFrame } from './leave'
+import { NUDGE_TEAL, slideAt } from './projectSlides'
 import { OPENING_BOX, SHUTTER_BOX, launchProgress, openingCrop, openingFit, shutterStrips, windowAt, windowUrls } from './window'
 import picstoryUrl from '@/assets/meadow/picstory.webp'
 import aboutBgUrl from '@/assets/meadow/about-bg.png'
@@ -616,6 +617,21 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let windowImg: { frame: any; left: any; right: any } | null = null
     let picstoryImg: any = null
+    // the Nudge page: white, with "Nudge" in teal, made once at the project picture's size so both share one crop
+    let nudgeImg: any = null
+    const makeNudge = () => {
+      const g = p.createGraphics(picstoryImg.width, picstoryImg.height)
+      g.pixelDensity(2)
+      g.background(255)
+      g.noStroke()
+      g.fill(NUDGE_TEAL)
+      g.textAlign(g.CENTER, g.CENTER)
+      g.textFont('Inter, "Helvetica Neue", Arial, sans-serif')
+      g.textStyle(g.BOLD)
+      g.textSize(picstoryImg.height * 0.2)
+      g.text('Nudge', g.width / 2, g.height / 2)
+      return g
+    }
     // the About Me backdrop (aboutBg.ts), once painted
     let aboutBgImg: any = null
     let groundImg: any, cloth: any, faller: any, shotBodies: any[] = [], clouds: any[] = [], petals: any[] = []
@@ -978,7 +994,8 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       // (frames where only the grass moves are drawn at 30 fps: the sway is slow, and it halves the GPU work)
       const lawnLive = !reduceMotion && state.touch > 0
       if (dream >= 1 && shown && wake <= 0 && !sparkling) {
-        const key = [state.fall, state.land, state.window, !!windowImg, !!picstoryImg, !!aboutBgImg, state.leave, state.touch, state.remembered, p.width, p.height, !!landing?.ready, !!toucher?.ready, !!decoImgs].join()
+        const slide = state.window > 0 ? slideAt(performance.now()) : null
+        const key = [slide ? slide.from : 0, slide ? slide.s : 0, state.fall, state.land, state.window,!!windowImg, !!picstoryImg, !!aboutBgImg, state.leave, state.touch, state.remembered, p.width, p.height, !!landing?.ready, !!toucher?.ready, !!decoImgs].join()
         if (key === stillKey && (!lawnLive || p.frameCount % 2 === 1)) return
         stillKey = key
       } else stillKey = ''
@@ -1294,7 +1311,19 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
         if (picstoryImg) {
           const O = openingFit(), C = openingCrop(picstoryImg.width / picstoryImg.height)
           p.clearDepth()
-          p.image(picstoryImg, ox + O.x * u, oy + O.y * u, O.w * u, O.h * u, C.x * picstoryImg.width, C.y * picstoryImg.height, C.w * picstoryImg.width, C.h * picstoryImg.height)
+          if (!nudgeImg) nudgeImg = makeNudge()
+          // two pages side by side, sliding left: the one on show leaves out of the opening as the next comes in from the right
+          const pages = [picstoryImg, nudgeImg]
+          const sl = slideAt(performance.now())
+          const iw = picstoryImg.width, ih = picstoryImg.height
+          const drawPart = (img: any, a: number, b: number, destA: number) => {
+            // the part of the opening picture from fraction a to b (across its width), put at fraction destA of the opening
+            if (b - a <= 0.0005) return
+            p.image(img, ox + (O.x + O.w * destA) * u, oy + O.y * u, O.w * (b - a) * u, O.h * u,
+              (C.x + C.w * a) * iw, C.y * ih, C.w * (b - a) * iw, C.h * ih)
+          }
+          drawPart(pages[sl.from], sl.s, 1, 0)
+          if (sl.s > 0) drawPart(pages[sl.to], 0, sl.s, 1 - sl.s)
         }
         p.clearDepth()
         p.image(windowImg.frame, ox, oy, 600 * u, wf.h)

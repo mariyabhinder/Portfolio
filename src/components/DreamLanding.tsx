@@ -11,6 +11,7 @@ import { createFallDynamics } from './meadow/fall'
 import { LAND_CONFIG } from './meadow/land'
 import { LEAVE_CONFIG } from './meadow/leave'
 import { WINDOW_CONFIG, launchProgress, openingFit, windowAt } from './meadow/window'
+import { SLIDE_HREFS, slideAt } from './meadow/projectSlides'
 import { TOUCH_CONFIG } from './meadow/touchConfig'
 import { WAKE_CONFIG, wakeWave, wakeZoom } from './meadow/wake'
 import { BAG_PLACE, PHONE_PLACE } from './meadow/props'
@@ -592,6 +593,13 @@ export default function DreamLanding() {
           link.style.height = `${f.h * u}px`
           link.style.transform = `translate(${wf.x - 300 * u + f.x * u}px, ${wf.y - wf.h / 2 + f.y * u}px)`
         }
+        // the link goes to whichever project page is mostly in view
+        const slide = slideAt(performance.now())
+        const href = SLIDE_HREFS[slide.current]
+        if (link.getAttribute('href') !== href) {
+          link.setAttribute('href', href)
+          link.setAttribute('aria-label', `Read the ${slide.current === 0 ? 'Picstory' : 'Nudge'} case study`)
+        }
         const events = open ? 'auto' : 'none'
         if (link.style.pointerEvents !== events) link.style.pointerEvents = events
         link.style.visibility = open ? 'visible' : 'hidden'
@@ -635,11 +643,14 @@ export default function DreamLanding() {
         postFrame = requestAnimationFrame(postTick)
       } else postFrame = 0
     }
+    // the pages swap on the clock, not the scroll, so keep the link in step
+    const slideTimer = window.setInterval(() => { if (visible) update(false) }, 250)
     followBag.current = () => { if (!postFrame) postFrame = requestAnimationFrame(postTick) }
     measure()
     update(true)
     return () => {
       cancelAnimationFrame(postFrame)
+      window.clearInterval(slideTimer)
       followBag.current = null
       resizeObserver.disconnect()
       visibility.disconnect()
@@ -701,10 +712,8 @@ export default function DreamLanding() {
       ) : null}
       <a
         ref={picstoryRef}
-        href="https://picstory.mariyab.com/"
-        target="_blank"
-        rel="noopener noreferrer"
-        aria-label="Open Picstory"
+        href="#/picstory"
+        aria-label="Read the Picstory case study"
         className="absolute left-0 top-0 cursor-pointer"
         style={{ zIndex: 3, visibility: 'hidden', pointerEvents: 'none' }}
       />
