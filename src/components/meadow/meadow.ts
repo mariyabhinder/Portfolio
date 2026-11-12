@@ -1482,13 +1482,17 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       RIGHT_SIDE.forEach((d, i) => {
         const k = clamp((clamp(state.about, 0, 1) - d.at) * 5, 0, 1)
         if (k <= 0.003) return
-        const im = decoImgs![i], w = d.w * sc, h = (w * im.height) / im.width
+        // on a phone a piece can be shrunk (`m`) about its bottom centre, so it keeps standing on the same line
+        const im = decoImgs![i], ms = vw / vh < 0.8 ? d.m ?? 1 : 1
+        const w = d.w * sc * ms, h = (w * im.height) / im.width
+        const cx = left + (d.x + d.w / 2) * sc, cy = top + (d.y + (d.w * im.height) / im.width) * sc - h / 2
         if (d.arch && toucher) {
           const e = 0.92 + 0.08 * k
-          toucher.drawArch(left + d.x * sc + w / 2, top + d.y * sc + h / 2 + (1 - k) * 0.03 * stageH, sc * e, d.w, h / sc, k, t)
+          toucher.drawArch(cx, cy + (1 - k) * 0.03 * stageH, sc * e, d.w, h / sc, k, t)
         }
         p.push()
-        p.translate(left + d.x * sc + w / 2, top + d.y * sc + h / 2)
+        p.clearDepth() // WEBGL depth test would otherwise hide a piece behind the earlier (frame) pixels at the same depth
+        p.translate(cx, cy)
         if (d.rotate) p.rotate((d.rotate * Math.PI) / 180)
         p.translate(0, (1 - k) * 0.03 * stageH)
         p.scale((d.flip ? -1 : 1) * (0.92 + 0.08 * k), 0.92 + 0.08 * k)
