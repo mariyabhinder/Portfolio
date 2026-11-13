@@ -469,7 +469,7 @@ export default function DreamLanding() {
       const last = state.wake >= WAKE_CONFIG.waveEnd + 0.02
       const on = hero || last
       showHotspot(el, on)
-      el.style.pointerEvents = on && (flipped || hero || state.wake >= 0.995) ? 'auto' : 'none'
+      el.style.pointerEvents = on && (flipped || hero || state.wake >= 0.97) ? 'auto' : 'none'
     }
 
     // the ID card is placed the same way: laid out at 200px and scaled, so it stays sharp as the camera closes in

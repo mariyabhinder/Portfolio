@@ -3,7 +3,11 @@
 // DreamLanding adds `flower-on` to the camera once the wake scene is done (and takes it off scrolling back); the whole move is the CSS
 // animation `flower-fly` in index.css (the turn is a 2D squash: the petal narrows to an edge, the flower widens out of it).
 
-export const LINKEDIN = 'www.linkedin.com/in/mariyah-bhinderwala-4aa1872a0'
+import linkedinImg from '../assets/linkedin-sketch.png'
+import gmailImg from '../assets/gmail-sketch.png'
+
+export const LINKEDIN_NAME = 'mariyah-bhinderwala'
+export const LINKEDIN ='www.linkedin.com/in/mariyah-bhinderwala-4aa1872a0'
 export const LINKEDIN_HREF = `https://${LINKEDIN}`
 export const EMAIL = 'bhinderwalamariyah@gmail.com'
 
@@ -63,25 +67,11 @@ function PetalArt() {
 }
 
 export function LinkedInLogo() {
-  return (
-    <svg viewBox="0 0 24 24" className="fl-logo" aria-hidden="true">
-      <rect width="24" height="24" rx="4.5" fill="#0a66c2" />
-      <path fill="#fff" d="M5.2 9.5h2.9V19H5.2zM6.65 5a1.7 1.7 0 1 1 0 3.4 1.7 1.7 0 0 1 0-3.4zM10 9.5h2.8v1.3c.4-.8 1.4-1.5 2.9-1.5 3 0 3.5 2 3.5 4.5V19h-2.9v-4.7c0-1.1 0-2.5-1.5-2.5s-1.8 1.2-1.8 2.4V19H10z" />
-    </svg>
-  )
+  return <img src={linkedinImg} alt="" className="fl-logo fl-logo--in" draggable={false} />
 }
 
 export function GmailLogo() {
-  return (
-    <svg viewBox="0 0 24 24" className="fl-logo" aria-hidden="true">
-      <rect x="1" y="3.5" width="22" height="17" rx="2.5" fill="#fff" />
-      <path fill="#4285f4" d="M1 8v10.5A2 2 0 0 0 3 20.5h3.5V10.4z" />
-      <path fill="#34a853" d="M23 8v10.5a2 2 0 0 1-2 2h-3.5V10.4z" />
-      <path fill="#ea4335" d="M6.5 5.2 12 9.4l5.5-4.2v5.2L12 14.6 6.5 10.4z" />
-      <path fill="#c5221f" d="M1 6a2.3 2.3 0 0 1 3.7-1.8l1.8 1V10.4L1 8z" />
-      <path fill="#fbbc04" d="M23 6a2.3 2.3 0 0 0-3.7-1.8l-1.8 1V10.4L23 8z" />
-    </svg>
-  )
+  return <img src={gmailImg} alt="" className="fl-logo fl-logo--multiply" draggable={false} />
 }
 
 export default function FlowerCard() {
@@ -95,7 +85,7 @@ export default function FlowerCard() {
             <div className="fl-links">
               <a href={LINKEDIN_HREF} target="_blank" rel="noopener noreferrer" className="fl-link">
                 <LinkedInLogo />
-                <span>{LINKEDIN}</span>
+                <span>{LINKEDIN_NAME}</span>
               </a>
               <a href={`mailto:${EMAIL}`} className="fl-link">
                 <GmailLogo />
