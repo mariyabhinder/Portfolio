@@ -44,8 +44,8 @@ interface Album {
 }
 
 // the thumbnails (assets/meadow/thumbs: each photo at 480 px on its short side) are named like the photos: udp1.webp, cc2.webp...
-const THUMBS = import.meta.glob<string>('/src/assets/meadow/thumbs/*.webp', { eager: true, import: 'default' })
-const thumbs = (prefix: string, n: number) => Array.from({ length: n }, (_, i) => THUMBS[`/src/assets/meadow/thumbs/${prefix}${i + 1}.webp`])
+const THUMBS = import.meta.glob<string>('../assets/meadow/thumbs/*.webp', { eager: true, import: 'default' })
+const thumbs = (prefix: string, n: number) => Array.from({ length: n }, (_, i) => THUMBS[`../assets/meadow/thumbs/${prefix}${i + 1}.webp`])
 
 const UDAIPUR_CAPTIONS: [string, string][] = [
   ['Lake Pichola, Udaipur', 'A little blue poetry, written one wave at a time.'], // udp1

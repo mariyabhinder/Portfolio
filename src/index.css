@@ -640,27 +640,30 @@
   pointer-events: none;
 }
 .about-bulb-shake {
+  display: block; /* transforms don't apply to inline spans, which is why it wasn't shaking */
   position: relative;
   transform-origin: 50% 90%;
-  animation: bulb-shake 2.6s ease-in-out infinite;
+  animation: bulb-shake 2.5s ease-in-out infinite;
 }
 .about-bulb-shake img { display: block; width: 100%; height: auto; }
 .about-bulb-dot {
   position: absolute;
-  top: 14%;
-  right: 16%;
-  width: 22%;
+  top: 6%;
+  right: 8%;
+  width: 32%;
   aspect-ratio: 1;
   border-radius: 50%;
   background: #ee2b2b;
-  box-shadow: 0 0 0 0.25cqw #fff;
+  border: 2px solid #fff;
+  box-sizing: border-box;
 }
 @keyframes bulb-shake {
-  0%, 80%, 100% { transform: rotate(0); }
-  84% { transform: rotate(-7deg); }
-  88% { transform: rotate(6deg); }
-  92% { transform: rotate(-4deg); }
-  96% { transform: rotate(2deg); }
+  0%, 62%, 100% { transform: rotate(0); }
+  67% { transform: rotate(-8deg); }
+  73% { transform: rotate(7deg); }
+  79% { transform: rotate(-5deg); }
+  85% { transform: rotate(3deg); }
+  91% { transform: rotate(-1.5deg); }
 }
 @media (max-aspect-ratio: 4/5) {
   .about-bulb { width: calc(var(--s) * 0.09); left: auto; right: calc(var(--s) * 0.04); top: 10vh; }
@@ -966,4 +969,88 @@ body:has(.id-hang) .hero-text { opacity: 0 !important; visibility: hidden; }
 @media (pointer: coarse) {
   .fall-text__line { will-change: transform, opacity; }
   .about-layer.waking { filter: none; }
+}
+
+/* hint box: opens to the right of the bulb when it is clicked; shows one hint at a time */
+.about-bulb { pointer-events: none; }
+.about-bulb-btn {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.about-bulb-shake[data-still] { animation: none; }
+.about-hint {
+  position: absolute;
+  left: calc(100% + var(--s) * 0.012);
+  top: calc(var(--s) * -0.03);
+  width: calc(var(--s) * 0.21);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateX(-6%) scale(0.85);
+  transform-origin: 0 30%;
+  transition: opacity 0.25s ease, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), visibility 0s 0.3s;
+}
+.about-hint[data-open] {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition-delay: 0s;
+  pointer-events: auto;
+}
+.about-hint-box {
+  position: relative;
+  display: block;
+  width: 100%;
+  touch-action: pan-y;
+}
+.about-hint-box img { display: block; width: 100%; height: auto; }
+/* the cream panel sits inside the artwork, clear of the question marks */
+.about-hint-text {
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  top: 25%;
+  bottom: 18%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: #7a4a1e;
+  font-family: Lora, Georgia, serif;
+  font-weight: 400;
+  font-size: calc(var(--s) * 0.0145);
+  line-height: 1.25;
+  animation: hint-swap 0.3s ease;
+}
+.about-hint-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--s) * 0.014);
+  margin-top: calc(var(--s) * 0.004);
+}
+.about-hint-nav button {
+  padding: 0 calc(var(--s) * 0.008);
+  border: 0;
+  background: none;
+  color: #7a4a1e;
+  font-family: Lora, Georgia, serif;
+  font-size: calc(var(--s) * 0.026);
+  line-height: 1;
+  cursor: pointer;
+}
+.about-hint-count {
+  display: block;
+  text-align: center;
+  color: #9a6a35;
+  font-family: Lora, Georgia, serif;
+  font-size: calc(var(--s) * 0.0095);
+}
+@keyframes hint-swap { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@media (max-aspect-ratio: 4/5) {
+  .about-hint { left: auto; right: 0; top: 100%; width: calc(var(--s) * 0.6); transform-origin: 100% 0; }
 }

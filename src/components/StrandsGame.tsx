@@ -43,7 +43,7 @@ const adjacent = (a: number, b: number) =>
 const pathData = (cells: number[]) =>
   cells.map((c, i) => `${i === 0 ? "M" : "L"} ${pos(c).x} ${pos(c).y}`).join(" ")
 
-export default function StrandsGame({ onComplete }: { onComplete?: (done: boolean) => void }) {
+export default function StrandsGame({ onComplete, onSolvedChange }: { onComplete?: (done: boolean) => void; onSolvedChange?: (words: string[]) => void }) {
   const gridRef = useRef<HTMLDivElement>(null)
   const pointer = useRef<number | null>(null)
   const timers = useRef<number[]>([])
@@ -90,6 +90,7 @@ export default function StrandsGame({ onComplete }: { onComplete?: (done: boolea
     hintTimer.current = window.setTimeout(() => setHint(null), HINT_MS)
   }
   useEffect(() => onComplete?.(complete), [complete, onComplete])
+  useEffect(() => onSolvedChange?.(solved), [solved, onSolvedChange])
 
   const cellAt = (e: ReactPointerEvent) => {
     const rect = gridRef.current!.getBoundingClientRect()
