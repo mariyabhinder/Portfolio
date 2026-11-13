@@ -1390,14 +1390,8 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
         p.translate(-FALLER.w / 2, -FALLER.h / 2)
         drawCloth(fr.clothT, eyes, [-Math.sin(rot), -Math.cos(rot)], fr.air, fa, fr.limbs.map((a) => a * (1 - settle)))
         // once the close-up has settled her eyes light up with stars (they pop in once per close-up, and go when the camera pulls away)
-        if (lf || fb < SPARKLE.rearm) sparkleStart = -1
-        else if (sparkleStart < 0 && !reduceMotion && fb >= SPARKLE.trigger) sparkleStart = p.millis() / 1000
-        if (sparkleStart >= 0) {
-          const now = p.millis() / 1000
-          p.clearDepth()
-          drawSparkle(p, sparkleAt(now - sparkleStart), fa * fb, now)
-          sparkleLive = true
-        }
+        // (removed: the starry eyes no longer appear)
+        sparkleStart = -1
         p.pop()
       }
       // each camera shot's own picture: small and diagonal, with the fabric and limbs of its own rig

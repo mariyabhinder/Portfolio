@@ -4,6 +4,7 @@
 // each piece fades and settles in when --about passes its `at`, so the page is a pure function of scroll like the rest of the dream.
 
 import StrandsGame from "./StrandsGame"
+import bulb from "../assets/meadow/bulb.png"
 
 export default function AboutMe({ onRemembered }: { onRemembered?: (done: boolean) => void }) {
   return (
@@ -18,6 +19,12 @@ export default function AboutMe({ onRemembered }: { onRemembered?: (done: boolea
       </div>
       <div className="about-piece about-game" style={{ ["--at" as string]: 0.05 }}>
         <StrandsGame onComplete={onRemembered} />
+      </div>
+      <div className="about-piece about-bulb" style={{ ["--at" as string]: 0.1 }}>
+        <div className="about-bulb-shake">
+          <img src={bulb} alt="" draggable={false} />
+          <span className="about-bulb-dot" />
+        </div>
       </div>
     </>
   )

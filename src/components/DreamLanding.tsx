@@ -66,13 +66,30 @@ const FRAMES: [number, string][] = [
 // grows as it nears the lens, then dissolves. `dx`/`dy` are its place relative to the vanishing point (fractions of the camera's
 // width/height) at normal size, `from`/`to` the span of `travel` it lives over.
 const FALL_TEXTS = [
-  { lines: ['Hi, I am', 'Mariyah.'], side: 'right', dx: 0.27, dy: -0.02, from: 1.0, to: 4.6, m: { x: 0.5, y: 0.11 } },
+  { lines: ['Hi, I am', 'Mariyah.'], side: 'right', dx: 0.27, dy: -0.02, from: 1.75, to: 3.9, fi: 0.25, m: { x: 0.5, y: 0.11 } }, // travel at the moment her fall starts is ~1.7; gone before the face close-up (travel ~4.1)
   // the face close-up (meadow.ts FACE_ZOOM) runs over travel ~4.1-8.0: this one waits until the camera has pulled back to her whole body
-  { lines: ['I am a', 'UI/UX designer.'], side: 'left', dx: -0.27, dy: 0.08, from: 8.2, to: 11.8, m: { x: 0.31, y: 0.88 } },
+  { lines: ['I am a', 'UI/UX designer.'], side: 'left', dx: -0.27, dy: 0.08, from: 8.2, to: 11.8, fi: 0.2, m: { x: 0.31, y: 0.88 } },
   // further out to the side, so it hangs a little way off her body rather than over it
-  { lines: ['I find joy in little', 'things around me.'], side: 'right', dx: 0.36, dy: -0.04, from: 12.2, to: 16.0, m: { x: 0.5, y: 0.11 } },
+  { lines: ['I find joy in little', 'things around me.'], side: 'right', dx: 0.36, dy: -0.04, from: 12.2, to: 16.0, fi: 0.2, m: { x: 0.5, y: 0.11 } },
 ] as const
-const FALL_TEXT_Z = { far: 2.2, near: 0.7 } // like SKY_LAYERS zFar / zNear: size = 1 / z
+// A spiky comic thought-burst (viewBox 200x120, stretched to the text) with a pointed tail at the bottom right
+const BUBBLE_PATH = (() => {
+  const pts: string[] = []
+  const N = 26, cx = 100, cy = 56
+  for (let i = 0; i < N * 2; i++) {
+    const a = (i / (N * 2)) * Math.PI * 2 - Math.PI / 2
+    const spike = i % 2 === 0
+    const wob = 1 + 0.08 * Math.sin(i * 2.3)
+    const r = (spike ? 1 : 0.8) * wob
+    pts.push(`${(cx + Math.cos(a) * 92 * r).toFixed(1)} ${(cy + Math.sin(a) * 50 * r).toFixed(1)}`)
+  }
+  // swap the spike near the bottom right for a long tail
+  let best = 0, bd = 1e9
+  pts.forEach((p, i) => { const [x, y] = p.split(' ').map(Number); const d = Math.hypot(x - 160, y - 100); if (i % 2 === 0 && d < bd) { bd = d; best = i } })
+  pts[best] = '198 118'
+  return `M${pts.join(' L')} Z`
+})()
+const FALL_TEXT_Z ={ far: 2.2, near: 0.7 } // like SKY_LAYERS zFar / zNear: size = 1 / z
 const fallDynamics = createFallDynamics()
 // the whole section's length, viewport heights: the fall, then the landing, window, leave, touchdown and waking
 const TOTAL_VH = FALL_VH + LAND_CONFIG.scrollVh + WINDOW_CONFIG.scrollVh + LEAVE_CONFIG.scrollVh + TOUCH_CONFIG.scrollVh + WAKE_CONFIG.scrollVh
@@ -547,7 +564,7 @@ export default function DreamLanding() {
       if (fallText) {
         const k = (a: number, b: number, x: number) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t) }
         const falling = state.fall > 0 && state.land <= 0 && state.wake <= 0
-        const fr = falling ? fallDynamics.at(state.fall) : null
+        const fr = falling ? fallDynamics.at(FALL_CONFIG.start + (1 - FALL_CONFIG.start) * state.fall) : null // the same fall clock the girl and sky use
         const still = reduceMotion.matches
         FALL_TEXTS.forEach((t, i) => {
           const el = fallText.children[i] as HTMLElement | undefined
@@ -557,7 +574,7 @@ export default function DreamLanding() {
             if (el.style.opacity !== '0') el.style.opacity = '0'
             return
           }
-          const env = k(0, 0.2, ph) * (1 - k(0.72, 1, ph))
+          const env = k(0, t.fi, ph) * (1 - k(0.72, 1, ph))
           const zoom = still ? 1 : 1 / (FALL_TEXT_Z.far + (FALL_TEXT_Z.near - FALL_TEXT_Z.far) * ph)
           // the vanishing point the sky radiates from (meadow.ts vanishPoint): she sways about it
           const vx = camW / 2 + Math.sin(fr.s * 0.45) * 0.035 * camW, vy = camH * 0.4 + Math.cos(fr.s * 0.31) * camH * 0.015
@@ -690,7 +707,18 @@ export default function DreamLanding() {
       <div ref={fallTextRef} className="fall-text" aria-hidden="true">
         {FALL_TEXTS.map((t) => (
           <p key={t.lines[0]} className={`fall-text__line fall-text__line--${t.side}`}>
-            {t.lines[0]}<br />{t.lines[1]}
+            <svg className="fall-text__bubble" viewBox="0 0 200 120" preserveAspectRatio="none" aria-hidden="true">
+              <defs>
+                <pattern id={`ftdots-${t.side}-${t.from}`} width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                  <circle cx="3.5" cy="3.5" r="1.7" fill="#6f7fd6" />
+                </pattern>
+              </defs>
+              <path d={BUBBLE_PATH} fill="none" stroke="#ffc58f" strokeWidth="9" strokeLinejoin="miter" strokeMiterlimit="10" />
+              <path d={BUBBLE_PATH} fill="#9db2f0" stroke="#111" strokeWidth="4" strokeLinejoin="miter" strokeMiterlimit="10" />
+              <path d={BUBBLE_PATH} fill={`url(#ftdots-${t.side}-${t.from})`} />
+              <path d="M4 22 L30 38 M10 8 L34 30 M196 40 L170 52 M190 28 L166 46" stroke="#111" strokeWidth="3.5" strokeLinecap="round" fill="none" />
+            </svg>
+            <span className="fall-text__txt" data-text={`${t.lines[0]}\n${t.lines[1]}`}>{t.lines[0]}{'\n'}{t.lines[1]}</span>
           </p>
         ))}
       </div>
