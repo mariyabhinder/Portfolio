@@ -712,10 +712,15 @@ export default function DreamLanding() {
         <p className="screen-cue screen-cue--left">[Click on different accessories]</p>
       </div>
       <p ref={scrollCueRef} className="screen-cue screen-cue--right">
-        scroll
-        <svg width="12" height="14" viewBox="0 0 12 14" fill="none" aria-hidden="true">
-          <path d="M6 1v11M1.5 7.5 6 12l4.5-4.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="square" />
+        <svg className="screen-cue__icon" width="20" height="36" viewBox="0 0 40 72" fill="none" aria-hidden="true">
+          <rect x="4" y="3" width="32" height="46" rx="16" stroke="currentColor" strokeWidth="3" />
+          <path d="M20 12v10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+          <g className="screen-cue__chevrons" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M10 54l10 7 10-7" />
+            <path d="M10 62l10 7 10-7" />
+          </g>
         </svg>
+        <span>scroll</span>
       </p>
       <div ref={fallTextRef} className="fall-text" aria-hidden="true">
         {FALL_TEXTS.map((t) => (

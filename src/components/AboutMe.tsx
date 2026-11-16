@@ -50,7 +50,6 @@ export default function AboutMe({ onRemembered }: { onRemembered?: (done: boolea
           <br />
           make me, me
         </h2>
-        <p>(hints are all around me)</p>
       </div>
       <div className="about-piece about-game" style={{ ["--at" as string]: 0.05 }}>
         <StrandsGame onComplete={onRemembered} onSolvedChange={setSolved} />
