@@ -700,6 +700,16 @@ export default function PhoneGallery({ spot, onClose }: { spot: () => PhoneSpot 
       : [{ opacity: 1 }, { opacity: 0 }]
     phone.current!.animate(frames, { duration: time, easing: at && !reduce ? FLIGHT.closeEase : 'ease-in', fill: 'forwards' }).finished.then(onClose, onClose)
   }, [spot, onClose])
+  // scrolling the page lays the phone back down on the grass
+  useEffect(() => {
+    let lastY = window.scrollY
+    const onScroll = () => {
+      if (Math.abs(window.scrollY - lastY) < 4) return
+      close()
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [close])
   // the photo viewer with its chrome hidden: black, with a white status bar
   const [immersive, setImmersive] = useState(false)
   useEffect(() => { if (viewing === null) setImmersive(false) }, [viewing])

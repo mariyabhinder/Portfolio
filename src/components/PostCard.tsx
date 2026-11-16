@@ -75,13 +75,21 @@ const PostCard = forwardRef<HTMLDivElement, { rot: number; open?: boolean }>(fun
     const onDown = (e: MouseEvent) => {
       if (!(e.target instanceof Node) || !wrapRef.current?.contains(e.target)) setFlipped(false)
     }
+    // scrolling closes a card the visitor opened by hand (not the one the end of the page opens by itself)
+    let lastY = window.scrollY
+    const onScroll = () => {
+      if (open || Math.abs(window.scrollY - lastY) < 4) return
+      setFlipped(false)
+    }
     window.addEventListener('keydown', onKey)
     window.addEventListener('click', onDown)
+    window.addEventListener('scroll', onScroll, { passive: true })
     return () => {
       window.removeEventListener('keydown', onKey)
       window.removeEventListener('click', onDown)
+      window.removeEventListener('scroll', onScroll)
     }
-  }, [flipped])
+  }, [flipped, open])
 
   return (
     <div ref={setRefs} className="pc-wrap" style={{ zIndex: flipped ? 30 : 3 }}>

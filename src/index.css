@@ -143,6 +143,8 @@
 .fall-text__line--left { text-align: left; }
 @media (max-aspect-ratio: 1/1) {
   .fall-text__line { font-size: clamp(20px, 6.4vw, 48px); }
+  /* the bubble that waits below her: flipped upside down so its tail points up at her, on the right */
+  .fall-text__line--below .fall-text__bubble { transform: scaleY(-1); filter: drop-shadow(3px -4px 0 rgba(0, 0, 0, 0.25)); }
 }
 
 /* The tagline over her cloud in the window scene (DreamLanding.tsx): it stands in the empty sky at the top left and fades with the window */
@@ -1088,8 +1090,10 @@ body:has(.id-hang) .hero-text { opacity: 0 !important; visibility: hidden; }
 }
 @keyframes hint-swap { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 @media (max-aspect-ratio: 4/5) {
-  .about-hint { left: auto; right: 0; top: 100%; width: calc(var(--s) * 0.5); transform-origin: 100% 0; }
-  .about-hint-text { font-size: calc(var(--s) * 0.033); line-height: 1.2; }
+  .about-hint { left: auto; right: 0; top: 100%; width: calc(var(--s) * 0.34); transform-origin: 100% 0; }
+  /* same artwork, stretched into a vertical rectangle */
+  .about-hint-box img { width: 100%; height: calc(var(--s) * 0.5); object-fit: fill; }
+  .about-hint-text { left: 14%; right: 14%; top: 17%; bottom: 14%; font-size: calc(var(--s) * 0.03); line-height: 1.2; }
   .about-hint-count { font-size: calc(var(--s) * 0.022); }
   .about-hint-nav button { font-size: calc(var(--s) * 0.05); }
 }

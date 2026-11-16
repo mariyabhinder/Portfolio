@@ -66,14 +66,14 @@ const FRAMES: [number, string][] = [
 // grows as it nears the lens, then dissolves. `dx`/`dy` are its place relative to the vanishing point (fractions of the camera's
 // width/height) at normal size, `from`/`to` the span of `travel` it lives over.
 const FALL_TEXTS = [
-  { lines: ['Hi, I am', 'Mariyah.'], side: 'right', dx: 0.27, dy: -0.02, from: 1.75, to: 3.9, fi: 0.25, m: { x: 0.5, y: 0.11 } }, // travel at the moment her fall starts is ~1.7; gone before the face close-up (travel ~4.1)
+  { lines: ['Hi, I am', 'Mariyah.'], side: 'right', dx: 0.27, dy: -0.02, from: 1.75, to: 3.9, fi: 0.2, m: { x: 0.5, y: 0.13 } }, // travel at the moment her fall starts is ~1.7; gone before the face close-up (travel ~4.1)
   // the face close-up (meadow.ts FACE_ZOOM) runs over travel ~4.1-8.0: this one waits until the camera has pulled back to her whole body
-  { lines: ['I am a', 'UI/UX designer.'], side: 'left', dx: -0.27, dy: 0.08, from: 8.2, to: 11.8, fi: 0.2, m: { x: 0.31, y: 0.88 } },
+  { lines: ['I am a', 'UI/UX designer.'], side: 'left', dx: -0.27, dy: 0.08, from: 8.2, to: 11.8, fi: 0.2, m: { x: 0.31, y: 0.82 } },
   // further out to the side, so it hangs a little way off her body rather than over it
-  { lines: ['I find joy in little', 'things around me.'], side: 'right', dx: 0.36, dy: -0.04, from: 12.2, to: 16.0, fi: 0.2, m: { x: 0.5, y: 0.11 } },
+  { lines: ['I find joy in little', 'things around me.'], side: 'right', dx: 0.36, dy: -0.04, from: 12.2, to: 16.0, fi: 0.2, m: { x: 0.5, y: 0.19 } },
 ] as const
 // A spiky comic thought-burst (viewBox 200x120, stretched to the text) with a pointed tail at the bottom right
-const BUBBLE_PATH = (() => {
+const makeBubblePath = (tip: string) => {
   const pts: string[] = []
   const N = 26, cx = 100, cy = 56
   for (let i = 0; i < N * 2; i++) {
@@ -86,9 +86,13 @@ const BUBBLE_PATH = (() => {
   // swap the spike near the bottom right for a long tail
   let best = 0, bd = 1e9
   pts.forEach((p, i) => { const [x, y] = p.split(' ').map(Number); const d = Math.hypot(x - 160, y - 100); if (i % 2 === 0 && d < bd) { bd = d; best = i } })
-  pts[best] = '198 118'
+  pts[best] = tip
   return `M${pts.join(' L')} Z`
-})()
+}
+const BUBBLE_PATH = makeBubblePath('198 118')
+// phones: the tail drops lower and leans in a little, so it points down at her (the second bubble is flipped to point up, see CSS)
+const BUBBLE_PATH_TALL = makeBubblePath('178 156')
+const TALL_SCREEN = matchMedia('(max-aspect-ratio: 1/1)').matches
 const FALL_TEXT_Z ={ far: 2.2, near: 0.7 } // like SKY_LAYERS zFar / zNear: size = 1 / z
 const fallDynamics = createFallDynamics()
 // the whole section's length, viewport heights: the fall, then the landing, window, leave, touchdown and waking
@@ -266,6 +270,20 @@ export default function DreamLanding() {
     })
     wearStops.add(stop)
   }, [wearStops])
+  // scrolling the page puts back whatever she is wearing (glasses, hat, cap). Only a real scroll counts: the synthetic scroll events
+  // dispatched when a move ends leave scrollY unchanged.
+  useEffect(() => {
+    let lastY = window.scrollY
+    const onScroll = () => {
+      if (Math.abs(window.scrollY - lastY) < 4) return
+      lastY = window.scrollY
+      if (glasses.u > 0.5 && !glasses.moving) toggleWear(glasses, GLASSES_WEAR, glassesRef.current)
+      if (hat.u > 0.5 && !hat.moving) toggleWear(hat, HAT_WEAR, hatRef.current)
+      if (cap.u > 0.5 && !cap.moving) toggleWear(cap, CAP_WEAR, capRef.current)
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [glasses, hat, cap, toggleWear])
 
   useEffect(() => {
     const section = sectionRef.current!
@@ -723,22 +741,25 @@ export default function DreamLanding() {
         <span>scroll</span>
       </p>
       <div ref={fallTextRef} className="fall-text" aria-hidden="true">
-        {FALL_TEXTS.map((t) => (
-          <p key={t.lines[0]} className={`fall-text__line fall-text__line--${t.side}`}>
+        {FALL_TEXTS.map((t) => {
+          const bp = TALL_SCREEN ? BUBBLE_PATH_TALL : BUBBLE_PATH
+          return (
+          <p key={t.lines[0]} className={`fall-text__line fall-text__line--${t.side}${t.m.y > 0.5 ? ' fall-text__line--below' : ''}`}>
             <svg className="fall-text__bubble" viewBox="0 0 200 120" preserveAspectRatio="none" aria-hidden="true">
               <defs>
                 <pattern id={`ftdots-${t.side}-${t.from}`} width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
                   <circle cx="3.5" cy="3.5" r="1.7" fill="#6f7fd6" />
                 </pattern>
               </defs>
-              <path d={BUBBLE_PATH} fill="none" stroke="#ffc58f" strokeWidth="9" strokeLinejoin="miter" strokeMiterlimit="10" />
-              <path d={BUBBLE_PATH} fill="#9db2f0" stroke="#111" strokeWidth="4" strokeLinejoin="miter" strokeMiterlimit="10" />
-              <path d={BUBBLE_PATH} fill={`url(#ftdots-${t.side}-${t.from})`} />
+              <path d={bp} fill="none" stroke="#ffc58f" strokeWidth="9" strokeLinejoin="miter" strokeMiterlimit="10" />
+              <path d={bp} fill="#9db2f0" stroke="#111" strokeWidth="4" strokeLinejoin="miter" strokeMiterlimit="10" />
+              <path d={bp} fill={`url(#ftdots-${t.side}-${t.from})`} />
               <path d="M4 22 L30 38 M10 8 L34 30 M196 40 L170 52 M190 28 L166 46" stroke="#111" strokeWidth="3.5" strokeLinecap="round" fill="none" />
             </svg>
             <span className="fall-text__txt" data-text={`${t.lines[0]}\n${t.lines[1]}`}>{t.lines[0]}{'\n'}{t.lines[1]}</span>
           </p>
-        ))}
+          )
+        })}
       </div>
       <div ref={taglineRef} className="cloud-tagline" aria-hidden="true">
         <p>Imagine it.<br className="tag-br" /> Make it.<br />Put a little<br className="tag-br" /> magic into it.</p>
