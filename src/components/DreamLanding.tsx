@@ -642,7 +642,20 @@ export default function DreamLanding() {
       update(true)
     }
 
-    const stopSmooth = startSmoothScroll()
+    // wheel speed along the story: the opening (her face, the blink, falling asleep, the dream dust) scrolls slowly so it can be
+    // watched; the fall through the sky goes fast, except while the camera zooms in on her face and back out (meadow.ts FACE_ZOOM:
+    // in over the fall clock 0.40-0.47, held to 0.53, out by 0.60), which go slowly; from the landing on, normal speed.
+    // Each speed holds until `untilVh`, then blends into the next over `blendVh` (60 vh unless given).
+    const fallClockVh = (f: number) => (DREAM_END + ((f - FALL_CONFIG.start) / (1 - FALL_CONFIG.start)) * (1 - DREAM_END)) * (FALL_VH - 100)
+    const ZOOM_SLOW = 0.12, FALL_FAST = 3
+    const stopSmooth = startSmoothScroll([
+      { untilVh: DREAM_END * (FALL_VH - 100) + 30, factor: 0.15 },
+      { untilVh: fallClockVh(0.4) - 20, factor: FALL_FAST, blendVh: 20 },
+      { untilVh: fallClockVh(0.47), factor: ZOOM_SLOW, blendVh: 20 }, // zooming in
+      { untilVh: fallClockVh(0.53) - 20, factor: FALL_FAST, blendVh: 20 }, // held on her face
+      { untilVh: fallClockVh(0.6), factor: ZOOM_SLOW }, // zooming out
+      { untilVh: FALL_VH, factor: FALL_FAST },
+    ])
     const resizeObserver = new ResizeObserver(onResize)
     resizeObserver.observe(section)
     const visibility = new IntersectionObserver(([entry]) => {

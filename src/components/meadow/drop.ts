@@ -17,6 +17,7 @@ import jump22Url from '@/assets/meadow/jump22.webp'
 import jump33Url from '@/assets/meadow/jump33.webp'
 import { JUMP_POSES } from './jump'
 import { createTris } from './tris'
+import { loadImage } from './canvasImage'
 
 /** the About Me section's plain background: the canvas veil and the section below it both use this */
 export const ABOUT_BG: [number, number, number] = [240, 247, 253]
@@ -147,7 +148,7 @@ export function createDrop(p: any) {
   const tris = createTris(p)
 
   async function load() {
-    const out = await Promise.all(DROP_POSES.map((P) => p.loadImage(P.url)))
+    const out = await Promise.all(DROP_POSES.map((P) => loadImage(p, P.url)))
     if (!disposed) imgs = out
   }
 

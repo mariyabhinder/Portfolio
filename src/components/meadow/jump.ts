@@ -19,6 +19,7 @@ import jump2Url from '@/assets/meadow/jump2.webp'
 import jump3Url from '@/assets/meadow/jump3.webp'
 import jump4Url from '@/assets/meadow/jump4.webp'
 import endUrl from '@/assets/meadow/end.webp'
+import { loadImage } from './canvasImage'
 
 export const JUMP_CONFIG = {
   /** extra scroll length for ALL the jumps, in viewport heights (each of the three gets a third) */
@@ -121,7 +122,7 @@ export function createJump(p: any) {
   let disposed = false
 
   async function load() {
-    const out = await Promise.all(JUMP_POSES.map((P) => p.loadImage(P.url)))
+    const out = await Promise.all(JUMP_POSES.map((P) => loadImage(p, P.url)))
     if (!disposed) imgs = out
   }
 

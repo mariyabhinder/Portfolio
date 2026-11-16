@@ -251,12 +251,13 @@ const skyFrag = (taps: number) => `
 precision highp float;
 uniform sampler2D uTex;
 uniform vec2 uRes, uCentre, uTile, uOff;
-uniform float uRot, uBlur, uAlpha, uMask, uHole, uZoom;
+uniform float uRot, uBlur, uAlpha, uMask, uHole, uZoom, uMargin;
 uniform vec4 uGirl;
 varying vec2 vTexCoord;
 const int TAPS = ${taps};
 void main() {
-  vec2 pix = vTexCoord * uRes;
+  // the quad overhangs the viewport by uMargin px on every side (so the camera shake never uncovers an edge)
+  vec2 pix = vTexCoord * (uRes + 2.0 * uMargin) - uMargin;
   float cr = cos(uRot), sr = sin(uRot);
   vec4 acc = vec4(0.0);
   for (int i = 0; i < TAPS; i++) {

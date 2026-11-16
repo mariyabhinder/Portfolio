@@ -27,6 +27,8 @@ export default defineConfig(({ mode }) => {
         // phones and larger screens each preload only their own poster (the same breakpoint as index.html and index.css)
         { pattern: /^assets\/poster-phone-.*\.webp$/, media: '(max-width: 600px)' },
         { pattern: /^assets\/poster-(?!phone-).*\.webp$/, media: '(min-width: 601px)' },
+        // the meadow's code (p5 and the scene) is a dynamic import, found only once React has mounted: fetched alongside the app instead
+        { pattern: /^assets\/meadow-.*\.js$/, rel: 'modulepreload' },
       ]),
     ],
     resolve: {
@@ -366,7 +368,7 @@ function figmaMakeKitPlugin(options: { storiesGlob: string | string[] }): Plugin
  * would only discover them after the bundle runs. Emit high-priority preloads
  * for them into the built index.html so they download in parallel with the JS.
  */
-function preloadHeroImages(images: { pattern: RegExp; media?: string }[]): Plugin {
+function preloadHeroImages(images: { pattern: RegExp; media?: string; rel?: 'modulepreload' }[]): Plugin {
   let base = '/'
   return {
     name: 'preload-hero-images',
@@ -381,7 +383,9 @@ function preloadHeroImages(images: { pattern: RegExp; media?: string }[]): Plugi
         return Object.keys(ctx.bundle).flatMap((fileName) => {
           const image = images.find(({ pattern }) => pattern.test(fileName))
           if (!image) return []
-          const attrs: Record<string, string> = { rel: 'preload', as: 'image', href: base + fileName, fetchpriority: 'high' }
+          const attrs: Record<string, string> = image.rel === 'modulepreload'
+            ? { rel: 'modulepreload', crossorigin: '', href: base + fileName }
+            : { rel: 'preload', as: 'image', href: base + fileName, fetchpriority: 'high' }
           if (image.media) attrs.media = image.media
           return [{ tag: 'link', attrs, injectTo: 'head' as const }]
         })

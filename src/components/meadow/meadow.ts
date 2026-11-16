@@ -41,7 +41,7 @@ import { leaveFrame } from './leave'
 import { NUDGE_TEAL, slideAt } from './projectSlides'
 import { OPENING_BOX, SHUTTER_BOX, launchProgress, openingCrop, openingFit, shutterStrips, windowAt, windowUrls } from './window'
 import picstoryUrl from '@/assets/meadow/picstory.webp'
-import aboutBgUrl from '@/assets/meadow/about-bg.png'
+import aboutBgUrl from '@/assets/meadow/about-bg.webp'
 import { createTouch, touchAt, TOUCH_CONFIG } from './touch'
 import { WAKE_CONFIG, wakeWave } from './wake'
 import { ABOUT_DESIGN, RIGHT_SIDE } from './aboutDecos'
@@ -51,6 +51,7 @@ import type { FallFrame } from './fall'
 import { SHOTS, shotsAt } from './shots'
 import { SPARKLE, drawSparkle, sparkleAt } from './sparkle'
 import { DEPTH, FALL_ASSETS, FALL_CONFIG, FALLER, PATH, SKY_FRAG, SKY_FRAG_SHARP, SKY_LAYERS, SKY_VERT, createFallDynamics } from './fall'
+import { canvasImage, loadHtmlImage, loadImage } from './canvasImage'
 
 export interface MeadowState {
   /** 0 = the whole meadow, 1 = closed in on her face. */
@@ -314,12 +315,6 @@ function eyesAfter(s: number) {
   if (s <= drop) return 1 - 0.5 * easeStep(0, drop, s)
   if (s <= drop + hold) return 0.5
   return 0.5 - 0.5 * easeStep(drop + hold, drop + hold + shut, s)
-}
-
-function loadHtmlImage(url: string) {
-  const img = new Image()
-  img.src = url
-  return img.decode().then(() => img)
 }
 
 // gust() for the shaders (needs uniform vec2 uWind)
@@ -725,6 +720,10 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
     // it the canvas starts one rung lower (instead of stuttering for the seconds adaptDensity needs to notice). Yields between slices.
     function* prepareJob(samples: ScrollSample[]): Generator<number, void, unknown> {
       const FRAME_BUDGET = 22 // ms of warm-up per animation frame, so the loader keeps moving
+      // what the warm-up is for (uploads, compiles, meshes) does not depend on the canvas resolution, so its frames are drawn at
+      // a low one: a fraction of the pixels to fill. The calibration below puts the real density back first.
+      const start = p.pixelDensity()
+      p.pixelDensity(Math.min(start, 0.5))
       let t0 = performance.now()
       for (let i = 0; i < samples.length; i++) {
         const restore = applySample(samples[i])
@@ -743,10 +742,10 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
         pick((s) => s.touch > 0.7 && s.wake <= 0),
         pick((s) => s.wake > 0.3 && s.wake < 0.6),
       ].filter((s): s is ScrollSample => !!s)
+      p.pixelDensity(start)
       if (!bench.length) return
       // a frame (CPU + GPU) has to fit in this to hold 60 fps with room for the page's own compositing
       const BUDGET = 13
-      const start = p.pixelDensity()
       // the density it starts at first (a 1.75x screen is tried at 1.75x), then each lower rung
       const steps = [start, ...DENSITY_STEPS.filter((s) => s < start - 0.01)]
       let done = 0
@@ -841,27 +840,41 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       const weak = (nav.deviceMemory || 8) <= 4 || (nav.hardwareConcurrency || 8) <= 2
       p.pixelDensity(Math.min(window.devicePixelRatio || 1, weak ? 1.5 : 2))
       p.noLoop()
+      const fromCanvas = (cv: HTMLCanvasElement) => canvasImage(p, cv)
+
+      // The later scenes' pictures start downloading now, alongside the meadow's (they used to wait until the meadow was painted):
+      // the window and its picture, the About Me backdrop and decorations, her landing and touchdown pictures. The loader waits for
+      // all of them below.
+      later.push(track(loadImage(p, picstoryUrl).then((img: any) => { if (!disposed) picstoryImg = img }).catch(() => {})))
+      later.push(track(Promise.all(Object.values(windowUrls()).map((u) => loadImage(p, u))).then(([frame, left, right]: any[]) => { if (!disposed) windowImg = { frame, left, right } }).catch(() => {})))
+      later.push(track(loadImage(p, aboutBgUrl).then((img: any) => { if (!disposed) aboutBgImg = img }).catch(() => { if (!disposed) aboutBgImg = fromCanvas(paintAboutBg()) })))
+      later.push(track(Promise.all(RIGHT_SIDE.map((d) => loadImage(p, d.src))).then((imgs: any[]) => { if (!disposed) decoImgs = imgs }).catch(() => {})))
+      // her landing picture, the cloud and the face painter (the cloud in slices, ~1 s of work)
+      landing = createLanding(p, reduceMotion)
+      disposeLanding = landing.dispose
+      // the drop's wind lines are drawn past her as she falls onto the About Me surface (they need no pictures of their own)
+      dropper = createDrop(p)
+      toucher = createTouch(p)
+      later.push(track(landing.load().catch(() => {})))
+      later.push(track(toucher.load().catch(() => {})))
 
       const [ground, girlImg, eyesOpenImg, eyesDrowsyImg, girlShadow, fallingImg, shotImgs, bladeData, bagImg, itemImgs, ...sprites] = await Promise.all([
-        track(p.loadImage(groundUrl)),
+        track(loadImage(p, groundUrl)),
         track(loadHtmlImage(girlUrl)),
         track(loadHtmlImage(eyesOpenUrl)),
         track(loadHtmlImage(eyesDrowsyUrl)),
-        track(p.loadImage(girlShadowUrl)),
-        track(p.loadImage(FALL_ASSETS.girl)),
-        track(Promise.all(SHOTS.map((s) => p.loadImage(s.sprite)))),
+        track(loadImage(p, girlShadowUrl)),
+        track(loadImage(p, FALL_ASSETS.girl)),
+        track(Promise.all(SHOTS.map((s) => loadImage(p, s.sprite)))),
         track(fetch(bladesUrl).then((r) => r.json())),
         track(loadHtmlImage(bagUrl)),
         track(Promise.all(BAG_ITEMS.map((it) => (it.image ? loadHtmlImage(it.image) : null)))),
-        ...CLOUDS.flatMap((c) => [track(p.loadImage(c.spr)), track(p.loadImage(c.shadow))]),
+        ...CLOUDS.flatMap((c) => [track(loadImage(p, c.spr)), track(loadImage(p, c.shadow))]),
       ])
       // the poster is on screen meanwhile; let the browser breathe between the heavier steps
       const breathe = () => new Promise((r) => setTimeout(r, 0))
       if (disposed) return
       groundImg = ground
-      // the window is drawn from code (window.ts); its picture is rasterised by the browser, off the critical path
-      later.push(track(p.loadImage(picstoryUrl).then((img: any) => { if (!disposed) picstoryImg = img }).catch(() => {})))
-      later.push(track(Promise.all(Object.values(windowUrls()).map((u) => p.loadImage(u))).then(([frame, left, right]: any[]) => { if (!disposed) windowImg = { frame, left, right } }).catch(() => {})))
       const cloudImgs = sprites
       clouds = CLOUDS.map((c, i) => ({ ...c, spr: featherEdges(cloudImgs[i * 2], 24), shadow: featherEdges(cloudImgs[i * 2 + 1], 16) }))
       const box = girlBox()
@@ -880,14 +893,12 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       shotBodies = SHOTS.map((s, i) => makeFaller({ spr: shotImgs[i] }, s))
       await breathe()
       if (disposed) return
-      const fromCanvas = (cv: HTMLCanvasElement) => imageFromPixels(cv.getContext('2d')!.getImageData(0, 0, cv.width, cv.height).data, cv.width, cv.height)
       // the sky she falls through, painted in watercolour: the backdrop, and its clouds alone for the layers that fly at her
       {
         const { sky, clouds } = paintFallSky()
         skyImg = fromCanvas(sky)
         skyClouds = fromCanvas(clouds)
       }
-      later.push(track(p.loadImage(aboutBgUrl).then((img: any) => { if (!disposed) aboutBgImg = img }).catch(() => { if (!disposed) aboutBgImg = fromCanvas(paintAboutBg()) })))
       await breathe()
       if (disposed) return
       props = paintProps({ bag: bagImg }).map(({ sprite, shadow, ...rest }) => ({ ...rest, spr: fromCanvas(sprite), shadow: fromCanvas(shadow) }))
@@ -920,14 +931,6 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       animStart = p.millis() - POSTER_T * 1000
       ready = true
       readyAt = p.millis()
-      // her landing picture, the cloud and the face painter (the cloud in slices, ~1 s of work)
-      landing = createLanding(p, reduceMotion)
-      disposeLanding = landing.dispose
-      // the drop's wind lines are drawn past her as she falls onto the About Me surface (they need no pictures of their own)
-      dropper = createDrop(p)
-      toucher = createTouch(p)
-      later.push(track(Promise.all(RIGHT_SIDE.map((d) => p.loadImage(d.src))).then((imgs: any[]) => { if (!disposed) decoImgs = imgs }).catch(() => {})))
-      later.push(track(landing.load().then(() => toucher?.load()).catch(() => {})))
       // Everything the scroll will ever show is loaded before the scene is shown (the loader is up meanwhile), so nothing is fetched,
       // decoded or painted mid-scroll. A very slow connection does not hold the page forever: after LOAD_WAIT ms it goes ahead with
       // what it has, and the rest is drawn as it arrives, as before.
@@ -1522,7 +1525,11 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       sh.setUniform('uMask', mask ? 1 : 0)
       sh.setUniform('uHole', hole)
       sh.setUniform('uGirl', girl)
-      p.rect(0, 0, vw, vh)
+      // drawn past the viewport's edges: drawSky shifts everything by the camera shake, which would otherwise leave a strip
+      // along one edge undrawn (black, and smeared upward into a dark band by the dream wave's dust)
+      const m = Math.ceil(vh * 0.05)
+      sh.setUniform('uMargin', m)
+      p.rect(-m, -m, vw + 2 * m, vh + 2 * m)
       p.resetShader()
     }
 

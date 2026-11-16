@@ -21,6 +21,7 @@ import p5 from 'p5'
 import { TOUCH_CONFIG } from './touchConfig'
 import { mulberry, blob, css } from './cloud'
 import type { DropFrame } from './drop'
+import { canvasImage, loadImage } from './canvasImage'
 
 /** how far into the grass she lands, as a fraction of the viewport height */
 const LAWN_SINK = 0.055
@@ -381,7 +382,7 @@ export function createTouch(p: any) {
 
   async function load() {
     // the falling picture is already loaded by drop.ts (the browser caches it); only the three landing pictures are new
-    const out = await Promise.all(TOUCH_POSES.map((P) => p.loadImage(P.url)))
+    const out = await Promise.all(TOUCH_POSES.map((P) => loadImage(p, P.url)))
     if (!disposed) imgs = out
   }
 
@@ -473,13 +474,7 @@ export function createTouch(p: any) {
       ctx.translate(0, PAD)
       return { c, ctx }
     }
-    const toImage = (c: HTMLCanvasElement) => {
-      const im = p.createImage(c.width, c.height)
-      im.loadPixels()
-      im.pixels.set(c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data)
-      im.updatePixels()
-      return im
-    }
+    const toImage = (c: HTMLCanvasElement) => canvasImage(p, c)
 
     // ---- the ground: painted first (a gradient, dappled pools and thousands of grass strokes), then flattened into cel bands with
     // a Kuwahara filter and a luminance step, the same treatment the reference gives its painting ----

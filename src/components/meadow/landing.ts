@@ -33,6 +33,7 @@ import { LAND_CONFIG } from './land'
 import type { LandFrame } from './land'
 import { POSES, RISE_CONFIG, layerScale } from './rise'
 import type { RiseFrame } from './rise'
+import { canvasImage, loadHtmlImage, loadImage } from './canvasImage'
 
 /** The landing sprite's geometry, in the px of landing-girl.webp (364 x 427). */
 export const LANDER = {
@@ -365,16 +366,10 @@ export function createLanding(p: any, reduceMotion: boolean) {
     sitImgs[3] = phone ? sixImgs.mobile : sixImgs.desktop
   }
 
-  const loadHtml = (url: string) => { const im = new Image(); im.src = url; return im.decode().then(() => im) }
+  const loadHtml = loadHtmlImage
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const imageFromCanvas = (cv: HTMLCanvasElement): any => {
-    const im = p.createImage(cv.width, cv.height)
-    im.loadPixels()
-    im.pixels.set(cv.getContext('2d')!.getImageData(0, 0, cv.width, cv.height).data)
-    im.updatePixels()
-    return im
-  }
+  const imageFromCanvas = (cv: HTMLCanvasElement): any => canvasImage(p, cv)
 
   // the contact shadow: her own silhouette, softened and tinted the cloud's shade of blue
   const makeShadow = (img: HTMLImageElement, w = img.naturalWidth, h = img.naturalHeight, blur = 7) => {
@@ -398,9 +393,9 @@ export function createLanding(p: any, reduceMotion: boolean) {
     // the sit-up pictures start downloading now (not after the cloud is painted), so they are cached by the time she needs them, on the first visit too
     // both position6 pictures are loaded (the 9th is the phone one): which is shown is decided each frame, as the screen is not known to be a phone until it is on screen
     const sitUrls = [position2Url, position5Url, position6Url, j1Url, j2Url, j3Url, j4Url, j5Url, position6MobileUrl]
-    const sitLoad = Promise.all([Promise.all(sitUrls.map(loadHtml)), Promise.all(sitUrls.map((u) => p.loadImage(u)))])
+    const sitLoad = Promise.all([Promise.all(sitUrls.map(loadHtml)), Promise.all(sitUrls.map((u) => loadImage(p, u)))])
     sitLoad.catch(() => {})
-    const [spr, html, closed, open] = await Promise.all([p.loadImage(landingGirlUrl), loadHtml(landingGirlUrl), p.loadImage(eyesCloseUrl), p.loadImage(eyesOpenUrl)])
+    const [spr, html, closed, open] = await Promise.all([loadImage(p, landingGirlUrl), loadHtml(landingGirlUrl), loadImage(p, eyesCloseUrl), loadImage(p, eyesOpenUrl)])
     if (disposed) return
     sprite = spr
     poseImgs = { closed, open }
@@ -417,7 +412,7 @@ export function createLanding(p: any, reduceMotion: boolean) {
     shadowImg = imageFromCanvas(sh.cv)
     // the rise's pictures: each a mesh (fabric looseness by distance from her body) with its own contact shadow
     const urls = [eyesOpenUrl, startUrl, middleUrl, endUrl]
-    const [htmls, imgs] = await Promise.all([Promise.all(urls.map(loadHtml)), Promise.all(urls.map((u) => p.loadImage(u)))])
+    const [htmls, imgs] = await Promise.all([Promise.all(urls.map(loadHtml)), Promise.all(urls.map((u) => loadImage(p, u)))])
     if (disposed) return
     riseImgs = POSES.map((P, k) => {
       const st = 6, cols = Math.ceil(P.w / st), rows = Math.ceil(P.h / st), vs: number[][] = []
@@ -476,7 +471,7 @@ export function createLanding(p: any, reduceMotion: boolean) {
     SIT_POSES[3] = POSITION6_POSE
     syncSix()
     sitShader = p.createShader(SIT_VERT, SIT_FRAG)
-    const jump = await p.loadImage(jump11Url)
+    const jump = await loadImage(p, jump11Url)
     if (!disposed) jumpImg = jump
   }
 

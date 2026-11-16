@@ -195,7 +195,10 @@ function fbm(w: number, h: number, cell: number, rand: () => number) {
   let amp = 0.5, total = 0
   for (let o = 0; o < 3; o++, amp *= 0.55) {
     const c = cell / (1 << o), nx = Math.ceil(w / c) + 2, ny = Math.ceil(h / c) + 2
-    const l = Float32Array.from({ length: nx * ny }, rand)
+    // the lattice, filled in a plain loop: Float32Array.from({ length }, fn) takes a slow generic path, and with a fine grain
+    // cell the lattice is millions of values (the same rand() calls in the same order, so the noise is bit for bit the same)
+    const l = new Float32Array(nx * ny)
+    for (let i = 0; i < l.length; i++) l[i] = rand()
     for (let y = 0; y < h; y++) {
       const fy = y / c, j = Math.floor(fy), ty = fy - j, sy = ty * ty * (3 - 2 * ty)
       for (let x = 0; x < w; x++) {
