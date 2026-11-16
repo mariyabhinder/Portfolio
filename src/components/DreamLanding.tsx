@@ -558,7 +558,7 @@ export default function DreamLanding() {
       const heroText = heroTextRef.current
       if (heroText) heroText.style.opacity = state.wake > 0 ? '0' : Math.max(0, 1 - state.zoom / 0.12).toFixed(3)
       // the scroll cue stays until the page is scrolled all the way down
-      if (scrollCueRef.current) scrollCueRef.current.style.opacity = state.wake >= 0.995 ? '0' : '1'
+      if (scrollCueRef.current) scrollCueRef.current.style.opacity = state.wake >= 0.97 || window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4 ? '0' : '1'
       // the lines of text that fall past with her: placed from the same depth clock as the clouds, so they rush with the sky
       const fallText = fallTextRef.current
       if (fallText) {
