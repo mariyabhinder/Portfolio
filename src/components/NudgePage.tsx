@@ -1,10 +1,25 @@
-import { useEffect, type ReactNode } from 'react'
+﻿import { useEffect, useRef, useState, type ReactNode } from 'react'
+import heroImg from '@/assets/meadow/nudge image.webp'
+import nmockup1 from '@/assets/meadow/nmockup1.webp'
+import nmockup2 from '@/assets/meadow/nmockup2.webp'
+import nmockup3 from '@/assets/meadow/nmockup3.webp'
+import nudgeLaptop from '@/assets/meadow/nudgelaptop.webp'
+import boyFront from '@/assets/meadow/boyfront.webp'
+import boyBack from '@/assets/meadow/boy.webp'
+import nudgeFront from '@/assets/meadow/nudge.webp'
+import nudgeBack from '@/assets/meadow/nudgeback.webp'
+import OverthinkingLoop from './OverthinkingLoop'
+import img1 from '@/assets/meadow/image (1).webp'
+import img3 from '@/assets/meadow/image (3).webp'
+import img7 from '@/assets/meadow/image (7).webp'
+import img11 from '@/assets/meadow/image (11).webp'
+import img12 from '@/assets/meadow/image (12).webp'
 
-const FONT = 'Inter, "Helvetica Neue", Arial, sans-serif'
+const FONT = '"Nunito", "Helvetica Neue", Arial, sans-serif'
+const DISPLAY = '"Bagel Fat One", "Nunito", sans-serif'
+const GALLERY = [img1, img3, img7, img11, img12]
 
 type Block = { t: 'p' | 'q'; text: string }
-
-const TITLE = 'Nudge: A journey from overthinking to finding your way'
 
 const SECTIONS: { title: string; blocks: Block[] }[] = [
   {
@@ -52,7 +67,7 @@ const SECTIONS: { title: string; blocks: Block[] }[] = [
       { t: 'q', text: 'What if things go wrong?' },
       { t: 'q', text: 'Why can\'t I figure this out?' },
       { t: 'p', text: 'With every wrong turn, he becomes more confused and frustrated. He doesn\'t know which direction to take anymore, or how to get out. Just when everything seems hopeless, a light appears from a distance. The boy looks up. And there it is. Nudge\'s little blob mascot!' },
-      { t: 'p', text: 'The blob enters the maze, making its way towards the boy. The two meet, and the boy finally has someone to talk to. He starts sharing what\'s bothering him, and the blob responds, helping him look at things differently. They have a little conversation, and together, they find a way out of the maze. And just like that, the story comes full circle. The boy who entered the maze feeling lost now walks out with a clearer mind and a little more confidence. This was exactly what I wanted the landing page to communicate. The maze represented overthinking. The boy represented someone experiencing it. And the blob represented Nudge — a companion that listens, responds, and helps people find their way forward.' },
+      { t: 'p', text: 'The blob enters the maze, making its way towards the boy. The two meet, and the boy finally has someone to talk to. He starts sharing what\'s bothering him, and the blob responds, helping him look at things differently. They have a little conversation, and together, they find a way out of the maze. And just like that, the story comes full circle. The boy who entered the maze feeling lost now walks out with a clearer mind and a little more confidence. This was exactly what I wanted the landing page to communicate. The maze represented overthinking. The boy represented someone experiencing it. And the blob represented Nudge â€” a companion that listens, responds, and helps people find their way forward.' },
       { t: 'p', text: 'It wasn\'t just an illustration anymore. It was the product experience turned into a visual story.' },
     ],
   },
@@ -99,34 +114,341 @@ const rich = (text: string): ReactNode[] =>
         ),
   )
 
+
+
+const CSS = `
+.np{background:#fbf8f2;color:#1f2430;font-family:${FONT};overflow-x:hidden}
+.np *{box-sizing:border-box}
+.np-wrap{max-width:1100px;margin:0 auto;padding:0 24px}
+.np-back{position:fixed;top:16px;left:16px;z-index:50;background:#fff;color:#1f2430;text-decoration:none;font-weight:800;font-size:15px;padding:9px 16px;border-radius:999px;box-shadow:0 4px 14px rgba(0,0,0,.12)}
+.np-hero{display:grid;grid-template-columns:1.1fr 1fr;align-items:center;gap:24px;min-height:100vh;padding:70px 0 40px}
+.np-hero>div{min-width:0;text-align:center}
+.np-hero img{width:100%;max-height:92vh;object-fit:contain}
+.np-3d{white-space:nowrap;font-family:${DISPLAY};font-weight:400;font-size:clamp(24px,3.7vw,58px);line-height:1.02;margin:0;color:#ffd84d;letter-spacing:.01em;
+text-shadow:1px 1px 0 #f0a81c,2px 2px 0 #e8951a,3px 3px 0 #de8118,4px 4px 0 #d27016,5px 5px 0 #c46214,6px 6px 0 #b45512,7px 7px 0 #a34a10,8px 8px 0 #8f3f0e,9px 9px 0 #7b350c,10px 18px 22px rgba(0,0,0,.35);
+transform:perspective(900px) rotateX(8deg) rotateY(-4deg);transform-origin:center}
+.np-3d span{display:block;white-space:nowrap}
+.np-3d .a{color:#5eead4;text-shadow:1px 1px 0 #14b8a6,2px 2px 0 #12a898,3px 3px 0 #0f9a8b,4px 4px 0 #0d8b7e,5px 5px 0 #0b7d72,6px 6px 0 #096f65,7px 7px 0 #07615a,8px 8px 0 #065650,9px 9px 0 #054a45,10px 18px 22px rgba(0,0,0,.35)}
+.np-sub{margin:34px 0 0;font-size:clamp(16px,2vw,20px);font-weight:700;color:#4a5160}
+.np-sec{padding:72px 0}
+.np-h2{font-family:${DISPLAY};font-weight:400;font-size:clamp(26px,3.6vw,42px);line-height:1.15;margin:0 0 22px;color:#1f2430}
+.np-num{display:inline-block;color:#fff;background:#14b8a6;border-radius:14px;padding:2px 12px;margin-right:10px;transform:rotate(-4deg)}
+.np-body p{font-size:clamp(17px,1.7vw,20px);line-height:1.8;font-weight:600;color:#2a2f3a;margin:0 0 18px}
+.np-body p:last-child{margin-bottom:0}
+.np-box{background:#fff;border-radius:34px 44px 38px 50px / 44px 36px 50px 40px;padding:clamp(26px,4vw,52px);box-shadow:0 18px 40px rgba(20,184,166,.15),0 0 0 3px #bff3ea inset}
+.np-blob{background:#e6fbf7;border-radius:60px 44px 56px 48px / 50px 56px 46px 52px}
+.np-q{font-style:italic;font-weight:800;color:#0f766e;background:#e6fbf7;border:2px solid #14b8a6;border-radius:22px 22px 22px 4px;padding:10px 18px;margin:0 12px 12px 0;display:inline-block;font-size:18px}
+.np-mocks{display:flex;justify-content:center;gap:6px;margin:8px 0 0;align-items:center}
+.np-crop{position:relative;overflow:hidden;flex:0 0 auto}
+.np-crop img{position:absolute;max-width:none;display:block}
+.np-center .np-h2,.np-center .np-body p{text-align:center}
+.np-center{text-align:center;max-width:760px;margin:0 auto}
+.np-devices{position:relative;display:flex;flex-direction:column;align-items:center;gap:clamp(28px,6vw,56px);width:100%}
+.np-devices .ph{position:relative;z-index:1;transform:rotate(-6deg);margin-bottom:0}
+.np-devices .lap{position:relative;z-index:2;filter:drop-shadow(0 14px 18px rgba(0,0,0,.25))}
+.np-split{display:grid;grid-template-columns:1fr 1fr;gap:40px;align-items:center}
+.np-p3{display:grid;grid-template-columns:1.25fr 1fr;gap:32px;align-items:center}
+.np-p3 p{margin:0}
+.np-spiral{width:100%;max-width:600px;margin:0 auto}
+.np-spiral svg{width:100%;height:auto;overflow:visible;display:block}
+.np-flow{animation:np-loop 11s cubic-bezier(.45,.05,.55,.95) infinite}
+@keyframes np-loop{0%{stroke-dasharray:.0001 2;stroke-dashoffset:0}50%{stroke-dasharray:1 2;stroke-dashoffset:0}100%{stroke-dasharray:.0001 2;stroke-dashoffset:-1}}
+.np-chars{display:flex;justify-content:center;gap:clamp(20px,8vw,110px);margin-top:44px;perspective:900px;flex-wrap:wrap}
+.np-char{display:flex;flex-direction:column;align-items:center;width:min(42%,220px)}
+.np-char .spin{width:100%}
+.np-spinner{position:relative;width:100%;perspective:900px;filter:drop-shadow(0 10px 8px rgba(0,0,0,.25))}
+.np-frame{position:absolute;left:50%;bottom:0;overflow:hidden;will-change:transform,opacity}
+.np-frame img{position:absolute;max-width:none;display:block;user-select:none}
+.np-char .pad{width:130%;height:26px;margin-top:-6px;border-radius:50%;background:radial-gradient(ellipse,rgba(20,184,166,.55),rgba(20,184,166,0) 70%);border:2px solid rgba(20,184,166,.35)}
+.np-char b{margin-top:10px;font-family:${DISPLAY};font-weight:400;font-size:18px;color:#0f766e}
+.np-stage{position:relative;height:clamp(240px,40vw,420px);margin-top:44px}
+.np-stage img{position:absolute;top:50%;left:50%;height:100%;width:auto;max-width:56%;object-fit:cover;border-radius:22px;box-shadow:0 18px 36px rgba(0,0,0,.25);transition:transform .8s cubic-bezier(.6,.05,.25,1),opacity .8s,filter .8s}
+@media(max-width:820px){.np-hero,.np-split,.np-p3{grid-template-columns:1fr}.np-p3{gap:24px}.np-hero{min-height:auto;padding-top:80px}.np-3d{transform:none}.np-sec{padding:48px 0}.np-split .np-spiral,.np-split .ot{order:2}}
+@media(max-width:600px){.np-3d{font-size:clamp(26px,8.8vw,48px);line-height:1.08}.np-chars{flex-wrap:nowrap;gap:12px}.np-char{width:46%}.np-char b{font-size:16px}.np-char .pad{width:100%}}
+@media(prefers-reduced-motion:reduce){.np *{animation:none!important}}
+`
+
+// Shows only the device area of a padded mockup image (crop given as fractions of the image).
+function Crop({ src: raw, alt, iw, ih, x, y, w, h, width }: { src: string; alt: string; iw: number; ih: number; x: number; y: number; w: number; h: number; width: string }) {
+  const [src, setSrc] = useState(raw)
+  useEffect(() => {
+    // Strip the faint translucent glow around the phone, keeping only the device itself.
+    const im = new Image()
+    im.onload = () => {
+      const c = document.createElement('canvas')
+      c.width = im.naturalWidth
+      c.height = im.naturalHeight
+      const ctx = c.getContext('2d')
+      if (!ctx) return
+      ctx.drawImage(im, 0, 0)
+      const d = ctx.getImageData(0, 0, c.width, c.height)
+      for (let i = 3; i < d.data.length; i += 4) if (d.data[i] < 200) d.data[i] = 0
+      ctx.putImageData(d, 0, 0)
+      setSrc(c.toDataURL('image/png'))
+    }
+    im.src = raw
+  }, [raw])
+  return (
+    <div className="np-crop" style={{ width, aspectRatio: `${w * iw} / ${h * ih}` }}>
+      <img src={src} alt={alt} style={{ left: `${(-x / w) * 100}%`, top: `${(-y / h) * 100}%`, width: `${100 / w}%`, height: `${100 / h}%` }} />
+    </div>
+  )
+}
+
+type Frame = { angle: number; src: string; mirror?: boolean }
+type Box = { x: number; y: number; w: number; h: number; nw: number; nh: number }
+const BOX_H = 280
+
+// Finds the opaque bounding box of an image so every view can be scaled to the same visible size.
+const measure = (src: string) =>
+  new Promise<Box>((resolve) => {
+    const im = new Image()
+    im.onload = () => {
+      const c = document.createElement('canvas')
+      c.width = im.naturalWidth
+      c.height = im.naturalHeight
+      const ctx = c.getContext('2d')!
+      ctx.drawImage(im, 0, 0)
+      const d = ctx.getImageData(0, 0, c.width, c.height).data
+      let x0 = c.width, y0 = c.height, x1 = 0, y1 = 0
+      for (let y = 0; y < c.height; y++)
+        for (let x = 0; x < c.width; x++)
+          if (d[(y * c.width + x) * 4 + 3] > 24) {
+            if (x < x0) x0 = x
+            if (x > x1) x1 = x
+            if (y < y0) y0 = y
+            if (y > y1) y1 = y
+          }
+      resolve({ x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1, nw: c.width, nh: c.height })
+    }
+    im.src = src
+  })
+
+// Turns a character through 360deg. All views are cropped to their visible area and scaled to the
+// same height, then cross-faded while rotating, driven by rAF without React re-renders.
+function Spinner({ frames, alt, offset = 0, height: h = BOX_H }: { frames: Frame[]; alt: string; offset?: number; height?: number }) {
+  const [small, setSmall] = useState(() => window.matchMedia('(max-width: 600px)').matches)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 600px)')
+    const on = () => setSmall(mq.matches)
+    mq.addEventListener('change', on)
+    return () => mq.removeEventListener('change', on)
+  }, [])
+  const height = small ? Math.min(h, 150) : h
+  const [boxes, setBoxes] = useState<Box[] | null>(null)
+  const refs = useRef<(HTMLDivElement | null)[]>([])
+  useEffect(() => {
+    let live = true
+    Promise.all(frames.map((f) => measure(f.src))).then((b) => live && setBoxes(b))
+    return () => { live = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  useEffect(() => {
+    if (!boxes) return
+    const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    let deg = offset
+    let raf = 0
+    let last = performance.now()
+    const paint = () => {
+      frames.forEach((f, i) => {
+        const el = refs.current[i]
+        if (!el) return
+        const rel = ((deg - f.angle + 540) % 360) - 180
+        const half = 180 / frames.length
+        const z = half * 0.3
+        const wgt = Math.max(0, Math.min(1, (half + z / 2 - Math.abs(rel)) / z))
+        el.style.opacity = String(wgt)
+        el.style.transform = `rotateY(${rel}deg)${f.mirror ? ' scaleX(-1)' : ''}`
+      })
+    }
+    const tick = (now: number) => {
+      deg = (deg + (now - last) * 0.05) % 360
+      last = now
+      paint()
+      raf = requestAnimationFrame(tick)
+    }
+    paint()
+    if (!still) raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boxes])
+  return (
+    <div className="np-spinner" style={{ height }} role="img" aria-label={alt}>
+      {boxes && frames.map((f, i) => {
+        const b = boxes[i]
+        const s = height / b.h
+        return (
+          <div
+            key={i}
+            ref={(el) => { refs.current[i] = el }}
+            className="np-frame"
+            style={{ width: b.w * s, height, marginLeft: -(b.w * s) / 2, opacity: 0 }}
+          >
+            <img src={f.src} alt="" draggable={false} style={{ width: b.nw * s, height: b.nh * s, left: -b.x * s, top: -b.y * s }} />
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+
+function Gallery() {
+  const [active, setActive] = useState(0)
+  useEffect(() => {
+    const id = setInterval(() => setActive((a) => (a + 1) % GALLERY.length), 2000)
+    return () => clearInterval(id)
+  }, [])
+  const n = GALLERY.length
+  return (
+    <div className="np-stage">
+      {GALLERY.map((src, i) => {
+        const off = ((i - active + n + 2) % n) - 2 // -2..2, 0 = centre
+        const a = Math.abs(off)
+        return (
+          <img
+            key={src}
+            src={src}
+            alt=""
+            style={{
+              transform: `translate(calc(-50% + ${off * 30}%), -50%) scale(${a === 0 ? 1 : a === 1 ? 0.8 : 0.62})`,
+              zIndex: 10 - a,
+              opacity: a === 2 ? 0.55 : 1,
+              filter: a === 0 ? 'none' : 'brightness(.85)',
+            }}
+          />
+        )
+      })}
+    </div>
+  )
+}
+
+const Body = ({ blocks }: { blocks: Block[] }) => {
+  const firstQ = blocks.findIndex((b) => b.t === 'q')
+  return (
+    <div className="np-body">
+      {blocks.map((b, i) => {
+        if (b.t === 'q') {
+          if (i !== firstQ) return null
+          return (
+            <p key={i}>
+              {blocks.filter((x) => x.t === 'q').map((q) => (
+                <span key={q.text} className="np-q">{q.text}</span>
+              ))}
+            </p>
+          )
+        }
+        return <p key={i}>{rich(b.text)}</p>
+      })}
+    </div>
+  )
+}
+
+const heading = (i: number, title: string) => {
+  const m = title.match(/^(\d+)\.\s*(.*)$/)
+  return (
+    <h2 className="np-h2">
+      <span className="np-num">{m ? m[1] : i + 1}</span>
+      {m ? m[2] : title}
+    </h2>
+  )
+}
+
 export default function NudgePage() {
   useEffect(() => {
     window.scrollTo(0, 0)
+    const link = document.createElement('link')
+    link.rel = 'stylesheet'
+    link.href = 'https://fonts.googleapis.com/css2?family=Bagel+Fat+One&family=Nunito:wght@600;700;800&display=swap'
+    document.head.appendChild(link)
+    return () => {
+      link.remove()
+    }
   }, [])
 
   return (
-    <main style={{ background: '#fff', color: '#222', fontFamily: FONT, minHeight: '100vh' }}>
-      <article style={{ maxWidth: 720, margin: '0 auto', padding: '40px 20px 96px', fontSize: 18, lineHeight: 1.75 }}>
-        <a href="#/" style={{ color: '#555', fontSize: 15, textDecoration: 'none', fontWeight: 500 }}>
-          ← Back
-        </a>
-        <h1 style={{ fontSize: 'clamp(30px, 5vw, 44px)', lineHeight: 1.15, fontWeight: 800, margin: '32px 0 16px', letterSpacing: '-0.02em' }}>
-          {TITLE}
-        </h1>
+    <main className="np">
+      <style>{CSS}</style>
+      <a href="#/" className="np-back">â† Back</a>
 
-        {SECTIONS.map((s) => (
-          <section key={s.title}>
-            <h2 style={{ fontSize: 'clamp(22px, 3.4vw, 28px)', lineHeight: 1.25, fontWeight: 700, margin: '56px 0 12px' }}>{s.title}</h2>
-            {s.blocks.map((b, i) =>
-              b.t === 'q' ? (
-                <p key={i} style={{ fontStyle: 'italic', color: '#555', margin: '0 0 12px', paddingLeft: 16, borderLeft: '3px solid #14b8a6' }}>{b.text}</p>
-              ) : (
-                <p key={i} style={{ margin: '0 0 18px' }}>{rich(b.text)}</p>
-              ),
-            )}
+      <div className="np-wrap">
+        <header className="np-hero">
+          <img src={heroImg} alt="Nudge illustration" />
+          <div>
+            <h1 className="np-3d">
+              <span>Nudge</span>
+              <span className="a">Stop Overthinking</span>
+              <span>Start Doing</span>
+            </h1>
+          </div>
+        </header>
+      </div>
+
+      {SECTIONS.map((s, idx) => {
+        const n = idx + 1
+        const odd = n % 2 === 1
+        const text = (
+          <>
+            {heading(idx, s.title)}
+            <Body blocks={s.blocks} />
+          </>
+        )
+        let inner: ReactNode
+        if (n === 3) {
+          inner = (
+            <div className="np-split">
+              <OverthinkingLoop />
+              <div className="np-box np-blob">{text}</div>
+            </div>
+          )
+        } else if (n === 8) {
+          inner = (
+            <div className="np-split">
+              <div>{text}</div>
+              <div className="np-devices">
+                <div className="ph" style={{ width: '48%' }}>
+                  <Crop src={nmockup3} alt="Nudge mobile screen" iw={809} ih={1188} x={0.23} y={0.185} w={0.435} h={0.6} width="100%" />
+                </div>
+                <img className="lap" src={nudgeLaptop} alt="Nudge desktop screen" style={{ width: '100%' }} />
+              </div>
+            </div>
+          )
+        } else {
+          inner = (
+            <div style={{ maxWidth: 880, margin: '0 auto' }}>
+              {odd ? <div className="np-box np-blob">{text}</div> : text}
+            </div>
+          )
+        }
+        return (
+          <section key={s.title} className="np-sec">
+            <div className="np-wrap">
+              {inner}
+              {n === 2 && (
+                <div className="np-mocks">
+                  <Crop src={nmockup1} alt="Nudge app screen 1" iw={946} ih={1234} x={0.235} y={0.185} w={0.48} h={0.61} width="min(250px,42vw)" />
+                  <Crop src={nmockup2} alt="Nudge app screen 2" iw={906} ih={1228} x={0.245} y={0.185} w={0.48} h={0.61} width="min(250px,42vw)" />
+                </div>
+              )}
+              {n === 5 && (
+                <div className="np-chars">
+                  <div className="np-char">
+                    <div className="spin"><Spinner alt="The boy" frames={[{ angle: 0, src: boyFront }, { angle: 180, src: boyBack }]} /></div>
+                    <div className="pad" />
+                    <b>The Boy</b>
+                  </div>
+                  <div className="np-char">
+                    <div className="spin"><Spinner alt="Nudge blob" offset={0} frames={[{ angle: 0, src: nudgeFront }, { angle: 180, src: nudgeBack }]} /></div>
+                    <div className="pad" />
+                    <b>Nudge</b>
+                  </div>
+                </div>
+              )}
+              {n === 6 && <Gallery />}
+            </div>
           </section>
-        ))}
-      </article>
+        )
+      })}
     </main>
   )
 }

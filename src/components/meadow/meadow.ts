@@ -38,9 +38,12 @@ import type { LandPlace } from './landing'
 import { landAt, launchAt, launchSit } from './land'
 import { createDrop, ABOUT_BG } from './drop'
 import { leaveFrame } from './leave'
-import { NUDGE_TEAL, slideAt } from './projectSlides'
+import { slideAt } from './projectSlides'
 import { OPENING_BOX, SHUTTER_BOX, launchProgress, openingCrop, openingFit, shutterStrips, windowAt, windowUrls } from './window'
 import picstoryUrl from '@/assets/meadow/picstory.webp'
+import nmockup3Url from '@/assets/meadow/nmockup3.webp'
+// the laptop picture is optional: drop nudgelaptop.(webp|png|jpg) into src/assets/meadow and it appears on the Nudge page
+const nudgeLaptopUrl = Object.values(import.meta.glob('../../assets/meadow/nudgelaptop.{webp,png,jpg}', { eager: true, query: '?url', import: 'default' }))[0] as string | undefined
 import aboutBgUrl from '@/assets/meadow/about-bg.webp'
 import { createTouch, touchAt, TOUCH_CONFIG } from './touch'
 import { WAKE_CONFIG, wakeWave } from './wake'
@@ -612,19 +615,55 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let windowImg: { frame: any; left: any; right: any } | null = null
     let picstoryImg: any = null
-    // the Nudge page: white, with "Nudge" in teal, made once at the project picture's size so both share one crop
+    // the Nudge page: a soft peach backdrop with the title, the laptop and the phone, made once at the project picture's size so both share one crop
     let nudgeImg: any = null
+    let nudgePhone: any = null, nudgeLaptop: any = null
     const makeNudge = () => {
       const g = p.createGraphics(picstoryImg.width, picstoryImg.height)
       g.pixelDensity(2)
-      g.background(255)
+      // lay everything out inside the part of the picture the doorway actually shows
+      const C = openingCrop(g.width / g.height)
+      const X = C.x * g.width, Y = C.y * g.height, W = C.w * g.width, H = C.h * g.height
+      const ctx = g.drawingContext as CanvasRenderingContext2D
+      const grad = ctx.createLinearGradient(0, Y, 0, Y + H)
+      grad.addColorStop(0, '#fff4e6'); grad.addColorStop(0.55, '#ffe2c4'); grad.addColorStop(1, '#f7c9a0')
+      ctx.fillStyle = grad
+      ctx.fillRect(0, 0, g.width, g.height)
+      const glow = ctx.createRadialGradient(X + W * 0.5, Y + H * 0.62, 0, X + W * 0.5, Y + H * 0.62, W * 0.7)
+      glow.addColorStop(0, 'rgba(255,255,255,.55)'); glow.addColorStop(1, 'rgba(255,255,255,0)')
+      ctx.fillStyle = glow
+      ctx.fillRect(0, 0, g.width, g.height)
       g.noStroke()
-      g.fill(NUDGE_TEAL)
-      g.textAlign(g.CENTER, g.CENTER)
+      g.fill(122, 59, 18)
+      // (p.CENTER: the graphics object has no CENTER constant of its own, which left the text left-aligned and off-centre)
+      g.textAlign(p.CENTER, p.CENTER)
       g.textFont('Inter, "Helvetica Neue", Arial, sans-serif')
-      g.textStyle(g.BOLD)
-      g.textSize(picstoryImg.height * 0.2)
-      g.text('Nudge', g.width / 2, g.height / 2)
+      g.textStyle(p.BOLD)
+      const fs = W * 0.085
+      g.textSize(fs)
+      g.textLeading(fs * 1.12)
+      g.text(['Nudge', 'Stop Overthinking', 'Start Doing'].join('\n'), X + W / 2, Y + H * 0.3)
+      // laptop at the lower left and the phone overlapping its right edge, a little taller, tilted slightly, the pair centred in the doorway
+      const SX = 190, SY = 230, SW = 350, SH = 700 // the phone itself, measured from the picture's transparent margin
+      const lw = W * 0.74, lh = nudgeLaptop ? lw * nudgeLaptop.height / nudgeLaptop.width : 0
+      const phoneW = W * 0.27, phoneH = phoneW * SH / SW
+      const baseY = Y + H * 0.9
+      const lx = X + W * 0.05
+      // phone first so the laptop is drawn over it
+      if (nudgePhone) {
+        g.push()
+        g.translate(lx + lw - phoneW * 0.25, baseY - phoneH / 2 - lh * 0.1)
+        g.drawingContext.shadowColor = 'rgba(80,40,10,.3)'; g.drawingContext.shadowBlur = W * 0.03; g.drawingContext.shadowOffsetY = W * 0.012
+        g.rotate(0.1)
+        g.image(nudgePhone, -phoneW / 2, -phoneH / 2, phoneW, phoneH, SX, SY, SW, SH)
+        g.pop()
+      }
+      if (nudgeLaptop) {
+        g.drawingContext.save()
+        g.drawingContext.shadowColor = 'rgba(80,40,10,.3)'; g.drawingContext.shadowBlur = W * 0.03; g.drawingContext.shadowOffsetY = W * 0.012
+        g.image(nudgeLaptop, lx, baseY - lh, lw, lh)
+        g.drawingContext.restore()
+      }
       return g
     }
     // the About Me backdrop (aboutBg.ts), once painted
@@ -845,6 +884,8 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       // The later scenes' pictures start downloading now, alongside the meadow's (they used to wait until the meadow was painted):
       // the window and its picture, the About Me backdrop and decorations, her landing and touchdown pictures. The loader waits for
       // all of them below.
+      later.push(track(loadImage(p, nmockup3Url).then((img: any) => { if (!disposed) nudgePhone = img }).catch(() => {})))
+      if (nudgeLaptopUrl) later.push(track(loadImage(p, nudgeLaptopUrl).then((img: any) => { if (!disposed) nudgeLaptop = img }).catch(() => {})))
       later.push(track(loadImage(p, picstoryUrl).then((img: any) => { if (!disposed) picstoryImg = img }).catch(() => {})))
       later.push(track(Promise.all(Object.values(windowUrls()).map((u) => loadImage(p, u))).then(([frame, left, right]: any[]) => { if (!disposed) windowImg = { frame, left, right } }).catch(() => {})))
       later.push(track(loadImage(p, aboutBgUrl).then((img: any) => { if (!disposed) aboutBgImg = img }).catch(() => { if (!disposed) aboutBgImg = fromCanvas(paintAboutBg()) })))

@@ -1,12 +1,26 @@
-import { useEffect } from 'react'
+import { useEffect, type ReactNode } from 'react'
+import mockup1 from '@/assets/meadow/mockup1.webp'
+import mockup2 from '@/assets/meadow/mockup2.webp'
+import mockup3 from '@/assets/meadow/mockup3.webp'
+import para3 from '@/assets/meadow/para3.webp'
+import para33 from '@/assets/meadow/para33.webp'
+import paper from '@/assets/meadow/picstory-paper.png'
 
-const FONT = 'Inter, "Helvetica Neue", Arial, sans-serif'
+const MAROON = '#6E0D25'
+const YELLOW = '#FFFFB3'
+const BROWN = '#6A381F'
+const GOLD = '#DCAB6B'
+const CREAM = '#efe9dd'
+const INK = '#2b1a14'
+const BODY = 'Lato, Inter, "Helvetica Neue", Arial, sans-serif'
+const SERIF = 'Merriweather, Georgia, serif'
 
-type Block = { t: 'h2' | 'sub' | 'p' | 'strong' | 'li'; text: string; lead?: string }
+type Block = { t: 'p' | 'strong' | 'li'; text: string; lead?: string }
+type Section = { title: string; sub?: string; blocks: Block[] }
 
 const INTRO = "Sometimes, the best ideas don't come from brainstorming sessions. They come from the simplest moments."
 
-const SECTIONS: { title: string; sub?: string; blocks: Block[] }[] = [
+const SECTIONS: Section[] = [
   {
     title: '01. It all started with a birthday!',
     blocks: [
@@ -79,42 +93,178 @@ const SECTIONS: { title: string; sub?: string; blocks: Block[] }[] = [
   },
 ]
 
+const CSS = `
+.ps-root { position: relative; min-height: 100vh; color: ${INK}; font-family: ${BODY}; }
+.ps-paper { position: fixed; inset: 0; z-index: 0; background: ${CREAM} url(${paper}) center / cover no-repeat; }
+.ps-wrap { position: relative; z-index: 1; max-width: 960px; margin: 0 auto; padding: 32px 24px 120px; }
+.ps-back { color: ${MAROON}; font-size: 15px; font-weight: 700; text-decoration: none; letter-spacing: .02em; }
+.ps-hero { display: grid; grid-template-columns: 1fr 1.1fr; align-items: center; gap: 8px; margin: 12px 0 72px; }
+.ps-title { font-family: ${BODY}; font-weight: 300; font-size: clamp(44px, 8vw, 84px); letter-spacing: .04em; line-height: 1; margin: 0; color: ${MAROON}; }
+.ps-sub { font-size: clamp(18px, 2.6vw, 26px); line-height: 1.35; margin: 14px 0 0; max-width: 11em; color: ${BROWN}; }
+.ps-mocks { position: relative; aspect-ratio: 1 / 1.05; }
+.ps-mocks img { position: absolute; height: auto; filter: drop-shadow(0 18px 24px rgba(60,10,25,.18)); }
+.ps-grad { position: relative; border-radius: 28px; padding: clamp(32px, 6vw, 72px); margin: 0 0 88px; color: ${YELLOW};
+  background: radial-gradient(ellipse 70% 80% at 50% 50%, #1d1517 0%, #3d0f1b 35%, ${MAROON} 80%); box-shadow: 0 30px 60px -28px rgba(80,10,30,.55); overflow: hidden; }
+.ps-grad::after { content: ''; position: absolute; inset: 10px; border: 1px solid rgba(255,255,179,.28); border-radius: 20px; pointer-events: none; }
+.ps-sec { margin: 0 0 96px; }
+.ps-num { font-family: ${BODY}; font-weight: 300; font-size: 15px; letter-spacing: .3em; color: ${GOLD}; margin: 0 0 10px; }
+.ps-h2 { font-family: ${SERIF}; font-weight: 700; font-size: clamp(24px, 3.8vw, 36px); line-height: 1.25; margin: 0 0 14px; }
+.ps-subline { font-family: ${SERIF}; font-style: italic; font-size: 17px; line-height: 1.6; margin: 0 0 22px; opacity: .85; }
+.ps-p { font-size: 18px; line-height: 1.85; margin: 0 0 18px; max-width: 700px; }
+.ps-strong { font-family: ${SERIF}; font-weight: 700; font-size: 20px; line-height: 1.6; margin: 26px 0; max-width: 700px; padding-left: 18px; border-left: 3px solid ${GOLD}; }
+.ps-li { margin: 0 0 18px; max-width: 700px; padding-left: 18px; border-left: 2px solid ${GOLD}; line-height: 1.75; font-size: 17px; }
+.ps-li b { font-family: ${SERIF}; display: block; margin-bottom: 2px; }
+.ps-frames { display: flex; flex-wrap: wrap; justify-content: center; gap: 36px; margin: 52px 0 0; }
+.ps-frame { position: relative; background: #fffdf6; padding: 14px 14px 44px; box-shadow: 0 14px 30px -10px rgba(70,35,20,.35), 0 2px 4px rgba(70,35,20,.15); transition: transform .35s ease; }
+.ps-frame:hover { transform: rotate(0deg) scale(1.03) !important; }
+.ps-frame::before { content: ''; position: absolute; top: -13px; left: 50%; width: 84px; height: 26px; transform: translateX(-50%) rotate(-3deg); background: rgba(220,171,107,.75); }
+.ps-frame .ph { display: flex; align-items: center; justify-content: center; background: repeating-linear-gradient(45deg, #f3e7d3, #f3e7d3 10px, #efdfc6 10px, #efdfc6 20px); border: 2px dashed ${GOLD}; color: ${BROWN}; font-size: 13px; letter-spacing: .15em; text-transform: uppercase; }
+.ps-frame img { display: block; max-width: 100%; height: auto; }
+.ps-journey { position: relative; width: 100%; max-width: 900px; margin: 56px auto 0; aspect-ratio: 1 / 1.22; }
+.ps-journey img { position: absolute; height: auto; filter: drop-shadow(0 18px 24px rgba(60,10,25,.2)); }
+.ps-journey svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+@media (max-width: 720px) {
+  .ps-hero { grid-template-columns: 1fr; text-align: left; margin-bottom: 40px; }
+  .ps-wrap { padding: 24px 16px 80px; }
+  .ps-p, .ps-li { font-size: 16.5px; }
+  .ps-sec, .ps-grad { margin-bottom: 64px; }
+  .ps-frames { gap: 28px; }
+}
+`
+
+function Text({ blocks }: { blocks: Block[] }) {
+  return (
+    <>
+      {blocks.map((b, i) =>
+        b.t === 'strong' ? (
+          <p key={i} className="ps-strong">{b.text}</p>
+        ) : b.t === 'li' ? (
+          <p key={i} className="ps-li">
+            <b>{b.lead}</b>
+            {b.text}
+          </p>
+        ) : (
+          <p key={i} className="ps-p">{b.text}</p>
+        ),
+      )}
+    </>
+  )
+}
+
+function Heading({ s }: { s: Section }) {
+  const [num, ...rest] = s.title.split('. ')
+  return (
+    <>
+      <p className="ps-num">{num}</p>
+      <h2 className="ps-h2">{rest.join('. ')}</h2>
+      {s.sub ? <p className="ps-subline">{s.sub}</p> : null}
+    </>
+  )
+}
+
+function Frame({ rot, w, children }: { rot: number; w: number; children: ReactNode }) {
+  return (
+    <div className="ps-frame" style={{ transform: `rotate(${rot}deg)`, width: w, maxWidth: '88vw' }}>
+      {children}
+    </div>
+  )
+}
+
+function Arrow({ d, head }: { d: string; head: string }) {
+  const p = { fill: 'none', stroke: MAROON, strokeWidth: 3.5, strokeLinecap: 'round', strokeLinejoin: 'round', vectorEffect: 'non-scaling-stroke' } as const
+  return (
+    <>
+      <path d={d} {...p} />
+      <path d={head} {...p} />
+    </>
+  )
+}
+
 export default function PicstoryPage() {
   useEffect(() => {
     window.scrollTo(0, 0)
   }, [])
 
-  return (
-    <main style={{ background: '#fff', color: '#222', fontFamily: FONT, minHeight: '100vh' }}>
-      <article style={{ maxWidth: 720, margin: '0 auto', padding: '40px 20px 96px', fontSize: 18, lineHeight: 1.75 }}>
-        <a href="#/" style={{ color: '#555', fontSize: 15, textDecoration: 'none', fontWeight: 500 }}>
-          ← Back
-        </a>
-        <h1 style={{ fontSize: 'clamp(30px, 5vw, 44px)', lineHeight: 1.15, fontWeight: 800, margin: '32px 0 16px', letterSpacing: '-0.02em' }}>
-          A little birthday idea that turned into something bigger.
-        </h1>
-        <p style={{ fontStyle: 'italic', color: '#555', margin: '0 0 24px' }}>{INTRO}</p>
+  const [s1, s2, s3, s4, s5, s6, s7] = SECTIONS
 
-        {SECTIONS.map((s) => (
-          <section key={s.title}>
-            <h2 style={{ fontSize: 'clamp(22px, 3.4vw, 28px)', lineHeight: 1.25, fontWeight: 700, margin: '56px 0 12px' }}>{s.title}</h2>
-            {s.sub ? <p style={{ fontStyle: 'italic', color: '#555', margin: '0 0 16px' }}>{s.sub}</p> : null}
-            {s.blocks.map((b, i) =>
-              b.t === 'strong' ? (
-                <p key={i} style={{ fontWeight: 700, margin: '0 0 18px' }}>{b.text}</p>
-              ) : b.t === 'li' ? (
-                <p key={i} style={{ margin: '0 0 18px' }}>
-                  <strong>{b.lead}</strong>
-                  <br />
-                  {b.text}
-                </p>
-              ) : (
-                <p key={i} style={{ margin: '0 0 18px' }}>{b.text}</p>
-              ),
-            )}
-          </section>
-        ))}
-      </article>
+  return (
+    <main className="ps-root">
+      <style>{CSS}</style>
+      <div className="ps-paper" />
+      <div className="ps-wrap">
+        <a href="#/" className="ps-back">← Back</a>
+
+        <header className="ps-hero">
+          <div>
+            <h1 className="ps-title">PICSTORY</h1>
+            <p className="ps-sub">Create your perfect visual story</p>
+          </div>
+          <div className="ps-mocks">
+            <img src={mockup1} alt="Picstory splash screen" style={{ width: '58%', left: '-4%', top: '2%', transform: 'rotate(-2deg)' }} />
+            <img src={mockup2} alt="Picstory template gallery" style={{ width: '60%', right: '-8%', top: '-2%' }} />
+          </div>
+        </header>
+
+        <section className="ps-grad">
+          <p style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 17, opacity: 0.8, margin: '0 0 28px' }}>{INTRO}</p>
+          <Heading s={s1} />
+          <Text blocks={s1.blocks} />
+        </section>
+
+        <section className="ps-sec">
+          <Heading s={s2} />
+          <Text blocks={s2.blocks} />
+          <div className="ps-frames">
+            {[-4, 2, -2].map((r, i) => (
+              <Frame key={i} rot={r} w={250}>
+                <div className="ph" style={{ aspectRatio: '3 / 4' }}>Sketch {i + 1}</div>
+              </Frame>
+            ))}
+          </div>
+        </section>
+
+        <section className="ps-sec">
+          <Heading s={s3} />
+          <Text blocks={s3.blocks} />
+          <div className="ps-frames" style={{ flexDirection: 'column', alignItems: 'center', gap: 44 }}>
+            <Frame rot={-1.2} w={640}>
+              <img src={para3} alt="Picstory screens designed in Figma" />
+            </Frame>
+            <Frame rot={1.2} w={640}>
+              <img src={para33} alt="Picstory colours, components and fonts" />
+            </Frame>
+          </div>
+        </section>
+
+        <section className="ps-sec">
+          <Heading s={s4} />
+          <Text blocks={s4.blocks} />
+        </section>
+
+        <section className="ps-sec">
+          <Heading s={s5} />
+          <Text blocks={s5.blocks} />
+          <div className="ps-journey">
+            <img src={mockup1} alt="Splash screen" style={{ width: '48%', left: '-6%', top: '-2%' }} />
+            <img src={mockup2} alt="Template gallery" style={{ width: '50%', left: '26%', top: '17%' }} />
+            <img src={mockup3} alt="Editor" style={{ width: '50%', right: '-8%', top: '36%' }} />
+            <svg viewBox="0 0 100 122" preserveAspectRatio="none" aria-hidden="true">
+              <Arrow d="M 22 5 C 36 -3, 52 2, 50 20" head="M 45 15 L 50 21 L 54 14" />
+              <Arrow d="M 62 38 C 78 30, 94 40, 88 56" head="M 83 51 L 88 57 L 92 50" />
+            </svg>
+          </div>
+        </section>
+
+        <section className="ps-sec">
+          <Heading s={s6} />
+          <Text blocks={s6.blocks} />
+        </section>
+
+        <section className="ps-grad" style={{ marginBottom: 0 }}>
+          <Heading s={s7} />
+          <Text blocks={s7.blocks} />
+        </section>
+      </div>
     </main>
   )
 }
