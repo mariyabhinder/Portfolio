@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import cc1 from '@/assets/meadow/cc1.webp'
 import cc2 from '@/assets/meadow/cc2.webp'
 import cc3 from '@/assets/meadow/cc3.webp'
@@ -71,7 +71,7 @@ const ALBUMS: Album[] = [
       undefined, // udp16
       ['Jawai, Udaipur', 'A little game of hide-and-seek. Can you spot who\'s watching?'], // udp17
     ],
-    thumbs: [], count: 30,
+    thumbs: thumbs('udp', 17), count: 30,
   },
   { id: 'colorful', name: 'Colorful Corner 🎨', color: '#a8d8f0', photos: [cc1, cc2, cc3], thumbs: thumbs('cc', 3), count: 16 },
   { id: 'stitches', name: 'Little Stitches 🧵🌸', color: '#f3e08a', photos: [ls1, ls2, ls3, ls4, ls5], thumbs: thumbs('ls', 5), count: 34 },
@@ -81,7 +81,19 @@ const PALETTE = ['#f4a6b8', '#a8d8f0', '#f3e08a', '#b9a6e8', '#9fdcb4', '#f7b88a
 const tileColor = (album: Album, i: number) => PALETTE[(i + ALBUMS.indexOf(album) * 3) % PALETTE.length]
 const countOf = (a: Album) => (a.photos.length || a.count)
 
-function Tile({ album, i, heart }: { album: Album; i: number; heart?: boolean }) {
+// Photos decoded ahead of time, so the viewer's <img> of the same url shows at once when a swipe reaches it (kept here, so the
+// browser holds on to them)
+const decoded = new Map<string, HTMLImageElement>()
+function predecode(src: string) {
+  if (decoded.has(src)) return
+  const img = new Image()
+  img.decoding = 'async'
+  img.src = src
+  decoded.set(src, img)
+  img.decode().catch(() => decoded.delete(src))
+}
+
+const Tile = memo(function Tile({ album, i, heart }: { album: Album; i: number; heart?: boolean }) {
   const src = album.thumbs[i] ?? album.photos[i]
   return (
     <div className="relative w-full h-full" style={{ background: src ? undefined : tileColor(album, i) }}>
@@ -93,7 +105,7 @@ function Tile({ album, i, heart }: { album: Album; i: number; heart?: boolean })
       ) : null}
     </div>
   )
-}
+})
 
 // SF Symbols-style line icons, drawn in the current text colour
 const Sym = ({ d, size = 22, fill }: { d: string; size?: number; fill?: boolean }) => (
@@ -147,7 +159,9 @@ function ListSection({ title, rows }: { title: string; rows: [string, string, nu
   )
 }
 
-function AlbumsScreen({ onOpen }: { onOpen: (a: Album) => void }) {
+// (the screens are memo'd: a swipe in the viewer changes the index up in PhoneGallery, and the album grid under the viewer,
+// a few dozen thumbnails, has nothing to redo for it)
+const AlbumsScreen = memo(function AlbumsScreen({ onOpen }: { onOpen: (a: Album) => void }) {
   return (
     <div className="h-full overflow-y-auto overscroll-contain bg-white pb-24" style={{ scrollbarWidth: 'none' }}>
       <div className="px-3 pt-1" style={{ color: BLUE }}><Sym d={ICON.plus} size={24} /></div>
@@ -172,9 +186,9 @@ function AlbumsScreen({ onOpen }: { onOpen: (a: Album) => void }) {
       <ListSection title="Utilities" rows={UTILITIES} />
     </div>
   )
-}
+})
 
-function AlbumScreen({ album, onBack, onView }: { album: Album; onBack: () => void; onView: (i: number) => void }) {
+const AlbumScreen = memo(function AlbumScreen({ album, onBack, onView }: { album: Album; onBack: () => void; onView: (i: number) => void }) {
   const n = countOf(album)
   return (
     <div className="h-full overflow-y-auto overscroll-contain bg-white pb-24" style={{ scrollbarWidth: 'none' }}>
@@ -193,26 +207,66 @@ function AlbumScreen({ album, onBack, onView }: { album: Album; onBack: () => vo
       <p className="py-4 text-center text-[15px] font-semibold text-black">{n} Photos</p>
     </div>
   )
-}
+})
 
 // a photo opened from an album, as in iOS Photos: back / date / Edit on top, the photo, the scrubber strip and share, like,
 // info and delete below. Swipe (or the arrows, or the strip) for the neighbouring photos; a tap hides the chrome on black.
+// A drag of `dist` of the width, or a flick faster than `speed` (px/ms), moves on to the next photo; `ease` is the glide there.
+const SWIPE = { dist: 0.2, speed: 0.4, ease: 'cubic-bezier(.25,.8,.3,1)' }
+// the photos kept on the track either side of the current one: all a drag, or a glide caught by another swipe, can show
+const AROUND = 2
+
+// one photo on the viewer's track, at its own place along it (photo i at i stage widths, --sw), so it stays put as the index changes
+const Slide = memo(function Slide({ album, i, current, immersive }: { album: Album; i: number; current: boolean; immersive: boolean }) {
+  const src = album.photos[i], caption = album.captions?.[i]
+  return (
+    <div className="absolute inset-y-0 flex w-full flex-col justify-center" style={{ left: `calc(${i} * var(--sw))` }}>
+      {src ? (
+        <img alt="" src={src} className={`pointer-events-none min-h-0 w-full ${caption ? 'h-auto max-h-full object-cover' : 'h-full object-contain'}`} draggable={false} decoding="async" fetchPriority={current ? 'high' : 'low'} />
+      ) : (
+        <div className="h-full w-full" style={{ background: tileColor(album, i) }} />
+      )}
+      {caption ? (
+        <div className="shrink-0 px-8 pb-5 pt-7 text-center">
+          <div className={`text-[14px] font-semibold leading-tight tracking-tight transition-colors duration-200 ${immersive ? 'text-white' : 'text-black'}`}>{caption[0]}</div>
+          <div className={`mx-auto mt-2 max-w-[17rem] text-[10px] font-normal leading-snug transition-colors duration-200 ${immersive ? 'text-neutral-400' : 'text-neutral-500'}`}>{caption[1]}</div>
+        </div>
+      ) : null}
+    </div>
+  )
+})
+
+interface Drag {
+  id: number
+  /** where the pointer went down, and where the track was then (px) */
+  x0: number
+  from: number
+  /** where the track is now (px) */
+  x: number
+  /** the stage's width (px), read once per drag */
+  w: number
+  /** it went down on a glide, and stopped it */
+  caught: boolean
+  /** the last few pointer positions, [time, x], for its speed at release */
+  trail: [number, number][]
+}
+
 function PhotoViewer({ album, index, onIndex, onClose, immersive, onImmersive }: {
   album: Album; index: number; onIndex: (i: number) => void; onClose: () => void; immersive: boolean; onImmersive: (on: boolean) => void
 }) {
   const n = countOf(album)
   const strip = useRef<HTMLDivElement>(null)
-  const start = useRef<number | null>(null)
-  const [dx, setDx] = useState(0)
   const [liked, setLiked] = useState<Record<string, boolean>>({})
   const key = `${album.id}/${index}`
   const go = (i: number) => onIndex(Math.max(0, Math.min(n - 1, i)))
 
-  // fetch the neighbouring photos ahead, so a swipe shows them at once
+  // decode the photos either side ahead, so a swipe finds them ready
   useEffect(() => {
-    for (const i of [index + 1, index - 1]) {
-      const src = album.photos[i]
-      if (src) new Image().src = src
+    for (let k = 1; k <= AROUND; k++) {
+      for (const i of [index + k, index - k]) {
+        const src = album.photos[i]
+        if (src) predecode(src)
+      }
     }
   }, [album, index])
 
@@ -222,47 +276,132 @@ function PhotoViewer({ album, index, onIndex, onClose, immersive, onImmersive }:
     if (s && t) s.scrollTo({ left: t.offsetLeft - s.clientWidth / 2 + t.offsetWidth / 2, behavior: 'smooth' })
   }, [index])
 
-  // the three slides (previous, current, next) sit side by side on a track that follows the finger; on release the track
-  // glides to the nearest slide, and only then does the index change and the track reset, so there is never a jump
+  // The photos sit side by side on a track that rests at -index widths. A drag moves the track straight from the pointer events,
+  // with no re-render; the release glides it to a photo on the compositor (an animation of its transform), and the index changes
+  // as the glide sets off, so React's update (the strip, the next photo along) runs while it glides instead of holding it up.
+  // A touch during a glide catches the track where it is, so a swipe never has to wait for the last one to finish.
   const stage = useRef<HTMLDivElement>(null)
-  const last = useRef({ x: 0, t: 0, v: 0 })
-  const [settling, setSettling] = useState(false)
-  const busy = useRef(false)
-  const SETTLE_MS = 280
+  const track = useRef<HTMLDivElement>(null)
+  // the photo the track rests on, or is gliding to
+  const at = useRef(-1)
+  const glide = useRef<Animation | null>(null)
+  const drag = useRef<Drag | null>(null)
+  // The stage's exact width (px, with its fraction), also kept in --sw on the track: the photos are placed along the track, and
+  // it is moved, in whole multiples of this one length. (In percentages, the browser rounds the width differently for the
+  // track's move than for the photos' places, and a few pixels of the next photo showed at the edge, more the further along.)
+  const sw = useRef(0)
+  const width = () => sw.current || stage.current?.offsetWidth || 1
+  useLayoutEffect(() => {
+    const el = stage.current!, t = track.current!
+    const measure = (w: number) => {
+      sw.current = w
+      t.style.setProperty('--sw', `${w}px`)
+    }
+    // (a first guess, put right by the observer's first report, which comes before the first paint)
+    measure(el.offsetWidth)
+    const ro = new ResizeObserver(([entry]) => measure(entry.contentRect.width))
+    ro.observe(el)
+    return () => {
+      ro.disconnect()
+      // closed mid-glide: the glide goes with it
+      glide.current?.cancel()
+      glide.current = null
+    }
+  }, [])
+  const place = (x: number) => { if (track.current) track.current.style.transform = `translate3d(${x}px, 0, 0)` }
+  // at rest it is placed in stage widths, so it stays on its photo if the screen is resized
+  const rest = (i: number) => { if (track.current) track.current.style.transform = `translate3d(calc(${-i} * var(--sw)), 0, 0)` }
+  // where the track is now (px), stopping any glide there
+  const stop = () => {
+    const g = glide.current
+    if (!g) return -at.current * width()
+    const x = new DOMMatrixReadOnly(getComputedStyle(track.current!).transform).m41
+    glide.current = null
+    g.cancel()
+    place(x)
+    return x
+  }
+  const glideTo = (i: number, from: number) => {
+    const w = width(), to = -i * w, way = Math.abs(to - from)
+    at.current = i
+    if (way < 1) return rest(i)
+    place(to)
+    const g = track.current!.animate([{ transform: `translate3d(${from}px, 0, 0)` }, { transform: `translate3d(${to}px, 0, 0)` }], {
+      duration: Math.round(180 + 160 * Math.min(1, way / w)),
+      easing: SWIPE.ease,
+    })
+    glide.current = g
+    g.onfinish = () => {
+      if (glide.current !== g) return
+      glide.current = null
+      rest(i)
+    }
+  }
+
+  // a new index from the strip, the arrows or the keys: the next photo along glides in, one further away is shown at once
+  useLayoutEffect(() => {
+    if (at.current === index) return
+    const was = at.current
+    drag.current = null
+    const from = stop()
+    if (was >= 0 && Math.abs(index - was) === 1) glideTo(index, from)
+    else {
+      at.current = index
+      rest(index)
+    }
+  }, [index])
+
   const onDown = (e: React.PointerEvent) => {
-    if (busy.current) return
-    start.current = e.clientX
-    last.current = { x: e.clientX, t: e.timeStamp, v: 0 }
-    setSettling(false)
+    if (e.pointerType === 'mouse' && e.button !== 0) return
+    const caught = glide.current !== null
+    const x = stop()
+    drag.current = { id: e.pointerId, x0: e.clientX, from: x, x, w: width(), caught, trail: [[e.timeStamp, e.clientX]] }
     e.currentTarget.setPointerCapture(e.pointerId)
   }
   const onMove = (e: React.PointerEvent) => {
-    if (start.current === null) return
-    const dt = e.timeStamp - last.current.t
-    if (dt > 0) last.current = { x: e.clientX, t: e.timeStamp, v: (e.clientX - last.current.x) / dt }
-    const d = e.clientX - start.current
-    setDx((index === 0 && d > 0) || (index === n - 1 && d < 0) ? d / 3 : d)
+    const d = drag.current
+    if (!d || e.pointerId !== d.id) return
+    // it follows the finger as far as the photos either side; past those (and past the first and last photo) it gives, a third as far
+    const i = at.current
+    const lo = -Math.min(n - 1, i + 1) * d.w, hi = -Math.max(0, i - 1) * d.w
+    let x = d.from + e.clientX - d.x0
+    if (x > hi) x = hi + (x - hi) / 3
+    else if (x < lo) x = lo + (x - lo) / 3
+    d.x = x
+    d.trail.push([e.timeStamp, e.clientX])
+    if (d.trail.length > 8) d.trail.shift()
+    place(x)
   }
   const onUp = (e: React.PointerEvent) => {
-    if (start.current === null) return
-    const d = e.clientX - start.current
-    start.current = null
-    if (Math.abs(d) < 6) { setDx(0); onImmersive(!immersive); return }
-    const w = stage.current?.clientWidth || 300
-    const v = last.current.v
-    let dir = 0
-    if ((d < -w * 0.2 || v < -0.4) && index < n - 1) dir = 1
-    else if ((d > w * 0.2 || v > 0.4) && index > 0) dir = -1
-    setSettling(true)
-    setDx(-dir * w)
-    if (!dir) return
-    busy.current = true
-    window.setTimeout(() => {
-      busy.current = false
-      setSettling(false)
-      onIndex(index + dir)
-      setDx(0)
-    }, SETTLE_MS)
+    const d = drag.current
+    if (!d || e.pointerId !== d.id) return
+    drag.current = null
+    const i = at.current
+    // taken over by the browser (a phone turning the touch into a scroll of the page): back to its photo. (A cancel carries no
+    // usable position, so it must not be read as the end of a swipe.)
+    if (e.type === 'pointercancel') return glideTo(i, d.x)
+    // a tap shows or hides the chrome (a tap that caught a glide just lets it carry on)
+    if (Math.abs(e.clientX - d.x0) < 6) {
+      glideTo(i, d.x)
+      if (!d.caught) onImmersive(!immersive)
+      return
+    }
+    // its speed over the last 100 ms of the drag (px/ms)
+    d.trail.push([e.timeStamp, e.clientX])
+    const recent = d.trail.filter(([t]) => e.timeStamp - t <= 100)
+    const [ta, xa] = recent[0], [tb, xb] = recent[recent.length - 1]
+    const v = tb > ta ? (xb - xa) / (tb - ta) : 0
+    // where the track is, and where the drag began, in photos: a flick goes on to the next photo its way, a drag of `dist` to the
+    // next one from where it began, and anything less back to the nearest; never more than one on, nor past either end
+    const pos = -d.x / d.w, from = -d.from / d.w
+    let to = Math.round(pos)
+    if (v < -SWIPE.speed) to = Math.floor(pos) + 1
+    else if (v > SWIPE.speed) to = Math.ceil(pos) - 1
+    else if (pos - from > SWIPE.dist) to = Math.floor(from) + 1
+    else if (from - pos > SWIPE.dist) to = Math.ceil(from) - 1
+    to = Math.max(0, i - 1, Math.min(n - 1, i + 1, to))
+    glideTo(to, d.x)
+    if (to !== index) onIndex(to)
   }
 
   const chrome = `transition-opacity duration-200 ${immersive ? 'pointer-events-none opacity-0' : ''}`
@@ -279,22 +418,12 @@ function PhotoViewer({ album, index, onIndex, onClose, immersive, onImmersive }:
       </div>
 
       <div ref={stage} className="group relative min-h-0 flex-1 touch-pan-y select-none overflow-hidden" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
-        <div className="absolute inset-0 will-change-transform" style={{ transform: `translate3d(${dx}px, 0, 0)`, transition: settling ? `transform ${SETTLE_MS}ms cubic-bezier(.25,.8,.3,1)` : 'none' }}>
-          {[index - 1, index, index + 1].filter((i) => i >= 0 && i < n).map((i) => (
-            <div key={i} className="absolute inset-y-0 flex w-full flex-col justify-center" style={{ left: `${(i - index) * 100}%` }}>
-              {album.photos[i] ? (
-                <img alt="" src={album.photos[i]} className={`pointer-events-none min-h-0 w-full ${album.captions?.[i] ? 'h-auto max-h-full object-cover' : 'h-full object-contain'}`} draggable={false} decoding="async" />
-              ) : (
-                <div className="h-full w-full" style={{ background: tileColor(album, i) }} />
-              )}
-              {album.captions?.[i] ? (
-                <div className="shrink-0 px-8 pb-5 pt-7 text-center">
-                  <div className={`text-[14px] font-semibold leading-tight tracking-tight transition-colors duration-200 ${immersive ? 'text-white' : 'text-black'}`}>{album.captions[i]![0]}</div>
-                  <div className={`mx-auto mt-2 max-w-[17rem] text-[10px] font-normal leading-snug transition-colors duration-200 ${immersive ? 'text-neutral-400' : 'text-neutral-500'}`}>{album.captions[i]![1]}</div>
-                </div>
-              ) : null}
-            </div>
-          ))}
+        {/* its transform is set from the gestures (see `place`, `rest` and `glideTo`), never by React */}
+        <div ref={track} className="absolute inset-0 will-change-transform">
+          {Array.from({ length: Math.min(n - 1, index + AROUND) - Math.max(0, index - AROUND) + 1 }, (_, k) => {
+            const i = Math.max(0, index - AROUND) + k
+            return <Slide key={i} album={album} i={i} current={i === index} immersive={immersive} />
+          })}
         </div>
         {index > 0 ? <button onPointerDown={(e) => e.stopPropagation()} onClick={() => go(index - 1)} aria-label="Previous photo" className={`${arrow} left-2`}><Sym d={ICON.back} size={18} /></button> : null}
         {index < n - 1 ? <button onPointerDown={(e) => e.stopPropagation()} onClick={() => go(index + 1)} aria-label="Next photo" className={`${arrow} right-2`}><Sym d={ICON.chevron} size={18} /></button> : null}
@@ -303,7 +432,7 @@ function PhotoViewer({ album, index, onIndex, onClose, immersive, onImmersive }:
       <div className={chrome}>
         <div ref={strip} className="flex items-center gap-[2px] overflow-x-auto px-[50%] py-2" style={{ scrollbarWidth: 'none' }}>
           {Array.from({ length: n }, (_, i) => (
-            <button key={i} onClick={() => go(i)} aria-label={`Photo ${i + 1}`} className={`h-10 shrink-0 cursor-pointer overflow-hidden transition-all duration-200 ${i === index ? 'mx-1 w-10' : 'w-6'}`}>
+            <button key={i} onClick={() => go(i)} aria-label={`Photo ${i + 1}`} className={`h-10 shrink-0 cursor-pointer overflow-hidden transition-[width,margin] duration-200 ${i === index ? 'mx-1 w-10' : 'w-6'}`}>
               <Tile album={album} i={i} />
             </button>
           ))}
@@ -360,7 +489,7 @@ function SideButton({ id, y0, y1, left }: { id: string; y0: number; y1: number; 
 }
 
 // the gold body, its groove, the black glass and the side buttons, under the display
-function FrameBody() {
+const FrameBody = memo(function FrameBody() {
   return (
     <svg className="absolute inset-0 h-full w-full" viewBox="639 120 1800 3629.83" fill="none" aria-hidden>
       <path d="M2139.82 120L937.844 120C781.196 120 654.207 246.989 654.207 403.637L654.207 3466.19C654.207 3622.84 781.196 3749.83 937.844 3749.83L2139.82 3749.83C2296.46 3749.83 2423.45 3622.84 2423.45 3466.19L2423.45 403.637C2423.45 246.989 2296.46 120 2139.82 120Z" fill="#E0D0AF" />
@@ -372,10 +501,10 @@ function FrameBody() {
       <SideButton id="pbVolDown" y0={1303.98} y1={1581.11} left />
     </svg>
   )
-}
+})
 
 // the Dynamic Island and its camera, drawn over the display
-function DynamicIsland() {
+const DynamicIsland = memo(function DynamicIsland() {
   return (
     <svg className="pointer-events-none absolute inset-0 z-40 h-full w-full" viewBox="639 120 1800 3629.83" fill="none" aria-hidden>
       <defs>
@@ -395,7 +524,7 @@ function DynamicIsland() {
       <circle cx="1663.46" cy="322.948" r="4.48" fill="url(#pbCam4)" style={{ mixBlendMode: 'screen' }} />
     </svg>
   )
-}
+})
 
 // ---------- the back of the phone: a clear case printed with black polka dots, and her beaded strap ----------
 const BODY = 'M2139.82 120L937.844 120C781.196 120 654.207 246.989 654.207 403.637L654.207 3466.19C654.207 3622.84 781.196 3749.83 937.844 3749.83L2139.82 3749.83C2296.46 3749.83 2423.45 3622.84 2423.45 3466.19L2423.45 403.637C2423.45 246.989 2296.46 120 2139.82 120Z'
@@ -421,7 +550,7 @@ for (let row = 0, y = 250; y < 3700; row++, y += 165) {
   }
 }
 
-function PhoneBack() {
+const PhoneBack = memo(function PhoneBack() {
   return (
     <>
       {/* the same frame, mirrored so the side buttons land on the right sides when seen from behind */}
@@ -500,10 +629,9 @@ function PhoneBack() {
         {/* the lanyard hole in the top-right corner */}
         <circle cx={CHARM_HOLE[0]} cy={CHARM_HOLE[1]} r="17" fill="#bfbab2" stroke="white" strokeWidth="4" />
       </svg>
-      <PhoneCharm />
     </>
   )
-}
+})
 
 // ---------- her beaded strap, the one lying by her phone in the meadow, hanging here from the case's top-right corner ----------
 // it falls to the left, over the case, so it stays on screen even where the phone fills the screen's width
@@ -511,18 +639,23 @@ const CHARM_HOLE = [2310, 232]
 // phone units to each of the strap's own units
 const CHARM_SCALE = 60
 
-function PhoneCharm() {
-  const [strap] = useState(() => mirrored(paintHangingCharm()).toDataURL())
-  const [name] = useState(() => paintNameCharm().toDataURL())
+// the two sprites, painted the first time the phone is picked up and kept for every time after
+let charmSprites: { strap: HTMLCanvasElement; name: HTMLCanvasElement } | null = null
+const sprites = () => (charmSprites ??= { strap: mirrored(paintHangingCharm()), name: paintNameCharm() })
+
+// `sway`: they swing only while the case is turned to you (behind the screen they would only keep the GPU busy)
+const PhoneCharm = memo(function PhoneCharm({ sway }: { sway: boolean }) {
+  const { strap, name } = sprites()
   const { w, h, top } = HANGING_CHARM
+  const state = sway ? 'running' : 'paused'
   return (
     <>
-      <Charm src={strap} box={{ w, h, top: [w - top[0], top[1]] }} animation="phone-charm-sway 3.6s ease-in-out infinite alternate" />
+      <Charm sprite={strap} box={{ w, h, top: [w - top[0], top[1]] }} animation={`phone-charm-sway 3.6s ease-in-out infinite alternate ${state}`} />
       {/* her name strand, from the same hole, bending into the strap's loop and swaying to its own beat */}
-      <Charm src={name} box={NAME_CHARM} animation="phone-name-sway 2.9s ease-in-out infinite alternate" />
+      <Charm sprite={name} box={NAME_CHARM} animation={`phone-name-sway 2.9s ease-in-out infinite alternate ${state}`} />
     </>
   )
-}
+})
 
 // the strap's sprite turned over left to right, so its loop falls to the left of the clasp
 function mirrored(cv: HTMLCanvasElement) {
@@ -535,12 +668,19 @@ function mirrored(cv: HTMLCanvasElement) {
   return out
 }
 
-function Charm({ src, box: { w, h, top }, animation }: { src: string; box: { w: number; h: number; top: number[] }; animation: string }) {
+// a sprite shown in a canvas of its own: copied across (a quick GPU copy), not encoded to a PNG and decoded again for an <img>
+function Charm({ sprite, box: { w, h, top }, animation }: { sprite: HTMLCanvasElement; box: { w: number; h: number; top: number[] }; animation: string }) {
+  const ref = useRef<HTMLCanvasElement>(null)
+  useLayoutEffect(() => {
+    const cv = ref.current!
+    cv.width = sprite.width
+    cv.height = sprite.height
+    cv.getContext('2d')!.drawImage(sprite, 0, 0)
+  }, [sprite])
   return (
-    <img
-      alt=""
-      src={src}
-      draggable={false}
+    <canvas
+      ref={ref}
+      aria-hidden
       className="pointer-events-none absolute max-w-none"
       style={{ left: u(CHARM_HOLE[0] - 639 - top[0] * CHARM_SCALE), top: u(CHARM_HOLE[1] - 120 - top[1] * CHARM_SCALE), width: u(w * CHARM_SCALE), height: u(h * CHARM_SCALE), transformOrigin: `${(top[0] / w) * 100}% ${(top[1] / h) * 100}%`, filter: 'drop-shadow(0 6px 6px rgba(40,30,20,0.3))', animation }}
     />
@@ -607,6 +747,17 @@ function LockScreen({ unlocking, recognized, onUnlock }: { unlocking: boolean; r
 
 const TABS: [string, string][] =[['Library', ICON.library], ['For You', ICON.forYou], ['Albums', ICON.albums], ['Search', ICON.search]]
 
+// Photos' tab bar, which never changes
+const TabBar = memo(function TabBar() {
+  return (
+    <div className="absolute inset-x-0 bottom-0 flex justify-around border-t border-neutral-200 bg-white/85 pb-6 pt-1.5 backdrop-blur-xl">
+      {TABS.map(([name, d]) => (
+        <span key={name} className="flex flex-col items-center gap-0.5 text-[10px] font-medium" style={{ color: name === 'Albums' ? BLUE : '#a3a3a3' }}><Sym d={d} size={24} />{name}</span>
+      ))}
+    </div>
+  )
+})
+
 /** where her phone lies face down on the grass (DreamLanding): its centre and height on screen (px), and how it is turned (radians) */
 export interface PhoneSpot { x: number; y: number; h: number; rot: number }
 
@@ -641,18 +792,85 @@ function flightFrames(at: PhoneSpot, phone: HTMLElement): Keyframe[] {
   ]
 }
 
-export default function PhoneGallery({ spot, onClose }: { spot: () => PhoneSpot | null; onClose: () => void }) {
+// Once it is up, its shadow is a still one under its body (the frame's BODY: x 654.2 to 2423.45, corners of radius 283.6), the
+// same as the drop-shadow its flight ends on. A drop-shadow filter over the whole phone would be worked out again every time
+// anything on its screen moved, at every step of a swipe.
+const SHADOW = '0 24px 48px rgba(0, 0, 0, 0.35)'
+
+// The turn over. Not one card with a face on each side, hidden from behind by backface-visibility: Safari hides only the face
+// itself, and the screen's own layers (the lock screen, the status bar, the Dynamic Island) show through the case, mirrored.
+// Instead each face turns on its own: the one going away turns edge-on over the first half, then the one coming in turns
+// from edge-on to face you over the second, so neither ever shows its back; the shadow turns with whichever face is showing.
+// At rest the face away from you is hidden, and nothing is in 3D.
+const TURN = { ms: 700, ease: 'cubic-bezier(.6,.05,.3,1)' }
+const yaw = (deg: number, offset?: number): Keyframe => ({ transform: `rotateY(${deg}deg)`, ...(offset === undefined ? {} : { offset }) })
+/** the keyframes for [the screen, the case, the shadow], turning over to the case (`toBack`) or back to the screen */
+function turnFrames(toBack: boolean): Keyframe[][] {
+  const s = toBack ? 1 : -1
+  const leaving = [yaw(0), yaw(90 * s, 0.5), yaw(90 * s)]
+  const coming = [yaw(-90 * s), yaw(-90 * s, 0.5), yaw(0)]
+  const shadow = [yaw(0), yaw(90 * s, 0.5), yaw(-90 * s, 0.5), yaw(0)]
+  return toBack ? [leaving, coming, shadow] : [coming, leaving, shadow]
+}
+
+/** `onPause(true)` once the phone is up in front of the page (the page can stand still behind it), `onPause(false)` as it goes back down */
+export default function PhoneGallery({ spot, onClose, onPause }: { spot: () => PhoneSpot | null; onClose: () => void; onPause?: (paused: boolean) => void }) {
   const [album, setAlbum] = useState<Album | null>(null)
   const [viewing, setViewing] = useState<number | null>(null)
+  const backToAlbums = useCallback(() => setAlbum(null), [])
+  const closeViewer = useCallback(() => setViewing(null), [])
   // showing the back of the phone, its case and charm: it opens this way round, then turns over to the screen on its own
   const [flipped, setFlipped] = useState(true)
   const turn = useRef<number | undefined>(undefined)
   useEffect(() => {
+    // (the lock screen's wallpaper is decoded meanwhile, so the screen is ready to draw as it comes round)
+    predecode(wallpaper)
     turn.current = window.setTimeout(() => setFlipped(false), 1800)
     return () => clearTimeout(turn.current)
   }, [])
   // a flip by hand cancels the automatic one
   const flip = (to: boolean) => { clearTimeout(turn.current); setFlipped(to) }
+
+  // the turn itself (turnFrames), played on the two faces and the shadow
+  const front = useRef<HTMLDivElement>(null)
+  const back = useRef<HTMLDivElement>(null)
+  const shadow = useRef<HTMLDivElement>(null)
+  // the way round it is, or is turning to (null until first shown); and the turn under way
+  const side = useRef<boolean | null>(null)
+  const turning = useRef<Animation[]>([])
+  useLayoutEffect(() => {
+    if (side.current === flipped) return
+    const first = side.current === null
+    side.current = flipped
+    const f = front.current!, b = back.current!
+    const settle = () => {
+      f.style.visibility = side.current ? 'hidden' : 'visible'
+      b.style.visibility = side.current ? 'visible' : 'hidden'
+    }
+    if (first) {
+      settle()
+      return
+    }
+    const running = turning.current
+    // turned again mid-turn: it turns back from wherever it has got to
+    if (running.length && running.every((a) => a.playState === 'running')) {
+      running.forEach((a) => a.reverse())
+      return
+    }
+    running.forEach((a) => a.cancel())
+    f.style.visibility = b.style.visibility = 'visible'
+    const timing: KeyframeAnimationOptions = { duration: TURN.ms, easing: TURN.ease, fill: 'both' }
+    const [ff, bf, sf] = turnFrames(flipped)
+    const list = [f.animate(ff, timing), b.animate(bf, timing), shadow.current!.animate(sf, timing)]
+    turning.current = list
+    // done (either way round): the face now away from you is hidden, and the turn's last frame is let go
+    list[0].finished.then(() => {
+      if (turning.current !== list) return
+      turning.current = []
+      settle()
+      list.forEach((a) => a.cancel())
+    }, () => {})
+  }, [flipped])
 
   // it turns over to the lock screen; Face ID knows her a moment later, and a swipe up opens Photos
   const [locked, setLocked] = useState(true)
@@ -673,19 +891,34 @@ export default function PhoneGallery({ spot, onClose }: { spot: () => PhoneSpot 
 
   // it is picked up off the grass as it opens, and laid back down there, face down, as it closes
   const overlay = useRef<HTMLDivElement>(null)
+  const scrim = useRef<HTMLDivElement>(null)
   const phone = useRef<HTMLDivElement>(null)
   const closing = useRef(false)
+  // the page behind is told when the phone is up in front of it, and when it starts back down (and, whatever happens, at the end)
+  const pause = useRef(onPause)
+  pause.current = onPause
+  useEffect(() => () => pause.current?.(false), [])
   useLayoutEffect(() => {
     const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches
     const at = spot()
-    overlay.current!.animate([{ background: 'transparent', backdropFilter: 'blur(0px)' }, { background: BACKDROP.color, backdropFilter: BACKDROP.blur }], { duration: reduce ? 200 : 600, easing: 'ease-out' })
-    if (at && !reduce) phone.current!.animate(flightFrames(at, phone.current!), { duration: FLIGHT.open, easing: FLIGHT.openEase })
-    else phone.current!.animate([{ opacity: 0, transform: 'scale(0.96)' }, { opacity: 1, transform: 'none' }], { duration: 200, easing: 'ease-out' })
+    // the dimmed, blurred backdrop fades in: its opacity, so the blur itself is not worked out afresh at every step
+    const fade = reduce ? 200 : 600
+    scrim.current!.animate([{ opacity: 0 }, { opacity: 1 }], { duration: fade, easing: 'ease-out' })
+    if (at && !reduce) {
+      phone.current!.animate(flightFrames(at, phone.current!), { duration: FLIGHT.open, easing: FLIGHT.openEase })
+      // in flight its shadow is the flight's own (a filter, falling away from it as it rises); the still one takes over as it lands
+      shadow.current!.animate([{ opacity: 0 }, { opacity: 0 }], { duration: FLIGHT.open })
+    } else phone.current!.animate([{ opacity: 0, transform: 'scale(0.96)' }, { opacity: 1, transform: 'none' }], { duration: 200, easing: 'ease-out' })
     overlay.current!.querySelectorAll('[data-chrome]').forEach((el) => el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 250, delay: reduce ? 0 : FLIGHT.open - 250, fill: 'backwards' }))
+    // the page behind stands still once the backdrop is mostly in (~70% at half its fade), so the rest of the flight has
+    // the device to itself; by then the meadow has long since drawn the grass without the phone on it
+    const still = window.setTimeout(() => { if (!closing.current) pause.current?.(true) }, fade / 2)
+    return () => clearTimeout(still)
   }, [spot])
   const close = useCallback(() => {
     if (closing.current) return
     closing.current = true
+    pause.current?.(false)
     overlay.current!.style.pointerEvents = 'none'
     // it turns back over on its way down
     clearTimeout(turn.current)
@@ -693,8 +926,10 @@ export default function PhoneGallery({ spot, onClose }: { spot: () => PhoneSpot 
     const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches
     const at = spot()
     const time = at && !reduce ? FLIGHT.close : 200
-    overlay.current!.animate([{ background: BACKDROP.color, backdropFilter: BACKDROP.blur }, { background: 'transparent', backdropFilter: 'blur(0px)' }], { duration: time, easing: 'ease-in', fill: 'forwards' })
+    scrim.current!.animate([{ opacity: 1 }, { opacity: 0 }], { duration: time, easing: 'ease-in', fill: 'forwards' })
     overlay.current!.querySelectorAll('[data-chrome]').forEach((el) => el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 150, fill: 'forwards' }))
+    // flying down, the flight's own shadow takes over from the still one again
+    if (at && !reduce) shadow.current!.animate([{ opacity: 0 }, { opacity: 0 }], { duration: time, fill: 'forwards' })
     const frames = at && !reduce
       ? flightFrames(at, phone.current!).reverse().map((f) => (f.offset === undefined ? f : { ...f, offset: 1 - (f.offset as number) }))
       : [{ opacity: 1 }, { opacity: 0 }]
@@ -732,48 +967,47 @@ export default function PhoneGallery({ spot, onClose }: { spot: () => PhoneSpot 
   }, [album, viewing, close])
 
   return (
-    <div ref={overlay} className="fixed inset-0 z-[1000] flex items-center justify-center p-4" style={{ background: BACKDROP.color, backdropFilter: BACKDROP.blur }} onClick={close}>
+    <div ref={overlay} className="fixed inset-0 z-[1000] flex items-center justify-center p-4" onClick={close}>
+      {/* the page behind, dimmed and blurred */}
+      <div ref={scrim} className="absolute inset-0" style={{ background: BACKDROP.color, backdropFilter: BACKDROP.blur, WebkitBackdropFilter: BACKDROP.blur }} />
       <div
         ref={phone}
         className="relative"
-        style={{ '--w': 'min(375px, 92vw, calc(90vh * 1800 / 3629.83))', width: 'var(--w)', height: u(3629.83), filter: 'drop-shadow(0 24px 48px rgba(0,0,0,0.35))', perspective: '2400px' } as React.CSSProperties}
+        style={{ '--w': 'min(375px, 92vw, calc(90vh * 1800 / 3629.83))', width: 'var(--w)', height: u(3629.83), perspective: '2400px' } as React.CSSProperties}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* the phone turns over on its vertical axis: the screen on the front face, the case on the back */}
-        <div className="absolute inset-0 transition-transform duration-700 ease-[cubic-bezier(.6,.05,.3,1)]" style={{ transformStyle: 'preserve-3d', transform: flipped ? 'rotateY(180deg)' : 'none' }}>
-          <div className="absolute inset-0" style={{ backfaceVisibility: 'hidden', pointerEvents: flipped ? 'none' : undefined }}>
-            <FrameBody />
-            <div
-              className="absolute overflow-hidden bg-white"
-              style={{ left: u(SCREEN.x), top: u(SCREEN.y), width: u(SCREEN.w), height: u(SCREEN.h), borderRadius: u(SCREEN.r), fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif' }}
-            >
-              <div className="absolute inset-x-0 top-0 z-30 grid items-center text-[15px] font-semibold" style={{ height: u(STATUS), gridTemplateColumns: `1fr ${u(420)} 1fr`, color: dark ? 'white' : 'black' }}>
-                <span className="text-center transition-opacity duration-300" style={{ opacity: locked && !unlocking ? 0 : 1 }}>9:41</span>
-                <span />
-                <span className="flex items-center justify-center gap-1">
-                  <svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1" /><rect x="4.5" y="5" width="3" height="6" rx="1" /><rect x="9" y="2.5" width="3" height="8.5" rx="1" /><rect x="13.5" y="0" width="3" height="11" rx="1" /></svg>
-                  <svg width="25" height="12" viewBox="0 0 25 12" fill="none"><rect x="0.5" y="0.5" width="21" height="11" rx="3.5" stroke="currentColor" opacity="0.4" /><rect x="2" y="2" width="18" height="8" rx="2" fill="currentColor" /><path d="M23 4v4c.8-.3 1.3-1.1 1.3-2S23.8 4.3 23 4z" fill="currentColor" opacity="0.4" /></svg>
-                </span>
-              </div>
-              {/* Photos, which zooms up into place as the lock screen slides away */}
-              <div className="absolute inset-0" style={{ transform: locked && !unlocking ? 'scale(0.9)' : 'none', opacity: locked && !unlocking ? 0 : 1, transition: 'transform 0.5s cubic-bezier(.32,.72,0,1), opacity 0.3s' }}>
-                <div className="h-full" style={{ paddingTop: u(STATUS) }}>{album ? <AlbumScreen album={album} onBack={() => setAlbum(null)} onView={setViewing} /> : <AlbumsScreen onOpen={setAlbum} />}</div>
-                <div className="absolute inset-x-0 bottom-0 flex justify-around border-t border-neutral-200 bg-white/85 pb-6 pt-1.5 backdrop-blur-xl">
-                  {TABS.map(([name, d]) => (
-                    <span key={name} className="flex flex-col items-center gap-0.5 text-[10px] font-medium" style={{ color: name === 'Albums' ? BLUE : '#a3a3a3' }}><Sym d={d} size={24} />{name}</span>
-                  ))}
-                </div>
-                {album && viewing !== null ? <PhotoViewer album={album} index={viewing} onIndex={setViewing} onClose={() => setViewing(null)} immersive={immersive} onImmersive={setImmersive} /> : null}
-              </div>
-              {locked ? <LockScreen unlocking={unlocking} recognized={recognized} onUnlock={unlock} /> : null}
-              <div className="pointer-events-none absolute bottom-2 left-1/2 z-30 h-[5px] w-[36%] -translate-x-1/2 rounded-full" style={{ background: dark ? 'white' : 'black' }} />
+        <div ref={shadow} className="pointer-events-none absolute top-0" style={{ left: u(15.2), width: u(1769.25), height: u(3629.83), borderRadius: u(283.6), boxShadow: SHADOW }} />
+        {/* the phone turns over on its vertical axis, one face at a time (see turnFrames): the screen on this face... */}
+        <div ref={front} className="absolute inset-0" style={{ pointerEvents: flipped ? 'none' : undefined }}>
+          <FrameBody />
+          <div
+            className="absolute overflow-hidden bg-white"
+            style={{ left: u(SCREEN.x), top: u(SCREEN.y), width: u(SCREEN.w), height: u(SCREEN.h), borderRadius: u(SCREEN.r), fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif' }}
+          >
+            <div className="absolute inset-x-0 top-0 z-30 grid items-center text-[15px] font-semibold" style={{ height: u(STATUS), gridTemplateColumns: `1fr ${u(420)} 1fr`, color: dark ? 'white' : 'black' }}>
+              <span className="text-center transition-opacity duration-300" style={{ opacity: locked && !unlocking ? 0 : 1 }}>9:41</span>
+              <span />
+              <span className="flex items-center justify-center gap-1">
+                <svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1" /><rect x="4.5" y="5" width="3" height="6" rx="1" /><rect x="9" y="2.5" width="3" height="8.5" rx="1" /><rect x="13.5" y="0" width="3" height="11" rx="1" /></svg>
+                <svg width="25" height="12" viewBox="0 0 25 12" fill="none"><rect x="0.5" y="0.5" width="21" height="11" rx="3.5" stroke="currentColor" opacity="0.4" /><rect x="2" y="2" width="18" height="8" rx="2" fill="currentColor" /><path d="M23 4v4c.8-.3 1.3-1.1 1.3-2S23.8 4.3 23 4z" fill="currentColor" opacity="0.4" /></svg>
+              </span>
             </div>
-            <DynamicIsland />
+            {/* Photos, which zooms up into place as the lock screen slides away */}
+            <div className="absolute inset-0" style={{ transform: locked && !unlocking ? 'scale(0.9)' : 'none', opacity: locked && !unlocking ? 0 : 1, transition: 'transform 0.5s cubic-bezier(.32,.72,0,1), opacity 0.3s' }}>
+              <div className="h-full" style={{ paddingTop: u(STATUS) }}>{album ? <AlbumScreen album={album} onBack={backToAlbums} onView={setViewing} /> : <AlbumsScreen onOpen={setAlbum} />}</div>
+              <TabBar />
+              {album && viewing !== null ? <PhotoViewer album={album} index={viewing} onIndex={setViewing} onClose={closeViewer} immersive={immersive} onImmersive={setImmersive} /> : null}
+            </div>
+            {locked ? <LockScreen unlocking={unlocking} recognized={recognized} onUnlock={unlock} /> : null}
+            <div className="pointer-events-none absolute bottom-2 left-1/2 z-30 h-[5px] w-[36%] -translate-x-1/2 rounded-full" style={{ background: dark ? 'white' : 'black' }} />
           </div>
-          <div className="absolute inset-0 cursor-pointer" style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)', pointerEvents: flipped ? undefined : 'none' }} onClick={() => flip(false)}>
-            <PhoneBack />
-            <style>{'@keyframes phone-charm-sway { from { transform: rotate(-3deg) } to { transform: rotate(2.5deg) } } @keyframes phone-name-sway { from { transform: rotate(-4deg) } to { transform: rotate(3deg) } }'}</style>
-          </div>
+          <DynamicIsland />
+        </div>
+        {/* ...and the case on this one */}
+        <div ref={back} className="absolute inset-0 cursor-pointer" style={{ pointerEvents: flipped ? undefined : 'none' }} onClick={() => flip(false)}>
+          <PhoneBack />
+          <PhoneCharm sway={flipped} />
+          <style>{'@keyframes phone-charm-sway { from { transform: rotate(-3deg) } to { transform: rotate(2.5deg) } } @keyframes phone-name-sway { from { transform: rotate(-4deg) } to { transform: rotate(3deg) } }'}</style>
         </div>
       </div>
       <button data-chrome onClick={(e) => { e.stopPropagation(); flip(!flipped) }} aria-label="Flip phone" className="absolute left-5 top-5 flex items-center gap-2 rounded-full bg-white/15 px-4 py-2 text-sm font-medium text-white backdrop-blur-md transition-colors hover:bg-white/25 cursor-pointer">

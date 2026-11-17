@@ -599,6 +599,8 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches
   let disposed = false
   let visible = true
+  // when setVisible stopped the draw loop (performance.now(); -1 while it runs): the clock leaves that time out when it starts again
+  let stoppedAt = -1
   let ready = false
   // true once loading and the warm-up are over: only then does setVisible start and stop the draw loop
   let live = false
@@ -1020,6 +1022,13 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
         readyAt = p.millis()
         timedFrames = slowFrames = 0
         if (!visible) p.noLoop()
+      }
+      // back from a stop (the page out of view, or held under the phone gallery): the clock carries on from where it stopped,
+      // so the grass, clouds and petals pick up where they were rather than jumping ahead. (Only once it is visible again:
+      // p5's noLoop lets the frame already asked for run once more, and that one must not use up the stop.)
+      if (stoppedAt >= 0 && visible) {
+        animStart += performance.now() - stoppedAt
+        stoppedAt = -1
       }
       adaptDensity()
       renderFrame(false)
@@ -1864,7 +1873,10 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       // the draw loop starts once setup has finished loading, and runs on through the warm-up (which then applies `visible`)
       if (!live) return
       if (v) instance.loop()
-      else instance.noLoop()
+      else {
+        instance.noLoop()
+        if (stoppedAt < 0) stoppedAt = performance.now()
+      }
     },
     dispose() {
       disposed = true

@@ -200,7 +200,9 @@ export default function DreamLanding() {
   }, [phone])
   useEffect(() => {
     const prefetch = () => { loadGallery().catch(() => {}) }
-    const id = window.setTimeout(() => ('requestIdleCallback' in window ? requestIdleCallback(prefetch) : prefetch()), 3000)
+    // (with a timeout: on a slow phone the meadow can keep the main thread busy enough that an idle moment never comes, and the
+    // first tap on the phone would then wait for the download)
+    const id = window.setTimeout(() => ('requestIdleCallback' in window ? requestIdleCallback(prefetch, { timeout: 2000 }) : prefetch()), 3000)
     return () => window.clearTimeout(id)
   }, [])
   const closePhone = useCallback(() => {
@@ -209,6 +211,10 @@ export default function DreamLanding() {
     // the hotspot comes back with the next scroll update
     window.dispatchEvent(new Event('scroll'))
   }, [phone])
+  // while the phone is up in front of it, the meadow behind (dimmed and blurred) stands still: its frames would only be drawn,
+  // and blurred again, under the gallery. Set up by the scene effect below.
+  const holdMeadow = useRef<(hold: boolean) => void>(() => {})
+  const pauseForPhone = useCallback((hold: boolean) => holdMeadow.current(hold), [])
   // her tote lies on the meadow too: clicking it plays the bag reveal (meadow/bagItems.ts). The hotspot is placed like the phone's.
   const postRef = useRef<HTMLDivElement>(null)
   const idRef = useRef<HTMLButtonElement>(null)
@@ -307,6 +313,13 @@ export default function DreamLanding() {
     // The meadow (and p5) load after first paint; the poster stands in until its first frame is up
     let meadow: MeadowHandle | null = null
     let visible = true
+    // held still by the phone gallery (pauseForPhone)
+    let held = false
+    const showMeadow = () => meadow?.setVisible(visible && !held)
+    holdMeadow.current = (hold) => {
+      held = hold
+      showMeadow()
+    }
     let cancelled = false
     // until the canvas is up, the poster is what is on screen: it rides the camera like the cards (placePoster), so the
     // cards don't slide across a still picture when the page is scrolled before the meadow has loaded
@@ -337,7 +350,7 @@ export default function DreamLanding() {
         releaseLoad()
         setLoaded(true)
       }, (a) => fxRef.current?.(a), { samples, onProgress })
-      meadow.setVisible(visible)
+      showMeadow()
     }).catch(() => { releaseLoad(); setLoaded(true) })
 
     // read once, not on every scroll event
@@ -678,7 +691,7 @@ export default function DreamLanding() {
     resizeObserver.observe(section)
     const visibility = new IntersectionObserver(([entry]) => {
       visible = entry.isIntersecting
-      meadow?.setVisible(visible)
+      showMeadow()
     })
     visibility.observe(section)
     window.addEventListener('scroll', onScroll, { passive: true })
@@ -699,6 +712,7 @@ export default function DreamLanding() {
     return () => {
       cancelAnimationFrame(postFrame)
       window.clearInterval(slideTimer)
+      holdMeadow.current = () => {}
       followBag.current = null
       resizeObserver.disconnect()
       visibility.disconnect()
@@ -839,7 +853,7 @@ export default function DreamLanding() {
         </div>
       </div>
     )}
-    {galleryOpen ? <Suspense fallback={null}><PhoneGallery spot={phoneSpot} onClose={closePhone} /></Suspense> : null}
+    {galleryOpen ? <Suspense fallback={null}><PhoneGallery spot={phoneSpot} onClose={closePhone} onPause={pauseForPhone} /></Suspense> : null}
   </section>
   )
 }
