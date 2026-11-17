@@ -9,6 +9,8 @@ import boyBack from '@/assets/meadow/boy.webp'
 import nudgeFront from '@/assets/meadow/nudge.webp'
 import nudgeBack from '@/assets/meadow/nudgeback.webp'
 import OverthinkingLoop from './OverthinkingLoop'
+import DeviceShot from './DeviceShot'
+import { backToLanding } from '@/lib/caseStudyNav'
 import img1 from '@/assets/meadow/image (1).webp'
 import img3 from '@/assets/meadow/image (3).webp'
 import img7 from '@/assets/meadow/image (7).webp'
@@ -67,7 +69,7 @@ const SECTIONS: { title: string; blocks: Block[] }[] = [
       { t: 'q', text: 'What if things go wrong?' },
       { t: 'q', text: 'Why can\'t I figure this out?' },
       { t: 'p', text: 'With every wrong turn, he becomes more confused and frustrated. He doesn\'t know which direction to take anymore, or how to get out. Just when everything seems hopeless, a light appears from a distance. The boy looks up. And there it is. Nudge\'s little blob mascot!' },
-      { t: 'p', text: 'The blob enters the maze, making its way towards the boy. The two meet, and the boy finally has someone to talk to. He starts sharing what\'s bothering him, and the blob responds, helping him look at things differently. They have a little conversation, and together, they find a way out of the maze. And just like that, the story comes full circle. The boy who entered the maze feeling lost now walks out with a clearer mind and a little more confidence. This was exactly what I wanted the landing page to communicate. The maze represented overthinking. The boy represented someone experiencing it. And the blob represented Nudge â€” a companion that listens, responds, and helps people find their way forward.' },
+      { t: 'p', text: 'The blob enters the maze, making its way towards the boy. The two meet, and the boy finally has someone to talk to. He starts sharing what\'s bothering him, and the blob responds, helping him look at things differently. They have a little conversation, and together, they find a way out of the maze. And just like that, the story comes full circle. The boy who entered the maze feeling lost now walks out with a clearer mind and a little more confidence. This was exactly what I wanted the landing page to communicate. The maze represented overthinking. The boy represented someone experiencing it. And the blob represented Nudge — a companion that listens, responds, and helps people find their way forward.' },
       { t: 'p', text: 'It wasn\'t just an illustration anymore. It was the product experience turned into a visual story.' },
     ],
   },
@@ -120,7 +122,12 @@ const CSS = `
 .np{background:#fbf8f2;color:#1f2430;font-family:${FONT};overflow-x:hidden}
 .np *{box-sizing:border-box}
 .np-wrap{max-width:1100px;margin:0 auto;padding:0 24px}
-.np-back{position:fixed;top:16px;left:16px;z-index:50;background:#fff;color:#1f2430;text-decoration:none;font-weight:800;font-size:15px;padding:9px 16px;border-radius:999px;box-shadow:0 4px 14px rgba(0,0,0,.12)}
+/* back to the landing: pinned, so it is one tap away anywhere in a long read */
+.np-back{position:fixed;top:max(16px,env(safe-area-inset-top));left:max(16px,env(safe-area-inset-left));z-index:50;display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.92);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);color:#1f2430;text-decoration:none;font-weight:800;font-size:15px;line-height:1;padding:10px 18px 10px 14px;border-radius:999px;box-shadow:0 6px 18px -6px rgba(15,118,110,.35),0 0 0 1px rgba(20,184,166,.2);transition:transform .2s ease,box-shadow .2s ease}
+.np-back:hover{transform:translateY(-1px);box-shadow:0 10px 24px -8px rgba(15,118,110,.4),0 0 0 1px rgba(20,184,166,.35)}
+.np-back:focus-visible{outline:2px solid #14b8a6;outline-offset:3px}
+.np-back span{display:inline-block;transition:transform .2s ease}
+.np-back:hover span{transform:translateX(-3px)}
 .np-hero{display:grid;grid-template-columns:1.1fr 1fr;align-items:center;gap:24px;min-height:100vh;padding:70px 0 40px}
 .np-hero>div{min-width:0;text-align:center}
 .np-hero img{width:100%;max-height:92vh;object-fit:contain}
@@ -138,15 +145,22 @@ transform:perspective(900px) rotateX(8deg) rotateY(-4deg);transform-origin:cente
 .np-box{background:#fff;border-radius:34px 44px 38px 50px / 44px 36px 50px 40px;padding:clamp(26px,4vw,52px);box-shadow:0 18px 40px rgba(20,184,166,.15),0 0 0 3px #bff3ea inset}
 .np-blob{background:#e6fbf7;border-radius:60px 44px 56px 48px / 50px 56px 46px 52px}
 .np-q{font-style:italic;font-weight:800;color:#0f766e;background:#e6fbf7;border:2px solid #14b8a6;border-radius:22px 22px 22px 4px;padding:10px 18px;margin:0 12px 12px 0;display:inline-block;font-size:18px}
-.np-mocks{display:flex;justify-content:center;gap:6px;margin:8px 0 0;align-items:center}
-.np-crop{position:relative;overflow:hidden;flex:0 0 auto}
-.np-crop img{position:absolute;max-width:none;display:block}
+.np-mocks{display:flex;justify-content:center;gap:clamp(20px,5vw,48px);margin:48px 0 0;align-items:center}
+.np-mocks .np-device{flex:0 0 auto;width:min(232px,40vw)}
+.np-mocks .np-device:first-child{transform:rotate(-3deg)}
+.np-mocks .np-device:last-child{transform:rotate(3deg) translateY(16px)}
+.np-device{filter:drop-shadow(0 20px 24px rgba(15,60,60,.2)) drop-shadow(0 3px 5px rgba(15,60,60,.12))}
 .np-center .np-h2,.np-center .np-body p{text-align:center}
 .np-center{text-align:center;max-width:760px;margin:0 auto}
-.np-devices{position:relative;display:flex;flex-direction:column;align-items:center;gap:clamp(28px,6vw,56px);width:100%}
-.np-devices .ph{position:relative;z-index:1;transform:rotate(-6deg);margin-bottom:0}
-.np-devices .lap{position:relative;z-index:2;filter:drop-shadow(0 14px 18px rgba(0,0,0,.25))}
-.np-split{display:grid;grid-template-columns:1fr 1fr;gap:40px;align-items:center}
+/* section 08: the phone stood in front of the laptop's left corner, one composition (the padding is the phone's height above the laptop) */
+.np-devices{position:relative;width:100%;padding:24% 0 0 20%}
+.np-devices .lap{display:block;width:100%;height:auto;filter:drop-shadow(0 16px 22px rgba(0,0,0,.22))}
+.np-devices .ph{position:absolute;left:3%;bottom:0;width:34%;z-index:2;transform:rotate(-6deg);transform-origin:bottom center}
+/* a story beside its picture: the picture stays in view (sticky) while the longer text goes past */
+.np-split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:clamp(32px,5vw,64px);align-items:start}
+.np-split.loop{grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr)}
+.np-split.devices{grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr)}
+.np-media{position:sticky;top:max(96px,14vh)}
 .np-p3{display:grid;grid-template-columns:1.25fr 1fr;gap:32px;align-items:center}
 .np-p3 p{margin:0}
 .np-spiral{width:100%;max-width:600px;margin:0 auto}
@@ -163,37 +177,10 @@ transform:perspective(900px) rotateX(8deg) rotateY(-4deg);transform-origin:cente
 .np-char b{margin-top:10px;font-family:${DISPLAY};font-weight:400;font-size:18px;color:#0f766e}
 .np-stage{position:relative;height:clamp(240px,40vw,420px);margin-top:44px}
 .np-stage img{position:absolute;top:50%;left:50%;height:100%;width:auto;max-width:56%;object-fit:cover;border-radius:22px;box-shadow:0 18px 36px rgba(0,0,0,.25);transition:transform .8s cubic-bezier(.6,.05,.25,1),opacity .8s,filter .8s}
-@media(max-width:820px){.np-hero,.np-split,.np-p3{grid-template-columns:1fr}.np-p3{gap:24px}.np-hero{min-height:auto;padding-top:80px}.np-3d{transform:none}.np-sec{padding:48px 0}.np-split .np-spiral,.np-split .ot{order:2}}
+@media(max-width:820px){.np-hero,.np-split,.np-p3{grid-template-columns:1fr}.np-p3{gap:24px}.np-hero{min-height:auto;padding-top:80px}.np-3d{transform:none}.np-sec{padding:48px 0}.np-split.loop,.np-split.devices{grid-template-columns:1fr}.np-media{position:relative;top:auto;order:2}}
 @media(max-width:600px){.np-3d{font-size:clamp(26px,8.8vw,48px);line-height:1.08}.np-chars{flex-wrap:nowrap;gap:12px}.np-char{width:46%}.np-char b{font-size:16px}.np-char .pad{width:100%}}
 @media(prefers-reduced-motion:reduce){.np *{animation:none!important}}
 `
-
-// Shows only the device area of a padded mockup image (crop given as fractions of the image).
-function Crop({ src: raw, alt, iw, ih, x, y, w, h, width }: { src: string; alt: string; iw: number; ih: number; x: number; y: number; w: number; h: number; width: string }) {
-  const [src, setSrc] = useState(raw)
-  useEffect(() => {
-    // Strip the faint translucent glow around the phone, keeping only the device itself.
-    const im = new Image()
-    im.onload = () => {
-      const c = document.createElement('canvas')
-      c.width = im.naturalWidth
-      c.height = im.naturalHeight
-      const ctx = c.getContext('2d')
-      if (!ctx) return
-      ctx.drawImage(im, 0, 0)
-      const d = ctx.getImageData(0, 0, c.width, c.height)
-      for (let i = 3; i < d.data.length; i += 4) if (d.data[i] < 200) d.data[i] = 0
-      ctx.putImageData(d, 0, 0)
-      setSrc(c.toDataURL('image/png'))
-    }
-    im.src = raw
-  }, [raw])
-  return (
-    <div className="np-crop" style={{ width, aspectRatio: `${w * iw} / ${h * ih}` }}>
-      <img src={src} alt={alt} style={{ left: `${(-x / w) * 100}%`, top: `${(-y / h) * 100}%`, width: `${100 / w}%`, height: `${100 / h}%` }} />
-    </div>
-  )
-}
 
 type Frame = { angle: number; src: string; mirror?: boolean }
 type Box = { x: number; y: number; w: number; h: number; nw: number; nh: number }
@@ -369,7 +356,9 @@ export default function NudgePage() {
   return (
     <main className="np">
       <style>{CSS}</style>
-      <a href="#/" className="np-back">â† Back</a>
+      <a href="#/" className="np-back" onClick={backToLanding}>
+        <span aria-hidden="true">←</span> Back
+      </a>
 
       <div className="np-wrap">
         <header className="np-hero">
@@ -396,20 +385,18 @@ export default function NudgePage() {
         let inner: ReactNode
         if (n === 3) {
           inner = (
-            <div className="np-split">
-              <OverthinkingLoop />
+            <div className="np-split loop">
+              <div className="np-media"><OverthinkingLoop /></div>
               <div className="np-box np-blob">{text}</div>
             </div>
           )
         } else if (n === 8) {
           inner = (
-            <div className="np-split">
+            <div className="np-split devices">
               <div>{text}</div>
-              <div className="np-devices">
-                <div className="ph" style={{ width: '48%' }}>
-                  <Crop src={nmockup3} alt="Nudge mobile screen" iw={809} ih={1188} x={0.23} y={0.185} w={0.435} h={0.6} width="100%" />
-                </div>
-                <img className="lap" src={nudgeLaptop} alt="Nudge desktop screen" style={{ width: '100%' }} />
+              <div className="np-media np-devices">
+                <img className="lap" src={nudgeLaptop} alt="Nudge desktop screen" />
+                <DeviceShot className="ph np-device" src={nmockup3} alt="Nudge mobile screen" iw={809} ih={1188} crop={[0.238, 0.197, 0.422, 0.581]} />
               </div>
             </div>
           )
@@ -426,8 +413,8 @@ export default function NudgePage() {
               {inner}
               {n === 2 && (
                 <div className="np-mocks">
-                  <Crop src={nmockup1} alt="Nudge app screen 1" iw={946} ih={1234} x={0.235} y={0.185} w={0.48} h={0.61} width="min(250px,42vw)" />
-                  <Crop src={nmockup2} alt="Nudge app screen 2" iw={906} ih={1228} x={0.245} y={0.185} w={0.48} h={0.61} width="min(250px,42vw)" />
+                  <DeviceShot className="np-device" src={nmockup1} alt="Nudge app screen 1" iw={946} ih={1234} crop={[0.249, 0.196, 0.45, 0.583]} />
+                  <DeviceShot className="np-device" src={nmockup2} alt="Nudge app screen 2" iw={906} ih={1228} crop={[0.258, 0.196, 0.454, 0.583]} />
                 </div>
               )}
               {n === 5 && (

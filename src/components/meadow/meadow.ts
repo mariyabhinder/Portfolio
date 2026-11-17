@@ -67,6 +67,8 @@ export interface MeadowState {
   land: number
   /** 0→1 = once she sits at the cloud's edge, she and the cloud drift to the bottom-left while an arched window grows behind them (window.ts). */
   window: number
+  /** 0→1 = the case studies in the open window (projectSlides.ts): Picstory, then Nudge swipes in over it, while the window holds open */
+  slide: number
   /** 0→1 = a second dream wave carries the cloud scene away into the About Me background, once the landing is over (LEAVE_CONFIG). */
   leave: number
   /** 0→1 = the rest of the way down onto the About Me surface, the landing and the seated, confused pose (touch.ts). */
@@ -102,7 +104,7 @@ export interface MeadowHandle {
 }
 
 /** the scroll-driven numbers of MeadowState: what a warm-up sample sets */
-export const SCROLL_KEYS = ['zoom', 'dream', 'fall', 'land', 'window', 'leave', 'touch', 'about', 'wake'] as const
+export const SCROLL_KEYS = ['zoom', 'dream', 'fall', 'land', 'window', 'slide', 'leave', 'touch', 'about', 'wake'] as const
 export type ScrollSample = Record<(typeof SCROLL_KEYS)[number], number>
 
 export interface MeadowOptions {
@@ -1047,8 +1049,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       // (frames where only the grass moves are drawn at 30 fps: the sway is slow, and it halves the GPU work)
       const lawnLive = !reduceMotion && state.touch > 0
       if (dream >= 1 && shown && wake <= 0 && !sparkling) {
-        const slide = state.window > 0 ? slideAt(performance.now()) : null
-        const key = [slide ? slide.from : 0, slide ? slide.s : 0, state.fall, state.land, state.window,!!windowImg, !!picstoryImg, !!aboutBgImg, state.leave, state.touch, state.remembered, p.width, p.height, !!landing?.ready, !!toucher?.ready, !!decoImgs].join()
+        const key = [state.slide, state.fall, state.land, state.window,!!windowImg, !!picstoryImg, !!aboutBgImg, state.leave, state.touch, state.remembered, p.width, p.height, !!landing?.ready, !!toucher?.ready, !!decoImgs].join()
         if (key === stillKey && (!lawnLive || p.frameCount % 2 === 1)) return
         stillKey = key
       } else stillKey = ''
@@ -1367,7 +1368,7 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
           if (!nudgeImg) nudgeImg = makeNudge()
           // two pages side by side, sliding left: the one on show leaves out of the opening as the next comes in from the right
           const pages = [picstoryImg, nudgeImg]
-          const sl = slideAt(performance.now())
+          const sl = slideAt(state.slide)
           const iw = picstoryImg.width, ih = picstoryImg.height
           const drawPart = (img: any, a: number, b: number, destA: number) => {
             // the part of the opening picture from fraction a to b (across its width), put at fraction destA of the opening

@@ -29,7 +29,7 @@ const BackArt = () => (
   </svg>
 )
 
-const PostCard = forwardRef<HTMLDivElement, { rot: number; open?: boolean }>(function PostCard({ rot, open }, ref) {
+const PostCard = forwardRef<HTMLDivElement, { rot: number; open?: boolean; reopen?: number }>(function PostCard({ rot, open, reopen }, ref) {
   const [flipped, setFlipped] = useState(false)
   const wrapRef = useRef<HTMLDivElement | null>(null)
   const setRefs = useCallback((el: HTMLDivElement | null) => {
@@ -39,18 +39,22 @@ const PostCard = forwardRef<HTMLDivElement, { rot: number; open?: boolean }>(fun
   }, [ref])
 
   const openCard = useCallback((card: HTMLElement) => {
-    // lift it to the middle of the screen, big enough to read (it is set in pixels at click time so it follows the layout)
-    const r = card.getBoundingClientRect()
-    const scale = Math.min(460, window.innerWidth * 0.88) / r.width
+    // lift it to the middle of the screen, big enough to read (it is set in pixels at click time so it follows the layout). It is
+    // measured by its wrapper, which the lift never moves: the card's own box is off while it is lifted, hovered or still settling
+    // back down, and the nav's Contact me can open it again at any of those moments
+    const wrap = card.parentElement!
+    const r = wrap.getBoundingClientRect()
+    // the card lies turned by `rot` in the wrapper: the width of that turned box is the width it is lifted from
+    const width = r.width * Math.abs(Math.cos(rot)) + r.height * Math.abs(Math.sin(rot))
+    const scale = Math.min(460, window.innerWidth * 0.88) / width
     // the wrapper is scaled by DreamLanding (small in the hero, near 1 at the end), and the card's translate lives inside that scale,
     // so the screen-pixel offset is divided by it
-    const wrap = card.parentElement!
-    const ps = wrap.getBoundingClientRect().width / wrap.offsetWidth || 1
+    const ps = r.width / wrap.offsetWidth || 1
     card.style.setProperty('--pc-dx', `${(window.innerWidth / 2 - (r.left + r.width / 2)) / ps}px`)
     card.style.setProperty('--pc-dy', `${(window.innerHeight / 2 - (r.top + r.height / 2)) / ps}px`)
     card.style.setProperty('--pc-scale', scale.toFixed(3))
     setFlipped(true)
-  }, [])
+  }, [rot])
 
   const toggle = useCallback((e: React.SyntheticEvent<HTMLDivElement>) => {
     e.stopPropagation()
@@ -58,7 +62,8 @@ const PostCard = forwardRef<HTMLDivElement, { rot: number; open?: boolean }>(fun
     if (!flipped) openCard(e.currentTarget.parentElement!)
   }, [flipped, openCard])
 
-  // `open` (the end of the page) turns it over by itself; scrolling back up puts it down again
+  // `open` (the end of the page) turns it over by itself, and so does each new `reopen` while it is there (the nav's Contact me, in
+  // case it was put down); scrolling back up puts it down again
   useEffect(() => {
     if (!open) { setFlipped(false); return }
     const card = wrapRef.current?.querySelector<HTMLElement>('.pc-card')
@@ -66,14 +71,19 @@ const PostCard = forwardRef<HTMLDivElement, { rot: number; open?: boolean }>(fun
     // wait a frame so the wrapper is visible and measured before it lifts
     const id = requestAnimationFrame(() => openCard(card))
     return () => cancelAnimationFrame(id)
-  }, [open, openCard])
+  }, [open, reopen, openCard])
 
   useEffect(() => {
     if (!flipped) return
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setFlipped(false) }
     // a click (not pointerdown): on a phone, touching the screen to scroll must not close the card that just opened itself
     const onDown = (e: MouseEvent) => {
-      if (!(e.target instanceof Node) || !wrapRef.current?.contains(e.target)) setFlipped(false)
+      const t = e.target
+      if (t instanceof Node && wrapRef.current?.contains(t)) return
+      // the site nav moves the page itself (which puts the card down if it goes elsewhere), and its Contact me is what opens the card:
+      // a click there is not a click away from it
+      if (t instanceof Element && t.closest('.site-nav')) return
+      setFlipped(false)
     }
     // scrolling closes a card the visitor opened by hand (not the one the end of the page opens by itself)
     let lastY = window.scrollY
@@ -82,11 +92,13 @@ const PostCard = forwardRef<HTMLDivElement, { rot: number; open?: boolean }>(fun
       setFlipped(false)
     }
     window.addEventListener('keydown', onKey)
-    window.addEventListener('click', onDown)
+    // in the capture phase: the meadow's hotspots (bag, glasses, hat) stop their clicks from bubbling, and a click on one must still
+    // put the card down as that thing opens
+    window.addEventListener('click', onDown, true)
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => {
       window.removeEventListener('keydown', onKey)
-      window.removeEventListener('click', onDown)
+      window.removeEventListener('click', onDown, true)
       window.removeEventListener('scroll', onScroll)
     }
   }, [flipped, open])

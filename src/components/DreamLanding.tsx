@@ -7,17 +7,18 @@ import { FALL_CONFIG } from './meadow/fall'
 import FlowerCard from './FlowerCard'
 import PostCard from './PostCard'
 import IdLanyard from './IdCard'
+import SiteNav, { type NavPart } from './SiteNav'
 import { createFallDynamics } from './meadow/fall'
 import { LAND_CONFIG } from './meadow/land'
 import { LEAVE_CONFIG } from './meadow/leave'
 import { WINDOW_CONFIG, launchProgress, openingFit, windowAt } from './meadow/window'
-import { SLIDE_HREFS, slideAt } from './meadow/projectSlides'
+import { SLIDES_CONFIG, SLIDE_HREFS, slideAt } from './meadow/projectSlides'
 import { TOUCH_CONFIG } from './meadow/touchConfig'
 import { WAKE_CONFIG, wakeWave, wakeZoom } from './meadow/wake'
 import { BAG_PLACE, PHONE_PLACE } from './meadow/props'
 import { bagCamera, createBagReveal, playBagReveal } from './meadow/bagItems'
 import { createWear, playWear, CAP_WEAR, GLASSES_WEAR, HAT_WEAR, type WearConfig, type WearState } from './meadow/wear'
-import { lockScroll, startSmoothScroll } from '@/lib/smoothScroll'
+import { glideTo, lockScroll, startSmoothScroll } from '@/lib/smoothScroll'
 
 // the Photos gallery is its own chunk: it is fetched while the page is idle, and opening the phone waits for it (see openPhone)
 const loadGallery = () => import('./PhoneGallery')
@@ -31,10 +32,21 @@ const DREAM_START = 0.1385
 const DREAM_END = 0.1938
 // the original length of the section (viewport heights) that zoom, dream and fall are measured in: unchanged by the landing
 const FALL_VH = 1400
+// the About Me page (and its word game) comes in over this span of the touchdown's progress (state.touch)
+const ABOUT_IN: [number, number] = [0.5, 0.8]
+// the very end of the scroll (state.wake): she is awake and the camera is all the way back out on the meadow, as at the top of the
+// page, so the postcard opens by itself and her things on the grass (phone, bag, glasses, hat) can be clicked again
+const END_AT = 0.97
 // the postcard on the meadow, in scene px (736 x 920): centre, width and tilt. It lies on her right side, a little below her hand
 const POST_PLACE = { x: 498, y: 488, w: 36, rot: -0.15 }
 // her ID card on its lanyard, dropped in the grass to the left of her head: centre, width of its box (scene px) and tilt
 const ID_PLACE = { x: 300, y: 318, w: 46, rot: -0.35 }
+// Where the site nav's items glide to (SiteNav; Contact me is the very bottom, where the postcard opens by itself). Work: the window
+// open on the case studies, this far into its hold (state.slide), so the shutters are all the way open and Picstory is on show
+// (the swipe to Nudge starts at SLIDES_CONFIG.swipe[0]). About me: this far into the touchdown (state.touch), once the page is all
+// in and she has settled beside the word game (touch.ts growSpan), before the wake wave starts to take it away.
+const NAV_WORK_SLIDE = 0.15
+const NAV_ABOUT_TOUCH = 0.92
 
 // Debug: a corner label naming the storyboard frame (1-15) the scroll is on. Shown in dev, or with ?frames in the URL.
 // picstory.webp is 691 x 503, cropped to cover the opening
@@ -95,8 +107,10 @@ const BUBBLE_PATH_TALL = makeBubblePath('178 156')
 const TALL_SCREEN = matchMedia('(max-aspect-ratio: 1/1)').matches
 const FALL_TEXT_Z ={ far: 2.2, near: 0.7 } // like SKY_LAYERS zFar / zNear: size = 1 / z
 const fallDynamics = createFallDynamics()
-// the whole section's length, viewport heights: the fall, then the landing, window, leave, touchdown and waking
-const TOTAL_VH = FALL_VH + LAND_CONFIG.scrollVh + WINDOW_CONFIG.scrollVh + LEAVE_CONFIG.scrollVh + TOUCH_CONFIG.scrollVh + WAKE_CONFIG.scrollVh
+// the whole section's length, viewport heights: the fall, then the landing, window (with its hold for the case studies), leave, touchdown and waking
+const TOTAL_VH = FALL_VH + LAND_CONFIG.scrollVh + WINDOW_CONFIG.scrollVh + SLIDES_CONFIG.scrollVh + LEAVE_CONFIG.scrollVh + TOUCH_CONFIG.scrollVh + WAKE_CONFIG.scrollVh
+// the window's progress at which its shutters are fully open: it holds still there while the case studies change (state.slide)
+const OPEN_AT = WINDOW_CONFIG.phases.open[1] * (1 - WINDOW_CONFIG.launchShare)
 // the warm-up draws the scene once every this many viewport heights of scroll (meadow.ts prepareJob)
 const SAMPLE_VH = 40
 // phones and tablets: the costly DOM effects (the blur on the falling lines, the wake's SVG warp) are left out there
@@ -220,6 +234,12 @@ export default function DreamLanding() {
   const idRef = useRef<HTMLButtonElement>(null)
   const finaleRef = useRef(false)
   const [finale, setFinale] = useState(false)
+  // bumped by the nav's Contact me once the page is at its end: opens the postcard again if it was put down (PostCard's `reopen`)
+  const [reopenPost, setReopenPost] = useState(0)
+  // the site nav: the glide to each part is set up in the scroll effect below, which knows where the parts are
+  const navRef = useRef<HTMLElement>(null)
+  const goToRef = useRef<(part: NavPart) => void>(() => {})
+  const goTo = useCallback((part: NavPart) => goToRef.current(part), [])
   const bagRef = useRef<HTMLButtonElement>(null)
   const bag = useRef(createBagReveal()).current
   const bagPlaying = useRef(false)
@@ -302,6 +322,7 @@ export default function DreamLanding() {
     let scrollDistance = 1
     let landDistance = 1
     let windowDistance = 1
+    let slidesDistance = 1
     let leaveDistance = 1
     let touchDistance = 1
     let wakeDistance = 1
@@ -309,7 +330,7 @@ export default function DreamLanding() {
     let camW = 0, camH = 0
     let about = ''
 
-    const state: MeadowState = { zoom: 0, dream: 0, fall: 0, land: 0, window: 0, leave: 0, touch: 0, about: 0, wake: 0, get remembered() { return rememberedRef.current }, bag, glasses, hat, cap, phone }
+    const state: MeadowState = { zoom: 0, dream: 0, fall: 0, land: 0, window: 0, slide: 0, leave: 0, touch: 0, about: 0, wake: 0, get remembered() { return rememberedRef.current }, bag, glasses, hat, cap, phone }
     // The meadow (and p5) load after first paint; the poster stands in until its first frame is up
     let meadow: MeadowHandle | null = null
     let visible = true
@@ -365,6 +386,7 @@ export default function DreamLanding() {
       scrollDistance = Math.max(1, FALL_VH * vh - window.innerHeight)
       landDistance = Math.max(1, LAND_CONFIG.scrollVh * vh)
       windowDistance = Math.max(1, WINDOW_CONFIG.scrollVh * vh)
+      slidesDistance = Math.max(1, SLIDES_CONFIG.scrollVh * vh)
       leaveDistance = Math.max(1, LEAVE_CONFIG.scrollVh * vh)
       touchDistance = Math.max(1, TOUCH_CONFIG.scrollVh * vh)
       wakeDistance = Math.max(1, WAKE_CONFIG.scrollVh * vh)
@@ -380,8 +402,12 @@ export default function DreamLanding() {
       let rest = scrolled - scrollDistance
       s.land = clamp01(rest / landDistance)
       rest -= landDistance
-      s.window = clamp01(rest / windowDistance)
-      rest -= windowDistance
+      // the window grows and opens; once its shutters are fully open (OPEN_AT) it holds still for slidesDistance while the case
+      // studies change (s.slide: Picstory, then Nudge swipes in), then carries on to her launch
+      const held = Math.max(0, Math.min(slidesDistance, rest - OPEN_AT * windowDistance))
+      s.slide = held / slidesDistance
+      s.window = clamp01((rest - held) / windowDistance)
+      rest -= windowDistance + slidesDistance
       s.leave = clamp01(rest / leaveDistance)
       rest -= leaveDistance
       s.touch = clamp01(rest / touchDistance)
@@ -389,10 +415,50 @@ export default function DreamLanding() {
       s.wake = clamp01(rest / wakeDistance)
       // waking, the camera is on her face again and pulls back out (the hero's zoom, run the other way)
       if (s.wake > 0) s.zoom = wakeZoom(s.wake)
-      // the About Me page comes in while she settles (touch 0.5 - 0.8): its own 0-1, read by AboutMe's CSS; the wake wave carries it away again
-      const a = clamp01((s.touch - 0.5) / 0.3)
+      // the About Me page comes in while she settles (ABOUT_IN): its own 0-1, read by AboutMe's CSS; the wake wave carries it away again
+      const a = clamp01((s.touch - ABOUT_IN[0]) / (ABOUT_IN[1] - ABOUT_IN[0]))
       s.about = a * a * (3 - 2 * a)
       return s
+    }
+
+    // The site nav's parts as scroll positions (px), from the same lengths as stateAt
+    const partAt = (part: NavPart) => {
+      // the top: the meadow as the page opens
+      if (part === 'home') return sectionStart
+      // where the window starts to grow, right after the landing
+      const windowStart = sectionStart + scrollDistance + landDistance
+      if (part === 'work') return windowStart + OPEN_AT * windowDistance + NAV_WORK_SLIDE * slidesDistance
+      if (part === 'about') return windowStart + windowDistance + slidesDistance + leaveDistance + NAV_ABOUT_TOUCH * touchDistance
+      // the very bottom: awake on the meadow, where the postcard opens by itself
+      return sectionStart + section.offsetHeight - window.innerHeight
+    }
+    goToRef.current = (part) => {
+      // the bag reveal holds the page for its whole ~10 s (a click only sends the items back once they are all out): going elsewhere
+      // puts them straight back, so the glide starts at once
+      bagStop.current?.()
+      glideTo(
+        () => partAt(part),
+        // the postcard opens itself on the way in; once the glide has stopped it is lifted again from where it now lies, and opened
+        // again if it was already there but had been put down
+        part === 'contact' ? () => { if (finaleRef.current) setReopenPost((n) => n + 1) } : undefined,
+      )
+    }
+    // the nav item for the part on screen is marked (aria-current, underlined): Home on the opening meadow (until the dream begins),
+    // Work while the window shows the case studies, About me while the About Me page is up, Contact me at the end
+    let navPart: NavPart | null = null
+    const markNav = (wave: number) => {
+      const part: NavPart | null =
+        state.dream <= 0 && state.wake <= 0 ? 'home'
+        : state.wake >= END_AT ? 'contact'
+        : state.about > 0.5 && wave < 0.5 ? 'about'
+        : state.window > WINDOW_CONFIG.phases.open[0] * (1 - WINDOW_CONFIG.launchShare) && state.leave <= 0 ? 'work'
+        : null
+      if (part === navPart) return
+      navPart = part
+      navRef.current?.querySelectorAll<HTMLElement>('[data-part]').forEach((item) => {
+        if (item.dataset.part === part) item.setAttribute('aria-current', 'true')
+        else item.removeAttribute('aria-current')
+      })
     }
 
     // a hotspot is clickable only while its thing is on screen (startBag also switches the bag's off directly)
@@ -401,6 +467,9 @@ export default function DreamLanding() {
       if (btn.style.pointerEvents !== events) btn.style.pointerEvents = events
       if (btn.style.visibility !== vis) btn.style.visibility = vis
     }
+    // the meadow as it lies at rest, camera out: at the top of the page, and again at the very end once she has woken. The hotspots
+    // below are placed for that camera, so they are clickable only then
+    const atRest = () => window.scrollY - sectionStart < window.innerHeight * 0.15 || state.wake >= END_AT
 
     // The scene (736 x 920) covers the viewport, centred (meadow.ts applyCamera at zoom 0); the phone lies at PHONE_PLACE,
     // its hotspot a box over it, turned with it
@@ -417,7 +486,7 @@ export default function DreamLanding() {
         btn.style.transform = `translate(${px - (PHONE_BOX.w * s) / 2}px, ${py - (PHONE_BOX.h * s) / 2}px) rotate(${PHONE_PLACE.rot}rad)`
       }
       // only while the camera is still out and she is awake on the grass, and the phone is there
-      const on = !phone.up && window.scrollY - sectionStart < window.innerHeight * 0.15
+      const on = !phone.up && atRest()
       showHotspot(btn, on)
     }
 
@@ -434,7 +503,7 @@ export default function DreamLanding() {
         btn.style.height = `${BAG_BOX.h * s}px`
         btn.style.transform = `translate(${px - (BAG_BOX.w * s) / 2}px, ${py - (BAG_BOX.h * s) / 2}px) rotate(${BAG_PLACE.rot}rad)`
       }
-      const on = !bagPlaying.current && window.scrollY - sectionStart < window.innerHeight * 0.15
+      const on = !bagPlaying.current && atRest()
       showHotspot(btn, on)
     }
 
@@ -500,7 +569,7 @@ export default function DreamLanding() {
       const last = state.wake >= WAKE_CONFIG.waveEnd + 0.02
       const on = hero || last
       showHotspot(el, on)
-      el.style.pointerEvents = on && (flipped || hero || state.wake >= 0.97) ? 'auto' : 'none'
+      el.style.pointerEvents = on && (flipped || hero || state.wake >= END_AT) ? 'auto' : 'none'
     }
 
     // the ID card is placed the same way: laid out at 200px and scaled, so it stays sharp as the camera closes in
@@ -542,7 +611,7 @@ export default function DreamLanding() {
           btn.style.transform = `translate(${px - bw / 2}px, ${py - bh / 2}px) rotate(${g.rot}rad)`
           btn.setAttribute('aria-label', labels[on ? 1 : 0])
         }
-        showHotspot(btn, !w.moving && !bagPlaying.current && window.scrollY - sectionStart < window.innerHeight * 0.15)
+        showHotspot(btn, !w.moving && !bagPlaying.current && atRest())
       }
     }
     const placeGlasses = wearHotspot(glasses, GLASSES_WEAR, { w: 38, h: 24 }, ['Put on her glasses', 'Take off her glasses'])
@@ -551,12 +620,13 @@ export default function DreamLanding() {
     const placeCap = wearHotspot(cap, CAP_WEAR, { w: 46, h: 48 }, ['Pull her cap over her face', 'Take the cap off her face'])
 
     const update = (resized = false) => {
+      // the state first: the hotspots read it (atRest)
+      stateAt(window.scrollY - sectionStart, state)
       placePhone(resized)
       placeBag(resized)
       placeGlasses(glassesRef.current, resized)
       placeHat(hatRef.current, resized)
       placeCap(capRef.current, resized)
-      stateAt(window.scrollY - sectionStart, state)
       placePost(resized)
       placeId(resized)
       placePoster()
@@ -578,8 +648,9 @@ export default function DreamLanding() {
       const gone = wave >= 0.87
       if (gone !== camera.classList.contains('about-gone')) camera.classList.toggle('about-gone', gone)
       // at the very end of the scroll the postcard opens by itself (PostCard's `open`)
-      const end = state.wake >= 0.97
+      const end = state.wake >= END_AT
       if (end !== finaleRef.current) { finaleRef.current = end; setFinale(end) }
+      markNav(wave)
       const next = state.about.toFixed(3)
       if (next !== about) camera.style.setProperty('--about', (about = next))
       // before the About page has begun to appear it must not catch taps meant for the meadow (the word game sits over the ID card on phones)
@@ -589,7 +660,7 @@ export default function DreamLanding() {
       const heroText = heroTextRef.current
       if (heroText) heroText.style.opacity = state.wake > 0 ? '0' : Math.max(0, 1 - state.zoom / 0.12).toFixed(3)
       // the scroll cue stays until the page is scrolled all the way down
-      if (scrollCueRef.current) scrollCueRef.current.style.opacity = state.wake >= 0.97 || window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4 ? '0' : '1'
+      if (scrollCueRef.current) scrollCueRef.current.style.opacity = state.wake >= END_AT || window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4 ? '0' : '1'
       // the lines of text that fall past with her: placed from the same depth clock as the clouds, so they rush with the sky
       const fallText = fallTextRef.current
       if (fallText) {
@@ -642,7 +713,7 @@ export default function DreamLanding() {
           link.style.transform = `translate(${wf.x - 300 * u + f.x * u}px, ${wf.y - wf.h / 2 + f.y * u}px)`
         }
         // the link goes to whichever project page is mostly in view
-        const slide = slideAt(performance.now())
+        const slide = slideAt(state.slide)
         const href = SLIDE_HREFS[slide.current]
         if (link.getAttribute('href') !== href) {
           link.setAttribute('href', href)
@@ -658,7 +729,10 @@ export default function DreamLanding() {
         const n = frameIndex(state)
         const pct = (v: number) => `${Math.round(v * 100)}%`
         const f = FALL_CONFIG.start + (1 - FALL_CONFIG.start) * state.fall
-        const detail = state.leave > 0 ? `after landing · leave ${pct(state.leave)}`
+        const detail = state.wake > 0 ? `waking · wake ${pct(state.wake)}`
+          : state.touch > 0 ? `About Me · touchdown ${pct(state.touch)}`
+          : state.leave > 0 ? `after landing · leave ${pct(state.leave)}`
+          : state.window > 0 ? `window ${pct(state.window)} · case studies ${pct(state.slide)} · launch ${pct(launchProgress(state.window))}`
           : state.land > 0 ? `Part 3 · landing ${pct(state.land)} · ${(state.land * LAND_CONFIG.duration).toFixed(1)}s`
           : state.fall > 0 ? `Part 2 · fall ${pct(f)} · ${(f * FALL_CONFIG.duration).toFixed(1)}s`
           : state.dream > 0 ? `Part 1 · dream ${pct(state.dream)}`
@@ -675,10 +749,25 @@ export default function DreamLanding() {
 
     // wheel speed along the story: the opening (her face, the blink, falling asleep, the dream dust) scrolls slowly so it can be
     // watched; the fall through the sky goes fast, except while the camera zooms in on her face and back out (meadow.ts FACE_ZOOM:
-    // in over the fall clock 0.40-0.47, held to 0.53, out by 0.60), which go slowly; from the landing on, normal speed.
+    // in over the fall clock 0.40-0.47, held to 0.53, out by 0.60), which go slowly. The landing's approach and her touching the
+    // cloud are at normal speed; from there the scroll picks up again while she bounces, settles, sits up and moves to the cloud's
+    // edge, and brakes as she sits there: the window growing in on the right and opening, and the case studies in it changing
+    // (Picstory, then Nudge), are slow. Once Nudge has had its turn and she launches off the cloud (frame 19) it is fast again,
+    // through her fall out of the frame, the dream wave carrying the cloud away and her fall onto the About Me page, easing to
+    // normal as her feet meet it. As the page fades in (ABOUT_IN) the scroll brakes to a crawl, so it is easy to stop on the word
+    // game and play it (and to come back to it from below), and it stays slow through the waking (the dust wave, her eyes
+    // opening, the camera pulling back out) to the end.
     // Each speed holds until `untilVh`, then blends into the next over `blendVh` (60 vh unless given).
     const fallClockVh = (f: number) => (DREAM_END + ((f - FALL_CONFIG.start) / (1 - FALL_CONFIG.start)) * (1 - DREAM_END)) * (FALL_VH - 100)
-    const ZOOM_SLOW = 0.12, FALL_FAST = 3
+    // the landing's, window's and touchdown's progress (0-1) as scroll depths (vh): each follows the one before, as in stateAt
+    // (past OPEN_AT the window's includes its hold for the case studies)
+    const landVh = (u: number) => FALL_VH - 100 + u * LAND_CONFIG.scrollVh
+    const windowVh = (u: number) => landVh(1) + u * WINDOW_CONFIG.scrollVh + (u > OPEN_AT ? SLIDES_CONFIG.scrollVh : 0)
+    const touchVh = (u: number) => windowVh(1) + LEAVE_CONFIG.scrollVh + u * TOUCH_CONFIG.scrollVh
+    // her touching the cloud (frame 13), and her launch off it (frame 19: the last share of the window's scroll, once it is open)
+    const contactVh = landVh(LAND_CONFIG.approach.contact / LAND_CONFIG.duration)
+    const launchVh = windowVh(1 - WINDOW_CONFIG.launchShare)
+    const ZOOM_SLOW = 0.12, FALL_FAST = 3, LAND_FAST = 3, WINDOW_SLOW = 0.3, JUMP_FAST = 3, GAME_SLOW = 0.15, WAKE_SLOW = 0.3
     const stopSmooth = startSmoothScroll([
       { untilVh: DREAM_END * (FALL_VH - 100) + 30, factor: 0.15 },
       { untilVh: fallClockVh(0.4) - 20, factor: FALL_FAST, blendVh: 20 },
@@ -686,6 +775,16 @@ export default function DreamLanding() {
       { untilVh: fallClockVh(0.53) - 20, factor: FALL_FAST, blendVh: 20 }, // held on her face
       { untilVh: fallClockVh(0.6), factor: ZOOM_SLOW }, // zooming out
       { untilVh: FALL_VH, factor: FALL_FAST },
+      { untilVh: contactVh, factor: 1 }, // the approach, and her touching the cloud
+      { untilVh: windowVh(0) - 40, factor: LAND_FAST, blendVh: 40 }, // she settles on the cloud and sits at its edge
+      { untilVh: launchVh - 40, factor: WINDOW_SLOW, blendVh: 40 }, // the window grows in on the right, opens, and shows Picstory then Nudge
+      // frame 19 on: she launches off the cloud and falls out of the frame, the dream wave carries the cloud away and she falls
+      // onto the About Me page; normal speed again as her feet meet it (touch.ts contact)
+      { untilVh: touchVh(TOUCH_CONFIG.contact) - 40, factor: JUMP_FAST, blendVh: 40 },
+      // she lands and the About Me page fades in: slowing all the while
+      { untilVh: touchVh(ABOUT_IN[0]), factor: 1, blendVh: (ABOUT_IN[1] - ABOUT_IN[0]) * TOUCH_CONFIG.scrollVh },
+      { untilVh: touchVh(1), factor: GAME_SLOW, blendVh: 40 }, // the word game, at rest
+      { untilVh: TOTAL_VH - 100, factor: WAKE_SLOW }, // waking up, to the end of the page
     ])
     const resizeObserver = new ResizeObserver(onResize)
     resizeObserver.observe(section)
@@ -704,15 +803,13 @@ export default function DreamLanding() {
         postFrame = requestAnimationFrame(postTick)
       } else postFrame = 0
     }
-    // the pages swap on the clock, not the scroll, so keep the link in step
-    const slideTimer = window.setInterval(() => { if (visible) update(false) }, 250)
     followBag.current = () => { if (!postFrame) postFrame = requestAnimationFrame(postTick) }
     measure()
     update(true)
     return () => {
       cancelAnimationFrame(postFrame)
-      window.clearInterval(slideTimer)
       holdMeadow.current = () => {}
+      goToRef.current = () => {}
       followBag.current = null
       resizeObserver.disconnect()
       visibility.disconnect()
@@ -728,6 +825,8 @@ export default function DreamLanding() {
 
   return (
   <section ref={sectionRef} className="dream-section" style={{ height: `${TOTAL_VH}vh` }}>
+    {/* outside the camera, so it sits over the whole scene and the wake wave never bends it; it comes in once the loader is done */}
+    <SiteNav ref={navRef} ready={loaded} onGo={goTo} />
     <div ref={cameraRef} className="dream-camera">
       <div
         ref={stageRef}
@@ -798,7 +897,7 @@ export default function DreamLanding() {
         className="absolute left-0 top-0 cursor-pointer"
         style={{ zIndex: 3, visibility: 'hidden', pointerEvents: 'none' }}
       />
-      <PostCard ref={postRef} rot={POST_PLACE.rot} open={finale} />
+      <PostCard ref={postRef} rot={POST_PLACE.rot} open={finale} reopen={reopenPost} />
       <IdLanyard ref={idRef} rot={ID_PLACE.rot} />
       <button
         ref={bagRef}
