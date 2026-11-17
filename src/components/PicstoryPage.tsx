@@ -2,15 +2,15 @@ import { useEffect, type ReactNode } from 'react'
 import mockup1 from '@/assets/meadow/mockup1.webp'
 import mockup2 from '@/assets/meadow/mockup2.webp'
 import mockup3 from '@/assets/meadow/mockup3.webp'
+import group2167 from '@/assets/meadow/Group 2167.webp'
 import para3 from '@/assets/meadow/para3.webp'
 import para33 from '@/assets/meadow/para33.webp'
-import paper from '@/assets/meadow/picstory-paper.png'
 
 const MAROON = '#6E0D25'
 const YELLOW = '#FFFFB3'
 const BROWN = '#6A381F'
 const GOLD = '#DCAB6B'
-const CREAM = '#efe9dd'
+const CREAM = '#ffffff'
 const INK = '#2b1a14'
 const BODY = 'Lato, Inter, "Helvetica Neue", Arial, sans-serif'
 const SERIF = 'Merriweather, Georgia, serif'
@@ -95,16 +95,18 @@ const SECTIONS: Section[] = [
 
 const CSS = `
 .ps-root { position: relative; min-height: 100vh; color: ${INK}; font-family: ${BODY}; }
-.ps-paper { position: fixed; inset: 0; z-index: 0; background: ${CREAM} url(${paper}) center / cover no-repeat; }
+.ps-paper { position: fixed; inset: 0; z-index: 0; background: ${CREAM}; }
 .ps-wrap { position: relative; z-index: 1; max-width: 960px; margin: 0 auto; padding: 32px 24px 120px; }
 .ps-back { color: ${MAROON}; font-size: 15px; font-weight: 700; text-decoration: none; letter-spacing: .02em; }
 .ps-hero { display: grid; grid-template-columns: 1fr 1.1fr; align-items: center; gap: 8px; margin: 12px 0 72px; }
-.ps-title { font-family: ${BODY}; font-weight: 300; font-size: clamp(44px, 8vw, 84px); letter-spacing: .04em; line-height: 1; margin: 0; color: ${MAROON}; }
-.ps-sub { font-size: clamp(18px, 2.6vw, 26px); line-height: 1.35; margin: 14px 0 0; max-width: 11em; color: ${BROWN}; }
+.ps-title { font-family: 'Arial Black', Impact, Inter, sans-serif; font-weight: 900; font-size: clamp(44px, 8.4vw, 92px); letter-spacing: .02em; line-height: 1; margin: 0; color: ${YELLOW}; -webkit-text-stroke: 2px ${MAROON};
+  text-shadow: 1px 1px 0 ${MAROON}, 2px 2px 0 ${MAROON}, 3px 3px 0 ${MAROON}, 4px 4px 0 ${MAROON}, 5px 5px 0 ${MAROON}, 6px 6px 0 ${MAROON}, 7px 7px 0 ${MAROON}, 8px 8px 0 ${MAROON}, 9px 9px 0 ${MAROON}, 10px 10px 0 ${MAROON}, 12px 16px 22px rgba(60,10,25,.35); transform: perspective(600px) rotateX(8deg) rotateY(-6deg); transform-origin: left center; }
+.ps-sub { font-family: ${SERIF}; font-weight: 900; font-style: italic; font-size: clamp(20px, 3vw, 30px); line-height: 1.25; margin: 26px 0 0; max-width: 11em; color: ${MAROON}; text-shadow: 2px 2px 0 ${GOLD}; }
 .ps-mocks { position: relative; aspect-ratio: 1 / 1.05; }
-.ps-mocks img { position: absolute; height: auto; filter: drop-shadow(0 18px 24px rgba(60,10,25,.18)); }
+.ps-mocks img { position: absolute; height: auto; filter: drop-shadow(0 22px 28px rgba(40,50,70,.22)); }
+.ps-glow { position: absolute; inset: 8% 0 0 20%; border-radius: 50%; background: radial-gradient(closest-side, rgba(120,135,160,.22), rgba(255,255,255,0)); z-index: 0; }
 .ps-grad { position: relative; border-radius: 28px; padding: clamp(32px, 6vw, 72px); margin: 0 0 88px; color: ${YELLOW};
-  background: radial-gradient(ellipse 70% 80% at 50% 50%, #1d1517 0%, #3d0f1b 35%, ${MAROON} 80%); box-shadow: 0 30px 60px -28px rgba(80,10,30,.55); overflow: hidden; }
+  background: ${MAROON}; box-shadow: 0 30px 60px -28px rgba(80,10,30,.55); overflow: hidden; }
 .ps-grad::after { content: ''; position: absolute; inset: 10px; border: 1px solid rgba(255,255,179,.28); border-radius: 20px; pointer-events: none; }
 .ps-sec { margin: 0 0 96px; }
 .ps-num { font-family: ${BODY}; font-weight: 300; font-size: 15px; letter-spacing: .3em; color: ${GOLD}; margin: 0 0 10px; }
@@ -200,8 +202,8 @@ export default function PicstoryPage() {
             <p className="ps-sub">Create your perfect visual story</p>
           </div>
           <div className="ps-mocks">
-            <img src={mockup1} alt="Picstory splash screen" style={{ width: '58%', left: '-4%', top: '2%', transform: 'rotate(-2deg)' }} />
-            <img src={mockup2} alt="Picstory template gallery" style={{ width: '60%', right: '-8%', top: '-2%' }} />
+            <div className="ps-glow" />
+            <img src={group2167} alt="Picstory app screens" style={{ width: '88%', left: '12%', top: '50%', transform: 'translateY(-50%)', zIndex: 1 }} />
           </div>
         </header>
 
