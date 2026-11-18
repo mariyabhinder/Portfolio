@@ -1,11 +1,11 @@
 {
   "title": "Mariyah | UI/UX Design Portfolio",
-  "description": "Creating clean, creative and user - focussed digital experiences through research, wireframing, prototyping and thoughtful UI design.",
+  "description": "Every great design starts with an idea. Explore my journey of turning thoughts, creativity, and user needs into meaningful digital experiences.",
   "openGraph": {
-    "image": "https://test.mariyab.com/og-image.webp"
+    "image": "https://mariyab.com/og-image.webp"
   },
   "robots": {
-    "index": false
+    "index": true
   },
   "accessibility": {
     "addBypassLinks": false,
