@@ -147,6 +147,9 @@ const CSS = `@import url('https://fonts.googleapis.com/css2?family=Abril+Fatface
 .ps-el.flower { background-image: url(${flowernote}); aspect-ratio: 305/290; background-size: 378% auto; background-position: 7.1% 37.5%; mix-blend-mode: normal; }
 .ps-el.flower { -webkit-mask-image: radial-gradient(closest-side, #000 85%, transparent); mask-image: radial-gradient(closest-side, #000 85%, transparent); }
 .ps-tape { position: absolute; width: 120px; height: 30px; background: rgba(246,201,21,.75); z-index: 2; }
+.ps-final { font-family: ${SERIF}; font-style: italic; font-size: clamp(16px, 2vw, 22px); line-height: 1.4; margin: -36px 0 48px; text-align: center; white-space: nowrap; }
+@media (max-width: 640px) { .ps-final { white-space: normal; } }
+.ps-final a { color: #d8232a; font-weight: 700; text-decoration: underline; }
 .ps-subline { font-family: ${SERIF}; font-style: italic; font-size: 17px; line-height: 1.6; margin: 0 0 22px; opacity: .85; }
 .ps-p { font-size: 18px; line-height: 1.85; margin: 0 0 18px; max-width: 700px; }
 .ps-strong { font-family: ${SERIF}; font-weight: 700; font-size: 20px; line-height: 1.6; margin: 26px 0; max-width: 700px; padding-left: 18px; border-left: 3px solid ${GOLD}; }
@@ -268,6 +271,11 @@ export default function PicstoryPage() {
             <img src={group2167} alt="Picstory app screens" style={{ width: '88%', left: '12%', top: '50%', transform: 'translateY(-50%)', zIndex: 1 }} />
           </div>
         </header>
+
+        <p className="ps-final">
+          Before we get into the story, here's the final creation.{' '}
+          <a href="https://picstory.mariyab.com/" target="_blank" rel="noopener noreferrer">Picstory</a>
+        </p>
 
         <section className="ps-note-wrap">
           <i className="ps-pin" />

@@ -140,6 +140,9 @@ transform:rotate(-3deg);transform-origin:center}
 .np-3d span{display:block;white-space:nowrap}
 .np-3d .a{color:#7fd8cb;font-size:1.1em;margin:.1em 0}
 .np-sub{margin:34px 0 0;font-size:clamp(16px,2vw,20px);font-weight:700;color:#4a5160}
+.np-live-line{margin:-60px 0 24px;text-align:center;font-size:clamp(15px,1.9vw,24px);font-weight:700;color:#4a5160;white-space:nowrap}
+.np-live{color:#14b8a6;font-weight:800;text-decoration:underline}
+@media(max-width:560px){.np-live-line{white-space:normal}}
 .np-sec{padding:72px 0}
 .np-h2{font-family:${HEAD};font-weight:400;font-size:clamp(24px,3.2vw,38px);line-height:1.2;margin:0 0 26px;color:#e6fbf7;letter-spacing:.01em;-webkit-text-stroke:2px #0b5d54;paint-order:stroke fill;text-shadow:3px 3px 0 #0b5d54,4px 4px 0 #0b5d54,5px 5px 0 #14b8a6;transform:rotate(-1.2deg);transform-origin:left center}
 .np-num{display:inline-block;color:#fff;background:#14b8a6;border-radius:14px;padding:2px 12px;margin-right:10px;transform:rotate(-4deg);text-shadow:none;-webkit-text-stroke:0}
@@ -382,6 +385,12 @@ export default function NudgePage() {
         const n = idx + 1
         const text = (
           <>
+            {idx === 0 && (
+              <p className="np-live-line">
+                See the idea come to life. Visit the live website here.{' '}
+                <a className="np-live" href="https://crescentic.com/nudge" target="_blank" rel="noopener noreferrer">Nudge</a>
+              </p>
+            )}
             {heading(idx, s.title)}
             <Body blocks={s.blocks} bub={BLOBS[idx + 1] ?? -1} right={(idx + 1) % 4 === 3} />
           </>
