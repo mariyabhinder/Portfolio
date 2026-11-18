@@ -233,24 +233,10 @@ function Frame({ rot, w, children }: { rot: number; w: number; children: ReactNo
 function Arrow({ d, head }: { d: string; head: string }) {
   const p = { fill: 'none', stroke: '#111', strokeWidth: 4.5, strokeLinecap: 'round', strokeLinejoin: 'round', vectorEffect: 'non-scaling-stroke' } as const
   return (
-    <svg className="ps-arcs" viewBox="0 0 1000 631" aria-hidden="true">
-      <path d="M 250 16 C 282 -64, 444 -82, 503 48" {...ARROW} />
-      <path d="M 504.6 22.1 L 503 48 L 482.4 32.1" {...ARROW} />
-      <path d="M 618 66 C 656 -14, 778 -22, 812 100" {...ARROW} />
-      <path d="M 817.6 74.6 L 812 100 L 794.1 81.2" {...ARROW} />
-    </svg>
-  )
-}
-
-// On phones the journey runs down the page in a zigzag: a swoop from one step to the next (the second mirrored, as it turns back)
-function Arrow({ className }: { className: string }) {
-  return (
-    <div className={`ps-arrow ${className}`} aria-hidden="true">
-      <svg viewBox="0 0 360 80">
-        <path d="M 128 6 C 140 52, 196 30, 230 70" {...ARROW} />
-        <path d="M 227 56.3 L 230 70 L 217 64.8" {...ARROW} />
-      </svg>
-    </div>
+    <>
+      <path d={d} {...p} />
+      <path d={head} {...p} />
+    </>
   )
 }
 
