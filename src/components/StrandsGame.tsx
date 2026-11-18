@@ -16,6 +16,7 @@ const REVEAL_STEP = 900
 const REVEAL_AFTER_MISSES = 6
 const CLOSE_WORDS = ["DESIGN", "CLOUD", "FLOWER", "GAME"] // near-misses of the real words; tracing one flashes "Very close!"
 const HINT_MS = 2200
+const SPAN_STEP = 220 // ms between letters when the spangram reveals itself
 
 type Hint = "close" | "wrong" | "nonword" | null
 
@@ -53,6 +54,8 @@ export default function StrandsGame({ onComplete, onSolvedChange }: { onComplete
   const [revealing, setRevealing] = useState(false)
   const [complete, setComplete] = useState(false)
   const [misses, setMisses] = useState(0)
+  const [spanCount, setSpanCount] = useState(0) // letters of ALLABOUTME revealed so far by the auto-reveal
+  const spanRunning = useRef(false)
   const [hint, setHint] = useState<Hint>(null)
   const hintTimer = useRef<number>(undefined)
   const selRef = useRef<number[]>([])
@@ -64,8 +67,12 @@ export default function StrandsGame({ onComplete, onSolvedChange }: { onComplete
       const w = WORDS.find((x) => x.word === name)!
       w.cells.forEach((c, i) => map.set(c, { spangram: !!w.spangram, order: i }))
     })
+    if (spanCount > 0) {
+      const sp = WORDS.find((x) => x.spangram)!
+      sp.cells.slice(0, spanCount).forEach((c) => map.set(c, { spangram: true, order: 0 }))
+    }
     return map
-  }, [solved])
+  }, [solved, spanCount])
 
   const setSel = (next: number[]) => {
     selRef.current = next
@@ -79,6 +86,8 @@ export default function StrandsGame({ onComplete, onSolvedChange }: { onComplete
     timers.current.forEach(clearTimeout)
     timers.current = []
     setRevealing(false)
+    setSpanCount(0)
+    spanRunning.current = false
   }
   useEffect(() => () => {
     clearTimers()
@@ -91,6 +100,30 @@ export default function StrandsGame({ onComplete, onSolvedChange }: { onComplete
   }
   useEffect(() => onComplete?.(complete), [complete, onComplete])
   useEffect(() => onSolvedChange?.(solved), [solved, onSolvedChange])
+  // once every blue word is found, the yellow spangram reveals itself letter by letter
+  useEffect(() => {
+    const sp = WORDS.find((x) => x.spangram)!
+    const blueDone = WORDS.every((w) => w.spangram || solved.includes(w.word))
+    if (!blueDone || solved.includes(sp.word) || spanRunning.current) return
+    spanRunning.current = true
+    sp.cells.forEach((_, i) => {
+      timers.current.push(
+        window.setTimeout(() => {
+          setSpanCount(i + 1)
+          if (i === sp.cells.length - 1) {
+            timers.current.push(
+              window.setTimeout(() => {
+                markSolved([...solvedRef.current, sp.word])
+                setSpanCount(0)
+                spanRunning.current = false
+                timers.current.push(window.setTimeout(() => setComplete(true), 700))
+              }, SPAN_STEP),
+            )
+          }
+        }, 500 + i * SPAN_STEP),
+      )
+    })
+  }, [solved])
 
   const cellAt = (e: ReactPointerEvent) => {
     const rect = gridRef.current!.getBoundingClientRect()
@@ -222,7 +255,6 @@ export default function StrandsGame({ onComplete, onSolvedChange }: { onComplete
         </div>
         <div className={`strands-complete${complete ? " is-visible" : ""}`}>
           <span>You've found me.</span>
-          <strong>☕</strong>
         </div>
         <button
           className="strands-btn"
@@ -241,6 +273,7 @@ export default function StrandsGame({ onComplete, onSolvedChange }: { onComplete
           const w = WORDS.find((x) => x.word === name)!
           return <path key={name} className={`strand-path ${w.spangram ? "strand-path--yellow" : "strand-path--blue"}`} d={pathData(w.cells)} />
         })}
+        {spanCount > 1 && <path className="strand-path strand-path--yellow" d={pathData(WORDS[0].cells.slice(0, spanCount))} />}
         {fading.map((cells, i) => (
           <path key={`f${i}`} className="strand-path strand-path--live is-fading" d={pathData(cells)} />
         ))}

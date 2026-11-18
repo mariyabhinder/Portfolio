@@ -100,7 +100,7 @@
 }
 .site-nav__list {
   display: flex;
-  gap: clamp(8px, 1.4vw, 24px);
+  gap: clamp(0px, 1vw, 20px);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -108,49 +108,69 @@
 .site-nav__link {
   position: relative;
   display: block;
-  padding: 10px 4px;
+  padding: 8px clamp(5px, 0.7vw, 10px);
   border: 0;
   background: none;
   color: #fff;
-  font-family: Inter, "Helvetica Neue", Arial, sans-serif;
-  font-size: clamp(14px, 1.1vw, 17px);
-  font-weight: 700;
-  line-height: 1.2;
-  letter-spacing: 0.04em;
+  /* chunky hand-lettered caps, each word tipped a little differently, like the Kazi Esha lettering */
+  font-family: "Lilita One", Inter, "Helvetica Neue", Arial, sans-serif;
+  font-size: clamp(11px, 1vw, 17px);
+  font-weight: 400;
+  line-height: 1.1;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   white-space: nowrap;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+  transform: rotate(var(--tilt, 0deg));
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
   text-shadow:
-    0 0 2px rgba(0, 0, 0, 0.95),
-    0 0 5px rgba(0, 0, 0, 0.8),
-    0 1px 10px rgba(0, 0, 0, 0.65);
+    0 0 2px rgba(60, 0, 0, 0.9),
+    0 2px 0 rgba(120, 0, 0, 0.55),
+    0 1px 10px rgba(0, 0, 0, 0.6);
 }
-/* the underline, with the text's halo: grows in from the left */
+li:nth-child(1) > .site-nav__link { --tilt: -3deg; }
+li:nth-child(2) > .site-nav__link { --tilt: 2deg; }
+li:nth-child(3) > .site-nav__link { --tilt: -2deg; }
+li:nth-child(4) > .site-nav__link { --tilt: 3deg; }
+/* the orange doodles: a bracket round the top left, another round the bottom right, and a small ball with a blue crescent */
+.site-nav__link::before,
 .site-nav__link::after {
   content: '';
   position: absolute;
-  left: 4px;
-  right: 4px;
-  bottom: 6px;
-  height: 2px;
-  border-radius: 2px;
-  background: currentColor;
-  box-shadow: 0 0 2px rgba(0, 0, 0, 0.9), 0 1px 6px rgba(0, 0, 0, 0.55);
-  transform: scaleX(0);
-  transform-origin: left center;
-  transition: transform 0.35s cubic-bezier(0.22, 0.8, 0.25, 1);
+  width: 9px;
+  height: 11px;
+  border: 0 solid #ffe3a3;
+  opacity: 0;
+  transform: scale(0.6);
+  transition: opacity 0.25s ease, transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  pointer-events: none;
 }
-.site-nav__link[aria-current]::after,
-.site-nav__link:focus-visible::after { transform: scaleX(1); }
+.site-nav__link::before { top: 3px; left: 3px; border-width: 2px 0 0 2px; border-radius: 2px; transform-origin: top left; }
+.site-nav__link::after { bottom: 3px; right: 3px; border-width: 0 2px 2px 0; border-radius: 2px; transform-origin: bottom right; }
+.site-nav__link[aria-current],
+.site-nav__link:focus-visible {
+  background:
+    radial-gradient(circle at 62% 42%, #7a9a6a 0 22%, transparent 24%) right 1px top 1px / 11px 11px no-repeat,
+    radial-gradient(circle at 50% 50%, #ffe3a3 0 62%, transparent 66%) right 1px top 1px / 11px 11px no-repeat;
+}
+.site-nav__link[aria-current]::before, .site-nav__link[aria-current]::after,
+.site-nav__link:focus-visible::before, .site-nav__link:focus-visible::after { opacity: 1; transform: scale(1); }
 /* (only where there is a real pointer: on a phone a tap would leave it stuck on) */
 @media (hover: hover) {
-  .site-nav__link:hover::after { transform: scaleX(1); }
+  .site-nav__link:hover { transform: rotate(var(--tilt, 0deg)) scale(1.08); }
+  .site-nav__link:hover::before, .site-nav__link:hover::after { opacity: 1; transform: scale(1); }
 }
-.site-nav__link:focus-visible { outline: 2px solid #fff; outline-offset: 0; border-radius: 4px; }
+.site-nav__link:focus-visible { outline: none; }
+/* phones: smaller and tighter so Home clears whatever sits at the left of the screen */
+@media (max-width: 600px) {
+  .site-nav__link { font-size: 10px; letter-spacing: 0.03em; padding: 6px 4px; }
+  .site-nav__link::before, .site-nav__link::after { width: 6px; height: 8px; }
+}
 /* while the ID card hangs, its own close button is in this corner */
 body:has(.id-hang) .site-nav { opacity: 0; visibility: hidden; transition: none; }
 @media (prefers-reduced-motion: reduce) {
-  .site-nav, .site-nav--ready, .site-nav__link::after { transition: none; }
+  .site-nav, .site-nav--ready, .site-nav__link, .site-nav__link::before, .site-nav__link::after { transition: none; }
 }
 
 /* The lines that fall past with her (DreamLanding.tsx FALL_TEXTS): placed every scroll by script, from the fall's depth clock */
@@ -237,30 +257,41 @@ body:has(.id-hang) .site-nav { opacity: 0; visibility: hidden; transition: none;
   margin: 0;
   width: max-content;
   text-align: left;
-  font-family: Inter, "Helvetica Neue", Arial, sans-serif;
-  font-weight: 900;
+  font-family: "Lilita One", Inter, "Helvetica Neue", Arial, sans-serif;
+  font-weight: 400;
+  text-transform: uppercase;
   /* as big as fits left of the open window: its left edge (shutters included) is at about 93vw - 90vh, the text starts at 5vw, and the longer line is about 14.5em wide */
-  font-size: clamp(20px, min(3.9vw, calc((88vw - 90vh) / 13.5)), 92px);
+  font-size: clamp(20px, min(3.5vw, calc((88vw - 90vh) / 15)), 84px);
   /* the cloud is the same white as the text, so a soft dark halo keeps it readable over both cloud and sky */
-  text-shadow: 0 1px 2px rgba(20, 35, 70, 0.55), 0 2px 14px rgba(20, 35, 70, 0.5), 0 0 28px rgba(20, 35, 70, 0.35);
-  line-height: 1.08;
-  letter-spacing: -0.03em;
+  /* Frogie-style: cream letters on a stacked, extruded deep-blue shadow, plus a soft halo so it still reads over cloud and sky */
+  text-shadow: 0.03em 0.03em 0 #fff, 0.06em 0.06em 0 #fff, 0.09em 0.09em 0 #fff, 0 0.12em 0.3em rgba(10, 40, 28, 0.35);
+  line-height: 1.12;
+  letter-spacing: 0.01em;
   white-space: nowrap;
-  color: #f1f7ff; /* the cloud's soft sky-white */
+  color: #1f7a55; /* the darker jade of the window shutters */
+}
+.cloud-tagline .tag-script {
+  text-shadow: 0.03em 0.03em 0 #16543a, 0.06em 0.06em 0 #16543a, 0.09em 0.09em 0 #16543a, 0 0.12em 0.3em rgba(10, 40, 28, 0.3);
+  font-family: Caveat, cursive;
+  font-weight: 700;
+  text-transform: none;
+  font-size: 1.15em;
+  letter-spacing: 0;
+  color: #fff6e0;
 }
 .cloud-tagline .tag-br { display: none; }
-/* on a tall (mobile) screen the window takes the top-right, so the tagline moves to the bottom-right corner, one phrase per line */
+/* on a tall (mobile) screen the window takes the top and she sits on her cloud at the left, so the tagline is right-aligned in the bottom-right corner
+   (above the scroll cue), in four short lines so it stays to the right of her and clear of the window */
 @media (max-aspect-ratio: 1/1) {
   .cloud-tagline .tag-br { display: inline; }
   .cloud-tagline p {
-    font-size: clamp(22px, 7vw, 62px);
-    text-align: left;
+    font-size: clamp(20px, 6.4vw, 56px);
+    text-align: right;
     left: auto;
-    /* level with the girl: she and her cloud end up centred about 76% of the way down (the middle of the screen plus window.ts move.y + narrow.moveY) */
-    top: 76%;
-    transform: translateY(-50%);
+    top: auto;
+    bottom: 11%;
     right: 5%;
-    bottom: auto;
+    transform: none;
   }
 }
 
@@ -337,8 +368,8 @@ body:has(.id-hang) .site-nav { opacity: 0; visibility: hidden; transition: none;
   -webkit-backface-visibility: hidden;
 }
 .pc-face img { display: block; width: 100%; height: 100%; object-fit: cover; }
-.pc-front { background: #fcefe7; border-radius: 3px; box-sizing: border-box; padding: 5%; }
-.pc-front img { width: 100%; height: 100%; }
+.pc-front { background: #fcefe7; border-radius: 3px; overflow: hidden; }
+.pc-front img { width: 100%; height: 100%; object-fit: cover; }
 .pc-back { transform: rotateY(180deg); }
 .pc-links {
   position: absolute;
@@ -556,9 +587,31 @@ body:has(.id-hang) .site-nav { opacity: 0; visibility: hidden; transition: none;
 .about-title h2 {
   margin: 0;
   font-size: calc(var(--s) * 0.045);
-  font-weight: 900;
-  line-height: 1.2;
-  letter-spacing: -0.02em;
+  font-weight: 400;
+  line-height: 1.05;
+}
+/* "Blooming Peace" pairing: a hand-lettered line over chunky, extruded caps */
+.about-title .about-script {
+  font-family: "Lilita One", Inter, "Helvetica Neue", Arial, sans-serif;
+  text-transform: uppercase;
+  font-size: 0.85em;
+  letter-spacing: 0.015em;
+  color: #fff8dc;
+  display: inline-block;
+  white-space: nowrap;
+  transform: rotate(-2deg);
+  text-shadow: 0.030em 0.030em 0 #2f6f6a, 0.060em 0.060em 0 #2f6f6a, 0.090em 0.090em 0 #2f6f6a, 0.120em 0.120em 0 #2f6f6a, 0.150em 0.150em 0 #2f6f6a, 0.180em 0.180em 0 #2f6f6a, 0.210em 0.210em 0 #2f6f6a, 0.240em 0.240em 0 #2f6f6a;
+}
+.about-title .about-chunk {
+  font-family: "Lilita One", Inter, "Helvetica Neue", Arial, sans-serif;
+  text-transform: uppercase;
+  font-size: 1.35em;
+  letter-spacing: 0.015em;
+  color: #fff8dc;
+  display: inline-block;
+  white-space: nowrap;
+  transform: rotate(-2deg);
+  text-shadow: 0.030em 0.030em 0 #2f6f6a, 0.060em 0.060em 0 #2f6f6a, 0.090em 0.090em 0 #2f6f6a, 0.120em 0.120em 0 #2f6f6a, 0.150em 0.150em 0 #2f6f6a, 0.180em 0.180em 0 #2f6f6a, 0.210em 0.210em 0 #2f6f6a, 0.240em 0.240em 0 #2f6f6a;
 }
 .about-title p {
   margin: calc(var(--s) * 0.012) 0 0;
@@ -918,6 +971,7 @@ body:has(.id-hang) .site-nav { opacity: 0; visibility: hidden; transition: none;
 }
 .strands-complete.is-visible { opacity: 1; transform: translate(-50%, -50%); }
 .strands-complete strong { font-size: 1.9cqw; }
+.strands-complete:not(.strands-complete--close) { font-size: 3.2cqw; }
 .strands-complete--close { font-size: 2.2cqw; }
 
 @media (prefers-reduced-motion: reduce) {

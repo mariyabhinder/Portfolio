@@ -46,15 +46,19 @@ export default function AboutMe({ onRemembered }: { onRemembered?: (done: boolea
     <>
       <div className="about-piece about-title" style={{ ["--at" as string]: 0 }}>
         <h2>
-          Find the things that
+          <span className="about-script">Find the things that</span>
           <br />
-          make me, me
+          <span className="about-chunk">make me, me</span>
         </h2>
       </div>
       <div className="about-piece about-game" style={{ ["--at" as string]: 0.05 }}>
         <StrandsGame onComplete={onRemembered} onSolvedChange={setSolved} />
       </div>
-      <div ref={wrapRef} className="about-piece about-bulb" style={{ ["--at" as string]: 0.1 }}>
+      <div
+        ref={wrapRef}
+        className="about-piece about-bulb"
+        style={{ ["--at" as string]: 0.1, ...(solved.length >= 7 ? { display: "none" } : null) }}
+      >
         <button
           type="button"
           className="about-bulb-btn"

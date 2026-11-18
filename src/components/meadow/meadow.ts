@@ -40,7 +40,7 @@ import { createDrop, ABOUT_BG } from './drop'
 import { leaveFrame } from './leave'
 import { slideAt } from './projectSlides'
 import { OPENING_BOX, SHUTTER_BOX, launchProgress, openingCrop, openingFit, shutterStrips, windowAt, windowUrls } from './window'
-import picstoryUrl from '@/assets/meadow/picstory.webp'
+import picstoryUrl from '@/assets/meadow/picstory-card.png'
 import nmockup3Url from '@/assets/meadow/nmockup3.webp'
 // the laptop picture is optional: drop nudgelaptop.(webp|png|jpg) into src/assets/meadow and it appears on the Nudge page
 const nudgeLaptopUrl = Object.values(import.meta.glob('../../assets/meadow/nudgelaptop.{webp,png,jpg}', { eager: true, query: '?url', import: 'default' }))[0] as string | undefined
@@ -890,7 +890,25 @@ export function createMeadow(parent: HTMLElement, state: MeadowState, onReady?: 
       // all of them below.
       later.push(track(loadImage(p, nmockup3Url).then((img: any) => { if (!disposed) nudgePhone = img }).catch(() => {})))
       if (nudgeLaptopUrl) later.push(track(loadImage(p, nudgeLaptopUrl).then((img: any) => { if (!disposed) nudgeLaptop = img }).catch(() => {})))
-      later.push(track(loadImage(p, picstoryUrl).then((img: any) => { if (!disposed) picstoryImg = img }).catch(() => {})))
+      // the Picstory card (flower, paper, tape, title) is laid on a burgundy page of exactly the doorway's shape, so it fills the
+      // window and every element shows; the burgundy is sampled from the card's own background so the joins are invisible
+      later.push(track(loadImage(p, picstoryUrl).then((img: any) => {
+        if (disposed) return
+        const inset = 10 // the screenshot's light border
+        const sw = img.width - inset * 2, sh = img.height - inset * 2
+        const c = img.get(inset + 6, inset + 6)
+        const aspect = OPENING_BOX.w / OPENING_BOX.h
+        const gw = sw, gh = Math.round(sw / aspect)
+        const g = p.createGraphics(gw, gh)
+        g.pixelDensity(1)
+        g.noStroke()
+        g.fill(c[0], c[1], c[2])
+        g.rect(0, 0, gw, gh)
+        // the card sits a little below centre: the arch cuts the top of the doorway
+        const dy = Math.round((gh - sh) * 0.58)
+        g.image(img, 0, dy, sw, sh, inset, inset, sw, sh)
+        picstoryImg = g
+      }).catch(() => {})))
       later.push(track(Promise.all(Object.values(windowUrls()).map((u) => loadImage(p, u))).then(([frame, left, right]: any[]) => { if (!disposed) windowImg = { frame, left, right } }).catch(() => {})))
       later.push(track(loadImage(p, aboutBgUrl).then((img: any) => { if (!disposed) aboutBgImg = img }).catch(() => { if (!disposed) aboutBgImg = fromCanvas(paintAboutBg()) })))
       later.push(track(Promise.all(RIGHT_SIDE.map((d) => loadImage(p, d.src))).then((imgs: any[]) => { if (!disposed) decoImgs = imgs }).catch(() => {})))

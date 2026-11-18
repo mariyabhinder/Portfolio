@@ -3,8 +3,8 @@
 // DreamLanding places the wrapper (translate + size, like the bag's hotspot); the card inside turns and lifts.
 
 import { forwardRef, useCallback, useEffect, useRef, useState } from 'react'
-import front from '../assets/meadow/frontpost.webp'
-import backArt from '../assets/meadow/postback.webp'
+import front from '../assets/meadow/postfront-pune-art.webp'
+import backArt from '../assets/meadow/postback-vadapav.webp'
 import { EMAIL, GmailLogo, LINKEDIN_HREF, LINKEDIN_NAME, LinkedInLogo } from './FlowerCard'
 
 // The back of the card, drawn as vector art (it was a 379px picture, which blurred when the card opens big). 376 x 269 units, like the card.
@@ -20,7 +20,7 @@ const BackArt = () => (
         <path key={y} d={`M238 ${y}q6-8 12 0t12 0t12 0t12 0`} />
       ))}
     </g>
-    <image href={backArt} x="34" y="58" width="121" height="175" preserveAspectRatio="xMidYMid slice" />
+    <image href={backArt} x="34" y="58" width="121" height="175" preserveAspectRatio="xMidYMid meet" />
     <g stroke="#2b2523" strokeWidth="1.1">
       {[131, 169, 207, 245].map((y) => (
         <path key={y} d={`M173 ${y}H362`} />

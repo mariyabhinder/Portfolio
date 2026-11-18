@@ -165,6 +165,9 @@ export default function DreamLanding() {
   const taglineRef = useRef<HTMLDivElement>(null)
   const fallTextRef = useRef<HTMLDivElement>(null)
   const picstoryRef = useRef<HTMLAnchorElement>(null)
+  const arrowLeftRef = useRef<HTMLButtonElement>(null)
+  const arrowRightRef = useRef<HTMLButtonElement>(null)
+  const swapSlide = useRef<(dir: number) => void>(() => {})
   const heroTextRef = useRef<HTMLDivElement>(null)
   const scrollCueRef = useRef<HTMLParagraphElement>(null)
   const layerRef = useRef<HTMLDivElement>(null)
@@ -619,9 +622,61 @@ export default function DreamLanding() {
 
     const placeCap = wearHotspot(cap, CAP_WEAR, { w: 46, h: 48 }, ['Pull her cap over her face', 'Take the cap off her face'])
 
+    // Case-study swapping: slidePos lives in the swipe range of slideAt (picstory at swipe[0], nudge at swipe[1]) and eases toward
+    // the target page. Every 3s of no clicking it flips to the other page; an arrow click flips it at once and restarts the 3s.
+    let slideTarget = 0
+    let slidePos = 0
+    let slideRaf = 0
+    let slideLast = 0
+    let slideTimer = 0
+    let arrowsOn = false
+    const slideStep = (now: number) => {
+      const dt = slideLast ? Math.min(0.05, (now - slideLast) / 1000) : 0.016
+      slideLast = now
+      const goal = slideTarget
+      const d = goal - slidePos
+      const step = dt / 0.8
+      slidePos = Math.abs(d) <= step ? goal : slidePos + Math.sign(d) * step
+      update()
+      if (slidePos !== goal) slideRaf = requestAnimationFrame(slideStep)
+      else { slideRaf = 0; slideLast = 0 }
+    }
+    const goSlide = (dir: number) => {
+      slideTarget += dir
+      if (!slideRaf) slideRaf = requestAnimationFrame(slideStep)
+    }
+    const restartTimer = () => {
+      window.clearInterval(slideTimer)
+      slideTimer = window.setInterval(() => { if (arrowsOn && !document.hidden) goSlide(1) }, 3000)
+    }
+    swapSlide.current = (dir) => { goSlide(dir); restartTimer() }
+    restartTimer()
+    const placeArrows = () => {
+      const l = arrowLeftRef.current, r = arrowRightRef.current
+      if (!l || !r) return
+      // visible while the window rests open (it holds at OPEN_AT), fading as it grows away for her launch
+      const k = (a: number, b: number, x: number) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t) }
+      const w = state.window
+      const op = state.leave > 0 ? 0 : k(OPEN_AT - 0.04, OPEN_AT, w) * (1 - k(OPEN_AT + 0.005, OPEN_AT + 0.05, w))
+      arrowsOn = op > 0.5
+      const wf = windowAt(w, camW, camH), u = wf.h / 800
+      const off = 300 * u + 70 * u + 24
+      const ax = Math.min(camW / 2 - 28, off)
+      for (const [el, sign] of [[l, -1], [r, 1]] as const) {
+        el.style.opacity = op.toFixed(3)
+        el.style.pointerEvents = op > 0.5 ? 'auto' : 'none'
+        el.style.visibility = op > 0.01 ? 'visible' : 'hidden'
+        el.tabIndex = op > 0.5 ? 0 : -1
+        el.style.transform = `translate(${(wf.x + sign * ax).toFixed(1)}px, ${wf.y.toFixed(1)}px) translate(-50%, -50%)`
+      }
+    }
+
     const update = (resized = false) => {
       // the state first: the hotspots read it (atRest)
       stateAt(window.scrollY - sectionStart, state)
+      // the case studies swap by timer / arrow click, not by scroll
+      state.slide = slidePos
+      placeArrows()
       placePhone(resized)
       placeBag(resized)
       placeGlasses(glassesRef.current, resized)
@@ -808,6 +863,9 @@ export default function DreamLanding() {
     update(true)
     return () => {
       cancelAnimationFrame(postFrame)
+      cancelAnimationFrame(slideRaf)
+      window.clearInterval(slideTimer)
+      swapSlide.current = () => {}
       holdMeadow.current = () => {}
       goToRef.current = () => {}
       followBag.current = null
@@ -875,7 +933,7 @@ export default function DreamLanding() {
         })}
       </div>
       <div ref={taglineRef} className="cloud-tagline" aria-hidden="true">
-        <p>Imagine it.<br className="tag-br" /> Make it.<br />Put a little<br className="tag-br" /> magic into it.</p>
+        <p>Imagine it.<br />Make it.<br />Put a little<br className="tag-br" /> <span className="tag-script">magic</span> into it.</p>
       </div>
       <svg width="0" height="0" className="absolute" aria-hidden="true">
         <filter id="about-warp" x="0" y="0" width="100%" height="100%" colorInterpolationFilters="sRGB">
@@ -897,6 +955,19 @@ export default function DreamLanding() {
         className="absolute left-0 top-0 cursor-pointer"
         style={{ zIndex: 3, visibility: 'hidden', pointerEvents: 'none' }}
       />
+      {([['Previous case study', arrowLeftRef, 'M15 5 L8 12 L15 19', 1], ['Next case study', arrowRightRef, 'M9 5 L16 12 L9 19', 1]] as const).map(([label, ref, d, dir]) => (
+        <button
+          key={label}
+          ref={ref}
+          type="button"
+          aria-label={label}
+          onClick={(e) => { e.stopPropagation(); swapSlide.current(dir) }}
+          className="absolute left-0 top-0 flex h-12 w-12 cursor-pointer items-center justify-center bg-transparent"
+          style={{ zIndex: 4, visibility: 'hidden', pointerEvents: 'none', opacity: 0 }}
+        >
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2a8a60" strokeWidth="4" style={{ filter: 'drop-shadow(0 1px 2px rgba(255,255,255,.6))' }} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={d} /></svg>
+        </button>
+      ))}
       <PostCard ref={postRef} rot={POST_PLACE.rot} open={finale} reopen={reopenPost} />
       <IdLanyard ref={idRef} rot={ID_PLACE.rot} />
       <button

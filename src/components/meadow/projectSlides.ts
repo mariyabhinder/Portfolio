@@ -13,10 +13,9 @@ export const NUDGE_TEAL = '#14b8a6'
 
 const ease = (t: number) => t * t * (3 - 2 * t)
 
-/** At slide progress u (state.slide, 0-1): `from` is the page on show, `to` the one swiping in, `s` how far the swipe has gone (0 = at rest on `from`). */
+/** At slide progress u (state.slide): the whole part counts pages passed, the fraction is the swipe to the next page (always leftward, so the two alternate forever). */
 export function slideAt(u: number) {
-  const [a, b] = SLIDES_CONFIG.swipe
-  const s = ease(Math.max(0, Math.min(1, (u - a) / (b - a))))
-  // the link follows whichever page is mostly in view
-  return { from: 0, to: 1, s, current: s < 0.5 ? 0 : 1 }
+  const i = Math.floor(u), s = ease(u - i)
+  const from = ((i % 2) + 2) % 2
+  return { from, to: 1 - from, s, current: s < 0.5 ? from : 1 - from }
 }

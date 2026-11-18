@@ -105,7 +105,11 @@ const CSS = `@import url('https://fonts.googleapis.com/css2?family=Abril+Fatface
 .ps-root { position: relative; min-height: 100vh; color: ${INK}; font-family: ${BODY}; }
 .ps-paper { position: fixed; inset: 0; z-index: 0; background: ${CREAM}; }
 .ps-wrap { position: relative; z-index: 1; max-width: 960px; margin: 0 auto; padding: 32px 24px 120px; }
-.ps-back { color: ${MAROON}; font-size: 15px; font-weight: 700; text-decoration: none; letter-spacing: .02em; }
+.ps-back { position: fixed; top: max(16px, env(safe-area-inset-top)); left: max(16px, env(safe-area-inset-left)); z-index: 50; display: inline-flex; align-items: center; gap: 8px; background: rgba(255,249,232,.92); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); color: ${MAROON}; text-decoration: none; font-weight: 800; font-size: 15px; line-height: 1; padding: 10px 18px 10px 14px; border-radius: 999px; box-shadow: 0 6px 18px -6px rgba(122,18,38,.35), 0 0 0 1px rgba(163,18,63,.25); transition: transform .2s ease, box-shadow .2s ease; }
+.ps-back:hover { transform: translateY(-1px); box-shadow: 0 10px 24px -8px rgba(122,18,38,.4), 0 0 0 1px rgba(163,18,63,.4); }
+.ps-back:focus-visible { outline: 2px solid ${MAROON}; outline-offset: 3px; }
+.ps-back span { display: inline-block; transition: transform .2s ease; }
+.ps-back:hover span { transform: translateX(-3px); }
 .ps-hero { display: grid; grid-template-columns: 1fr 1.1fr; align-items: center; gap: 56px; margin: 12px 0 72px; }
 .ps-title { font-family: 'Arial Black', Impact, Inter, sans-serif; font-weight: 900; font-size: clamp(44px, 8.4vw, 92px); letter-spacing: .02em; line-height: 1; margin: 0; color: ${YELLOW}; -webkit-text-stroke: 2px ${MAROON};
   text-shadow: 1px 1px 0 ${MAROON}, 2px 2px 0 ${MAROON}, 3px 3px 0 ${MAROON}, 4px 4px 0 ${MAROON}, 5px 5px 0 ${MAROON}, 6px 6px 0 ${MAROON}, 7px 7px 0 ${MAROON}, 8px 8px 0 ${MAROON}, 9px 9px 0 ${MAROON}, 10px 10px 0 ${MAROON}, 12px 16px 22px rgba(60,10,25,.35); transform: perspective(600px) rotateX(8deg) rotateY(-6deg); transform-origin: left center; }
