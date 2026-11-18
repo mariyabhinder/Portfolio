@@ -7,6 +7,12 @@ import mockup3 from '@/assets/meadow/mockup3.webp'
 import group2167 from '@/assets/meadow/Group 2167.webp'
 import para3 from '@/assets/meadow/para3.webp'
 import para33 from '@/assets/meadow/para33.webp'
+import sketch1 from '@/assets/meadow/sketch1.webp'
+import sketch2 from '@/assets/meadow/sketch2.webp'
+import sketch3 from '@/assets/meadow/sketch3.webp'
+import stars from '@/assets/scrap/stars.png'
+import plaid from '@/assets/scrap/plaid.png'
+import flowernote from '@/assets/scrap/flowernote.png'
 
 const MAROON = '#6E0D25'
 const YELLOW = '#FFFFB3'
@@ -95,47 +101,52 @@ const SECTIONS: Section[] = [
   },
 ]
 
-const CSS = `
+const CSS = `@import url('https://fonts.googleapis.com/css2?family=Abril+Fatface&family=Playfair+Display:ital,wght@0,900;1,900&family=Rye&family=Special+Elite&display=swap');
 .ps-root { position: relative; min-height: 100vh; color: ${INK}; font-family: ${BODY}; }
 .ps-paper { position: fixed; inset: 0; z-index: 0; background: ${CREAM}; }
-.ps-wrap { position: relative; z-index: 1; max-width: 960px; margin: 0 auto; padding: 96px 24px 120px; }
-
-/* back to the landing: pinned, so it is one tap away anywhere in a long read */
-.ps-back { position: fixed; z-index: 50; top: max(16px, env(safe-area-inset-top)); left: max(16px, env(safe-area-inset-left));
-  display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px 10px 14px; border-radius: 999px;
-  background: rgba(255,255,255,.9); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
-  color: ${MAROON}; font: 700 15px/1 ${BODY}; letter-spacing: .02em; text-decoration: none;
-  box-shadow: 0 6px 18px -6px rgba(80,10,30,.3), 0 0 0 1px rgba(110,13,37,.1); transition: transform .2s ease, box-shadow .2s ease; }
-.ps-back:hover { transform: translateY(-1px); box-shadow: 0 10px 24px -8px rgba(80,10,30,.36), 0 0 0 1px rgba(110,13,37,.18); }
-.ps-back:focus-visible { outline: 2px solid ${MAROON}; outline-offset: 3px; }
-.ps-back span { display: inline-block; transition: transform .2s ease; }
-.ps-back:hover span { transform: translateX(-3px); }
-
-/* hero: the name and its promise on the left, the app on the right, centred on one line */
-.ps-hero { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); align-items: center; gap: clamp(24px, 4vw, 48px); margin: 0 0 clamp(64px, 9vw, 104px); }
-.ps-title { font-family: 'Arial Black', Impact, Inter, sans-serif; font-weight: 900; font-size: clamp(44px, 5.2vw, 72px); letter-spacing: .02em; line-height: 1; margin: 0; color: ${YELLOW}; -webkit-text-stroke: 2px ${MAROON};
-  text-shadow: 1px 1px 0 ${MAROON}, 2px 2px 0 ${MAROON}, 3px 3px 0 ${MAROON}, 4px 4px 0 ${MAROON}, 5px 5px 0 ${MAROON}, 6px 6px 0 ${MAROON}, 7px 7px 0 ${MAROON}, 8px 8px 0 ${MAROON}, 9px 9px 0 ${MAROON}, 10px 10px 0 ${MAROON}, 12px 16px 22px rgba(60,10,25,.35); transform: perspective(600px) rotateX(8deg) rotateY(-6deg); transform-origin: left center; width: fit-content; max-width: 100%; }
-.ps-sub { font-family: ${SERIF}; font-weight: 900; font-style: italic; font-size: clamp(20px, 2.8vw, 30px); line-height: 1.25; margin: 30px 0 0; max-width: 11em; color: ${MAROON}; text-shadow: 2px 2px 0 ${GOLD}; }
-.ps-mocks { position: relative; display: flex; justify-content: center; align-items: center; padding: 4% 0; }
-.ps-glow { position: absolute; inset: 0 -4%; border-radius: 50%; background: radial-gradient(closest-side, rgba(110,13,37,.09), rgba(110,13,37,0)); }
-.ps-device { filter: drop-shadow(0 22px 26px rgba(60,10,25,.2)) drop-shadow(0 3px 5px rgba(60,10,25,.12)); }
-.ps-mocks .ps-device { position: relative; width: min(100%, 430px); }
-
-/* one reading column, centred on the same axis as the pictures */
-.ps-col { max-width: 680px; margin: 0 auto; }
-.ps-col > :last-child { margin-bottom: 0; }
-.ps-grad { position: relative; border-radius: 28px; padding: clamp(36px, 6vw, 72px) clamp(24px, 6vw, 72px); margin: 0 0 clamp(72px, 10vw, 112px); color: ${YELLOW};
-  background: ${MAROON}; box-shadow: 0 30px 60px -28px rgba(80,10,30,.55); overflow: hidden; }
-.ps-grad::after { content: ''; position: absolute; inset: 10px; border: 1px solid rgba(255,255,179,.28); border-radius: 20px; pointer-events: none; }
-.ps-intro { font-family: ${SERIF}; font-style: italic; font-size: 17px; line-height: 1.6; opacity: .8; margin: 0 0 32px; }
-.ps-sec { margin: 0 0 clamp(72px, 10vw, 112px); }
-.ps-num { display: flex; align-items: center; gap: 12px; font-family: ${BODY}; font-weight: 700; font-size: 13px; letter-spacing: .16em; font-variant-numeric: tabular-nums; color: ${GOLD}; margin: 0 0 12px; }
-.ps-num::after { content: ''; width: 32px; height: 2px; border-radius: 1px; background: currentColor; opacity: .6; }
-.ps-h2 { font-family: ${SERIF}; font-weight: 700; font-size: clamp(26px, 3.6vw, 36px); line-height: 1.25; margin: 0 0 14px; text-wrap: balance; }
-.ps-subline { font-family: ${SERIF}; font-style: italic; font-size: 17px; line-height: 1.6; margin: 0 0 24px; opacity: .85; }
-.ps-p { font-size: 18px; line-height: 1.8; margin: 0 0 18px; }
-.ps-strong { font-family: ${SERIF}; font-weight: 700; font-size: 20px; line-height: 1.6; margin: 28px 0; padding-left: 20px; border-left: 3px solid ${GOLD}; }
-.ps-li { margin: 0 0 18px; padding-left: 20px; border-left: 2px solid ${GOLD}; line-height: 1.75; font-size: 17px; }
+.ps-wrap { position: relative; z-index: 1; max-width: 960px; margin: 0 auto; padding: 32px 24px 120px; }
+.ps-back { color: ${MAROON}; font-size: 15px; font-weight: 700; text-decoration: none; letter-spacing: .02em; }
+.ps-hero { display: grid; grid-template-columns: 1fr 1.1fr; align-items: center; gap: 56px; margin: 12px 0 72px; }
+.ps-title { font-family: 'Arial Black', Impact, Inter, sans-serif; font-weight: 900; font-size: clamp(44px, 8.4vw, 92px); letter-spacing: .02em; line-height: 1; margin: 0; color: ${YELLOW}; -webkit-text-stroke: 2px ${MAROON};
+  text-shadow: 1px 1px 0 ${MAROON}, 2px 2px 0 ${MAROON}, 3px 3px 0 ${MAROON}, 4px 4px 0 ${MAROON}, 5px 5px 0 ${MAROON}, 6px 6px 0 ${MAROON}, 7px 7px 0 ${MAROON}, 8px 8px 0 ${MAROON}, 9px 9px 0 ${MAROON}, 10px 10px 0 ${MAROON}, 12px 16px 22px rgba(60,10,25,.35); transform: perspective(600px) rotateX(8deg) rotateY(-6deg); transform-origin: left center; }
+.ps-sub { font-family: ${SERIF}; font-weight: 900; font-style: italic; font-size: clamp(20px, 3vw, 30px); line-height: 1.25; margin: 26px 0 0; max-width: 11em; color: ${MAROON}; text-shadow: 1px 1px 2px rgba(220,171,107,.35); }
+.ps-mocks { position: relative; aspect-ratio: 1 / 1.05; }
+.ps-mocks img { position: absolute; height: auto; }
+.ps-sec { position: relative; margin: 0 0 96px; }
+.ps-num { margin: 0 0 12px; line-height: 1; }
+.ps-h2 { margin: 0 0 18px; line-height: 1.9; font-size: 0; }
+.ps-cut { display: inline-block; margin: 0 4px 6px 0; padding: 2px 8px 3px; font-size: clamp(22px, 3.4vw, 32px); line-height: 1.15; box-shadow: 1px 2px 0 rgba(0,0,0,.18); }
+.ps-num .ps-cut { font-size: 26px; margin-right: 3px; }
+.ps-cut.c0 { background: #f6c915; color: #a3123f; font-family: 'Playfair Display', Georgia, serif; font-style: italic; font-weight: 900; transform: rotate(-3deg); clip-path: polygon(0 6%, 96% 0, 100% 92%, 4% 100%); }
+.ps-cut.c1 { background: #a3123f; color: #fff4d6; font-family: 'Abril Fatface', 'Playfair Display', serif; transform: rotate(2deg); clip-path: polygon(3% 0, 100% 8%, 97% 100%, 0 94%); }
+.ps-cut.c2 { background: #efe6da; color: #111; font-family: 'Special Elite', 'Courier New', monospace; font-weight: 700; transform: rotate(-1.5deg); background-image: linear-gradient(rgba(0,0,0,.12) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,.12) 1px, transparent 1px); background-size: 8px 8px; }
+.ps-cut.c3 { background: #7cc7d0; color: #1b3a6b; font-family: 'Rye', 'Abril Fatface', serif; transform: rotate(3deg); clip-path: polygon(0 0, 98% 5%, 100% 100%, 5% 96%); }
+.ps-cut.c4 { background: #f4a6bd; color: #5a1230; font-family: 'Playfair Display', Georgia, serif; font-weight: 900; transform: rotate(-2deg); clip-path: polygon(4% 4%, 100% 0, 96% 100%, 0 92%); }
+.ps-cut.c5 { background: #1c1c1c; color: #f6f0e4; font-family: 'Abril Fatface', serif; transform: rotate(1.5deg); }
+.ps-note-wrap { position: relative; margin: 20px 0 110px 28px; transform: rotate(-.8deg); }
+.ps-note-wrap::before { content: ''; position: absolute; inset: 22px -22px -22px 60px; background: #7a1226 radial-gradient(#f3d9d9 1.4px, transparent 1.6px) 0 0 / 14px 14px; z-index: 0; }
+.ps-note { position: relative; z-index: 1; padding: 56px clamp(18px, 6vw, 64px) 48px clamp(68px, 7vw, 84px); background-color: #e9dfc3;
+  background-image: linear-gradient(90deg, transparent 52px, rgba(190,80,80,.45) 52px, rgba(190,80,80,.45) 54px, transparent 54px), repeating-linear-gradient(transparent 0, transparent 32px, rgba(150,120,110,.45) 32px, rgba(150,120,110,.45) 33px);
+  clip-path: polygon(0 2%, 8% 0, 20% 1.5%, 35% 0, 52% 1.6%, 70% 0, 88% 1.4%, 100% 0, 100% 97%, 92% 100%, 78% 98.4%, 60% 100%, 42% 98.5%, 25% 100%, 10% 98.6%, 0 100%); }
+.ps-note .ps-p, .ps-note .ps-strong { line-height: 33px; margin-bottom: 33px; }
+.ps-note .ps-strong { border-left-color: #a3123f; }
+.ps-pin { position: absolute; top: -12px; left: 54%; z-index: 3; width: 26px; height: 26px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #ff9a9a, #c01d2e 55%, #7a0c18); box-shadow: 4px 8px 6px rgba(0,0,0,.28); }
+.ps-pin::after { content: ''; position: absolute; left: 11px; top: 22px; width: 2px; height: 12px; background: #999; transform: rotate(28deg); }
+.ps-plaidwrap { position: relative; margin: 40px 0 0; padding: 20px 0 0 0; }
+.ps-plaid { position: absolute; right: -24px; top: -34px; width: min(330px, 56vw); aspect-ratio: 723 / 640; background: url(${plaid}) top right / 100% 100% no-repeat; z-index: 0; transform: scaleX(-1) rotate(8deg); }
+.ps-ticket { position: relative; z-index: 1; margin: 90px 0 0; padding: clamp(28px, 5vw, 56px); background: #fff9e8; border: 3px dashed #a3123f; border-radius: 6px; transform: rotate(1deg); box-shadow: 10px 12px 0 rgba(163,18,63,.9); }
+.ps-ticket::before { content: ''; position: absolute; top: -16px; left: 14%; width: 110px; height: 30px; background: rgba(246,201,21,.8); transform: rotate(-4deg); }
+.ps-el { position: absolute; background-image: url(${stars}); background-repeat: no-repeat; mix-blend-mode: multiply; pointer-events: none; z-index: 2; }
+.ps-el.s1 { aspect-ratio: 695/670; background-size: 166% auto; background-position: 8.7% 2.9%; }
+.ps-el.s2 { aspect-ratio: 655/625; background-size: 176% auto; background-position: 91.5% 44.3%; }
+.ps-el.s3 { aspect-ratio: 680/655; background-size: 169% auto; background-position: 22.2% 87.2%; }
+.ps-el.flower { background-image: url(${flowernote}); aspect-ratio: 305/290; background-size: 378% auto; background-position: 7.1% 37.5%; mix-blend-mode: normal; }
+.ps-el.flower { -webkit-mask-image: radial-gradient(closest-side, #000 85%, transparent); mask-image: radial-gradient(closest-side, #000 85%, transparent); }
+.ps-tape { position: absolute; width: 120px; height: 30px; background: rgba(246,201,21,.75); z-index: 2; }
+.ps-subline { font-family: ${SERIF}; font-style: italic; font-size: 17px; line-height: 1.6; margin: 0 0 22px; opacity: .85; }
+.ps-p { font-size: 18px; line-height: 1.85; margin: 0 0 18px; max-width: 700px; }
+.ps-strong { font-family: ${SERIF}; font-weight: 700; font-size: 20px; line-height: 1.6; margin: 26px 0; max-width: 700px; padding-left: 18px; border-left: 3px solid ${GOLD}; }
+.ps-li { margin: 0 0 18px; max-width: 700px; padding-left: 18px; border-left: 2px solid ${GOLD}; line-height: 1.75; font-size: 17px; }
 .ps-li b { font-family: ${SERIF}; display: block; margin-bottom: 2px; }
 
 .ps-frames { display: flex; flex-wrap: wrap; justify-content: center; gap: 36px; margin: 56px 0 0; }
@@ -144,26 +155,19 @@ const CSS = `
 .ps-frame::before { content: ''; position: absolute; top: -13px; left: 50%; width: 84px; height: 26px; transform: translateX(-50%) rotate(-3deg); background: rgba(220,171,107,.75); }
 .ps-frame .ph { display: flex; align-items: center; justify-content: center; background: repeating-linear-gradient(45deg, #f3e7d3, #f3e7d3 10px, #efdfc6 10px, #efdfc6 20px); border: 2px dashed ${GOLD}; color: ${BROWN}; font-size: 13px; letter-spacing: .15em; text-transform: uppercase; }
 .ps-frame img { display: block; max-width: 100%; height: auto; }
-
-/* the user journey: splash, gallery, editor, left to right, each a step lower, joined by hand-drawn arrows that arc over the
-   gaps. A little wider than the text so the screens can be read. Every length in it is a share of its own width (fr columns
-   in proportion to each phone, so all three are the same height, and lifts in cqw), so the arrows, drawn once over the whole
-   row (.ps-arcs: 1000 units across), land on the phones at any size */
-.ps-journey { container-type: inline-size; position: relative; display: grid; align-items: start;
-  grid-template-columns: 580fr 140fr 603fr 140fr 495fr;
-  width: min(1040px, calc(100vw - 48px)); margin: 128px 0 0 calc(50% - min(520px, 50vw - 24px)); }
-.ps-step { margin: 0; }
-.ps-step.s2 { margin-top: 3.6vw; margin-top: 6cqw; }
-.ps-step.s3 { margin-top: 7.2vw; margin-top: 12cqw; }
-.ps-arcs { position: absolute; left: 0; top: 0; width: 100%; height: auto; overflow: visible; pointer-events: none; }
-.ps-arrow svg { display: none; }
-
+.ps-journey { position: relative; width: 100%; max-width: 900px; margin: 56px auto 0; aspect-ratio: 900 / 890; }
+.ps-journey img { position: absolute; height: auto; }
+.ps-journey svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
 @media (max-width: 720px) {
   .ps-wrap { padding: 84px 16px 80px; }
   .ps-hero { grid-template-columns: 1fr; gap: 8px; margin-bottom: 56px; }
   .ps-mocks .ps-device { width: min(100%, 380px); }
   .ps-p, .ps-li { font-size: 16.5px; }
-  .ps-sec, .ps-grad { margin-bottom: 64px; }
+  .ps-sec { margin-bottom: 64px; }
+  .ps-note-wrap { margin-left: 8px; margin-right: 12px; }
+  .ps-note { padding-top: 44px; padding-bottom: 36px; }
+  .ps-note-wrap::before { inset: 16px -12px -14px 30px; }
+  .ps-el.hide-m { display: none; }
   .ps-frames { gap: 28px; }
   /* the journey turns into a zigzag down the page */
   .ps-journey { grid-template-columns: 1fr; width: auto; margin: 48px 0 0; }
@@ -196,12 +200,23 @@ function Text({ blocks }: { blocks: Block[] }) {
   )
 }
 
-function Heading({ s }: { s: Section }) {
-  const [num, ...rest] = s.title.split('. ')
+function Cut({ text, offset = 0 }: { text: string; offset?: number }) {
   return (
     <>
-      <p className="ps-num">{num}</p>
-      <h2 className="ps-h2">{rest.join('. ')}</h2>
+      {text.split(' ').map((w, i) => (
+        <span key={i} className={`ps-cut c${(i + offset) % 6}`}>{w}</span>
+      ))}
+    </>
+  )
+}
+
+function Heading({ s }: { s: Section }) {
+  const [num, ...rest] = s.title.split('. ')
+  const off = parseInt(num, 10) || 0
+  return (
+    <>
+      <p className="ps-num"><Cut text={num} offset={off + 2} /></p>
+      <h2 className="ps-h2"><Cut text={rest.join('. ')} offset={off} /></h2>
       {s.sub ? <p className="ps-subline">{s.sub}</p> : null}
     </>
   )
@@ -215,11 +230,8 @@ function Frame({ rot, w, children }: { rot: number; w: number; children: ReactNo
   )
 }
 
-const ARROW = { fill: 'none', stroke: MAROON, strokeWidth: 3.5, strokeLinecap: 'round', strokeLinejoin: 'round', vectorEffect: 'non-scaling-stroke' } as const
-
-// The journey's arrows on wide screens, in the row's own units (1000 across; the phones' tops are at 0, 60 and 120): each
-// leaves from beside the top of one phone, arcs over the gap and comes down onto the top of the next
-function Arcs() {
+function Arrow({ d, head }: { d: string; head: string }) {
+  const p = { fill: 'none', stroke: '#111', strokeWidth: 4.5, strokeLinecap: 'round', strokeLinejoin: 'round', vectorEffect: 'non-scaling-stroke' } as const
   return (
     <svg className="ps-arcs" viewBox="0 0 1000 631" aria-hidden="true">
       <path d="M 250 16 C 282 -64, 444 -82, 503 48" {...ARROW} />
@@ -263,28 +275,29 @@ export default function PicstoryPage() {
             <p className="ps-sub">Create your perfect visual story</p>
           </div>
           <div className="ps-mocks">
-            <div className="ps-glow" />
-            <DeviceShot className="ps-device" src={group2167} alt="Picstory app screens" iw={774} ih={1002} crop={[0.011, 0.136, 0.89, 0.661]} />
+            <img src={group2167} alt="Picstory app screens" style={{ width: '88%', left: '12%', top: '50%', transform: 'translateY(-50%)', zIndex: 1 }} />
           </div>
         </header>
 
-        <section className="ps-grad">
-          <div className="ps-col">
-            <p className="ps-intro">{INTRO}</p>
+        <section className="ps-note-wrap">
+          <i className="ps-pin" />
+          <div className="ps-el flower" style={{ width: 120, left: -52, top: -40, transform: 'rotate(-12deg)' }} />
+          <div className="ps-el s2" style={{ width: 90, right: -34, bottom: -40, transform: 'rotate(14deg)' }} />
+          <div className="ps-note">
+            <p style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 17, lineHeight: '33px', margin: '0 0 33px' }}>{INTRO}</p>
             <Heading s={s1} />
             <Text blocks={s1.blocks} />
           </div>
         </section>
 
         <section className="ps-sec">
-          <div className="ps-col">
-            <Heading s={s2} />
-            <Text blocks={s2.blocks} />
-          </div>
+          <div className="ps-el s1 hide-m" style={{ width: 110, right: 0, top: -30, transform: 'rotate(10deg)' }} />
+          <Heading s={s2} />
+          <Text blocks={s2.blocks} />
           <div className="ps-frames">
             {[-4, 2, -2].map((r, i) => (
-              <Frame key={i} rot={r} w={250}>
-                <div className="ph" style={{ aspectRatio: '3 / 4' }}>Sketch {i + 1}</div>
+              <Frame key={i} rot={r} w={[420, 440, 270][i]}>
+                <img src={[sketch1, sketch2, sketch3][i]} alt={`Sketch ${i + 1}`} />
               </Frame>
             ))}
           </div>
@@ -306,42 +319,44 @@ export default function PicstoryPage() {
         </section>
 
         <section className="ps-sec">
-          <div className="ps-col">
-            <Heading s={s4} />
-            <Text blocks={s4.blocks} />
-          </div>
+          <div className="ps-el s3 hide-m" style={{ width: 130, right: -20, top: 10, transform: 'rotate(-14deg)' }} />
+          <div className="ps-el s1 hide-m" style={{ width: 60, right: 120, top: 120, transform: 'rotate(22deg)' }} />
+          <Heading s={s4} />
+          <Text blocks={s4.blocks} />
         </section>
 
         <section className="ps-sec">
-          <div className="ps-col">
-            <Heading s={s5} />
-            <Text blocks={s5.blocks} />
-          </div>
+          <Heading s={s5} />
+          <Text blocks={s5.blocks} />
           <div className="ps-journey">
-            <Arcs />
-            <figure className="ps-step s1">
-              <DeviceShot className="ps-device" src={mockup1} alt="Splash screen" iw={723} ih={995} crop={[0.012, 0.137, 0.527, 0.66]} />
-            </figure>
-            <Arrow className="a1" />
-            <figure className="ps-step s2">
-              <DeviceShot className="ps-device" src={mockup2} alt="Template gallery" iw={551} ih={1002} crop={[0.136, 0.137, 0.724, 0.66]} />
-            </figure>
-            <Arrow className="a2" />
-            <figure className="ps-step s3">
-              <DeviceShot className="ps-device" src={mockup3} alt="Editor" iw={676} ih={1188} crop={[0.332, 0.197, 0.505, 0.581]} />
-            </figure>
+            <img src={mockup1} alt="Splash screen" style={{ width: '56.2%', left: '2.2%', top: '1.9%', transform: 'rotate(8deg)', transformOrigin: '27.7% 46.4%' }} />
+            <img src={mockup2} alt="Template gallery" style={{ width: '42.9%', left: '28.8%', top: '18.2%', transform: 'rotate(-9deg)', transformOrigin: '49.5% 46.7%' }} />
+            <img src={mockup3} alt="Editor" style={{ width: '52.6%', left: '51.5%', top: '26.4%' }} />
+            <svg viewBox="0 0 900 890" preserveAspectRatio="none" aria-hidden="true">
+              <defs>
+                <filter id="ps-sketchy" x="-5%" y="-5%" width="110%" height="110%">
+                  <feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="4" result="n" />
+                  <feDisplacementMap in="SourceGraphic" in2="n" scale="4" />
+                </filter>
+              </defs>
+              <g filter="url(#ps-sketchy)">
+                <Arrow d="M 190 88 C 280 52, 410 84, 448 214" head="M 431 192 C 438 200, 443 208, 449 218 C 455 208, 461 200, 470 190" />
+                <Arrow d="M 520 232 C 610 196, 700 228, 738 364" head="M 721 342 C 728 350, 733 358, 739 368 C 745 358, 751 350, 760 340" />
+              </g>
+            </svg>
           </div>
         </section>
 
         <section className="ps-sec">
-          <div className="ps-col">
-            <Heading s={s6} />
-            <Text blocks={s6.blocks} />
-          </div>
+          <div className="ps-el flower hide-m" style={{ width: 100, right: 10, top: -20, transform: 'rotate(20deg)' }} />
+          <Heading s={s6} />
+          <Text blocks={s6.blocks} />
         </section>
 
-        <section className="ps-grad" style={{ marginBottom: 0 }}>
-          <div className="ps-col">
+        <section className="ps-plaidwrap">
+          <div className="ps-plaid" />
+          <div className="ps-el s2" style={{ width: 80, left: -20, bottom: -30, transform: 'rotate(-16deg)' }} />
+          <div className="ps-ticket">
             <Heading s={s7} />
             <Text blocks={s7.blocks} />
           </div>

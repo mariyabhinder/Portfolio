@@ -19,6 +19,9 @@ import img12 from '@/assets/meadow/image (12).webp'
 
 const FONT = '"Nunito", "Helvetica Neue", Arial, sans-serif'
 const DISPLAY = '"Bagel Fat One", "Nunito", sans-serif'
+const HEAD = '"Chango", "Bagel Fat One", sans-serif'
+// paragraphs (section number -> block index) that sit on a teal speech-bubble blob
+const BLOBS: Record<number, number> = { 1: 2, 3: 5, 4: 1, 5: 5, 7: 1, 9: 0 }
 const GALLERY = [img1, img3, img7, img11, img12]
 
 type Block = { t: 'p' | 'q'; text: string }
@@ -131,19 +134,21 @@ const CSS = `
 .np-hero{display:grid;grid-template-columns:1.1fr 1fr;align-items:center;gap:24px;min-height:100vh;padding:70px 0 40px}
 .np-hero>div{min-width:0;text-align:center}
 .np-hero img{width:100%;max-height:92vh;object-fit:contain}
-.np-3d{white-space:nowrap;font-family:${DISPLAY};font-weight:400;font-size:clamp(24px,3.7vw,58px);line-height:1.02;margin:0;color:#ffd84d;letter-spacing:.01em;
-text-shadow:1px 1px 0 #f0a81c,2px 2px 0 #e8951a,3px 3px 0 #de8118,4px 4px 0 #d27016,5px 5px 0 #c46214,6px 6px 0 #b45512,7px 7px 0 #a34a10,8px 8px 0 #8f3f0e,9px 9px 0 #7b350c,10px 18px 22px rgba(0,0,0,.35);
-transform:perspective(900px) rotateX(8deg) rotateY(-4deg);transform-origin:center}
+.np-3d{white-space:nowrap;font-family:${HEAD};font-weight:400;font-size:clamp(28px,4vw,58px);line-height:1.25;margin:0;color:#e6fbf7;letter-spacing:.01em;-webkit-text-stroke:3px #0b5d54;paint-order:stroke fill;
+text-shadow:3px 3px 0 #0b5d54,4px 4px 0 #0b5d54,5px 5px 0 #0b5d54,6px 6px 0 #0b5d54,7px 7px 0 #14b8a6,8px 8px 0 #14b8a6;
+transform:rotate(-3deg);transform-origin:center}
 .np-3d span{display:block;white-space:nowrap}
-.np-3d .a{color:#5eead4;text-shadow:1px 1px 0 #14b8a6,2px 2px 0 #12a898,3px 3px 0 #0f9a8b,4px 4px 0 #0d8b7e,5px 5px 0 #0b7d72,6px 6px 0 #096f65,7px 7px 0 #07615a,8px 8px 0 #065650,9px 9px 0 #054a45,10px 18px 22px rgba(0,0,0,.35)}
+.np-3d .a{color:#7fd8cb;font-size:1.1em;margin:.1em 0}
 .np-sub{margin:34px 0 0;font-size:clamp(16px,2vw,20px);font-weight:700;color:#4a5160}
 .np-sec{padding:72px 0}
-.np-h2{font-family:${DISPLAY};font-weight:400;font-size:clamp(26px,3.6vw,42px);line-height:1.15;margin:0 0 22px;color:#1f2430}
-.np-num{display:inline-block;color:#fff;background:#14b8a6;border-radius:14px;padding:2px 12px;margin-right:10px;transform:rotate(-4deg)}
+.np-h2{font-family:${HEAD};font-weight:400;font-size:clamp(24px,3.2vw,38px);line-height:1.2;margin:0 0 26px;color:#e6fbf7;letter-spacing:.01em;-webkit-text-stroke:2px #0b5d54;paint-order:stroke fill;text-shadow:3px 3px 0 #0b5d54,4px 4px 0 #0b5d54,5px 5px 0 #14b8a6;transform:rotate(-1.2deg);transform-origin:left center}
+.np-num{display:inline-block;color:#fff;background:#14b8a6;border-radius:14px;padding:2px 12px;margin-right:10px;transform:rotate(-4deg);text-shadow:none;-webkit-text-stroke:0}
 .np-body p{font-size:clamp(17px,1.7vw,20px);line-height:1.8;font-weight:600;color:#2a2f3a;margin:0 0 18px}
 .np-body p:last-child{margin-bottom:0}
-.np-box{background:#fff;border-radius:34px 44px 38px 50px / 44px 36px 50px 40px;padding:clamp(26px,4vw,52px);box-shadow:0 18px 40px rgba(20,184,166,.15),0 0 0 3px #bff3ea inset}
-.np-blob{background:#e6fbf7;border-radius:60px 44px 56px 48px / 50px 56px 46px 52px}
+.np-body p.np-bub{position:relative;color:#06302c;padding:clamp(26px,4vw,48px) clamp(26px,4.5vw,56px);margin:10px 0 44px;border-radius:70px 90px 80px 100px / 80px 70px 90px 70px;
+background-color:#7fd8cb;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .55 -.12'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")}
+.np-body p.np-bub::after{content:'';position:absolute;bottom:-28px;left:18%;width:34px;height:34px;background:#7fd8cb;clip-path:polygon(0 0,100% 0,35% 100%)}
+.np-body p.np-bub.r::after{left:auto;right:18%;clip-path:polygon(0 0,100% 0,65% 100%)}
 .np-q{font-style:italic;font-weight:800;color:#0f766e;background:#e6fbf7;border:2px solid #14b8a6;border-radius:22px 22px 22px 4px;padding:10px 18px;margin:0 12px 12px 0;display:inline-block;font-size:18px}
 .np-mocks{display:flex;justify-content:center;gap:clamp(20px,5vw,48px);margin:48px 0 0;align-items:center}
 .np-mocks .np-device{flex:0 0 auto;width:min(232px,40vw)}
@@ -177,8 +182,8 @@ transform:perspective(900px) rotateX(8deg) rotateY(-4deg);transform-origin:cente
 .np-char b{margin-top:10px;font-family:${DISPLAY};font-weight:400;font-size:18px;color:#0f766e}
 .np-stage{position:relative;height:clamp(240px,40vw,420px);margin-top:44px}
 .np-stage img{position:absolute;top:50%;left:50%;height:100%;width:auto;max-width:56%;object-fit:cover;border-radius:22px;box-shadow:0 18px 36px rgba(0,0,0,.25);transition:transform .8s cubic-bezier(.6,.05,.25,1),opacity .8s,filter .8s}
-@media(max-width:820px){.np-hero,.np-split,.np-p3{grid-template-columns:1fr}.np-p3{gap:24px}.np-hero{min-height:auto;padding-top:80px}.np-3d{transform:none}.np-sec{padding:48px 0}.np-split.loop,.np-split.devices{grid-template-columns:1fr}.np-media{position:relative;top:auto;order:2}}
-@media(max-width:600px){.np-3d{font-size:clamp(26px,8.8vw,48px);line-height:1.08}.np-chars{flex-wrap:nowrap;gap:12px}.np-char{width:46%}.np-char b{font-size:16px}.np-char .pad{width:100%}}
+@media(max-width:820px){.np-hero,.np-split,.np-p3{grid-template-columns:1fr}.np-p3{gap:24px}.np-hero{min-height:auto;padding-top:80px}.np-3d{transform:rotate(-2deg)}.np-sec{padding:48px 0}.np-split .np-spiral,.np-split .ot{order:2}}
+@media(max-width:600px){.np-3d{font-size:clamp(24px,9vw,52px);line-height:1.25}.np-chars{flex-wrap:nowrap;gap:12px}.np-char{width:46%}.np-char b{font-size:16px}.np-char .pad{width:100%}}
 @media(prefers-reduced-motion:reduce){.np *{animation:none!important}}
 `
 
@@ -310,7 +315,7 @@ function Gallery() {
   )
 }
 
-const Body = ({ blocks }: { blocks: Block[] }) => {
+const Body = ({ blocks, bub = -1, right = false }: { blocks: Block[]; bub?: number; right?: boolean }) => {
   const firstQ = blocks.findIndex((b) => b.t === 'q')
   return (
     <div className="np-body">
@@ -325,7 +330,7 @@ const Body = ({ blocks }: { blocks: Block[] }) => {
             </p>
           )
         }
-        return <p key={i}>{rich(b.text)}</p>
+        return <p key={i} className={i === bub ? `np-bub${right ? ' r' : ''}` : undefined}>{rich(b.text)}</p>
       })}
     </div>
   )
@@ -346,7 +351,7 @@ export default function NudgePage() {
     window.scrollTo(0, 0)
     const link = document.createElement('link')
     link.rel = 'stylesheet'
-    link.href = 'https://fonts.googleapis.com/css2?family=Bagel+Fat+One&family=Nunito:wght@600;700;800&display=swap'
+    link.href = 'https://fonts.googleapis.com/css2?family=Bagel+Fat+One&family=Chango&family=Nunito:wght@600;700;800&display=swap'
     document.head.appendChild(link)
     return () => {
       link.remove()
@@ -366,7 +371,7 @@ export default function NudgePage() {
           <div>
             <h1 className="np-3d">
               <span>Nudge</span>
-              <span className="a">Stop Overthinking</span>
+              <span className="a">Stop</span><span className="a">Overthinking</span>
               <span>Start Doing</span>
             </h1>
           </div>
@@ -375,19 +380,18 @@ export default function NudgePage() {
 
       {SECTIONS.map((s, idx) => {
         const n = idx + 1
-        const odd = n % 2 === 1
         const text = (
           <>
             {heading(idx, s.title)}
-            <Body blocks={s.blocks} />
+            <Body blocks={s.blocks} bub={BLOBS[idx + 1] ?? -1} right={(idx + 1) % 4 === 3} />
           </>
         )
         let inner: ReactNode
         if (n === 3) {
           inner = (
-            <div className="np-split loop">
-              <div className="np-media"><OverthinkingLoop /></div>
-              <div className="np-box np-blob">{text}</div>
+            <div className="np-split">
+              <OverthinkingLoop />
+              <div>{text}</div>
             </div>
           )
         } else if (n === 8) {
@@ -403,7 +407,7 @@ export default function NudgePage() {
         } else {
           inner = (
             <div style={{ maxWidth: 880, margin: '0 auto' }}>
-              {odd ? <div className="np-box np-blob">{text}</div> : text}
+              {text}
             </div>
           )
         }
