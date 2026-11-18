@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState, type ReactNode } from 'react'
+﻿import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
 import heroImg from '@/assets/meadow/nudge image.webp'
 import nmockup1 from '@/assets/meadow/nmockup1.webp'
 import nmockup2 from '@/assets/meadow/nmockup2.webp'
@@ -161,13 +161,12 @@ background-color:#7fd8cb;background-image:url("data:image/svg+xml;utf8,<svg xmln
 .np-center .np-h2,.np-center .np-body p{text-align:center}
 .np-center{text-align:center;max-width:760px;margin:0 auto}
 /* section 08: the phone stood in front of the laptop's left corner, one composition (the padding is the phone's height above the laptop) */
-.np-devices{position:relative;width:100%;padding:24% 0 0 20%}
-.np-devices .lap{display:block;width:100%;height:auto;filter:drop-shadow(0 16px 22px rgba(0,0,0,.22))}
-.np-devices .ph{position:absolute;left:3%;bottom:0;width:34%;z-index:2;transform:rotate(-6deg);transform-origin:bottom center}
+.np-devices{display:flex;align-items:flex-end;justify-content:center;gap:clamp(12px,3vw,32px);width:100%;margin-top:40px}
+.np-devices .lap{display:block;flex:1 1 0;min-width:0;width:68%;height:auto;filter:drop-shadow(0 16px 22px rgba(0,0,0,.22))}
+.np-devices .ph{flex:0 0 auto;width:26%;transform:rotate(-4deg);transform-origin:bottom center}
 /* a story beside its picture: the picture stays in view (sticky) while the longer text goes past */
 .np-split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:clamp(32px,5vw,64px);align-items:start}
 .np-split.loop{grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr)}
-.np-split.devices{grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr)}
 .np-media{position:sticky;top:max(96px,14vh)}
 .np-p3{display:grid;grid-template-columns:1.25fr 1fr;gap:32px;align-items:center}
 .np-p3 p{margin:0}
@@ -323,17 +322,24 @@ const Body = ({ blocks, bub = -1, right = false }: { blocks: Block[]; bub?: numb
   return (
     <div className="np-body">
       {blocks.map((b, i) => {
-        if (b.t === 'q') {
-          if (i !== firstQ) return null
-          return (
-            <p key={i}>
-              {blocks.filter((x) => x.t === 'q').map((q) => (
-                <span key={q.text} className="np-q">{q.text}</span>
-              ))}
-            </p>
-          )
-        }
-        return <p key={i} className={i === bub ? `np-bub${right ? ' r' : ''}` : undefined}>{rich(b.text)}</p>
+        const el = (() => {
+          if (b.t === 'q') {
+            if (i !== firstQ) return null
+            return (
+              <p>
+                {blocks.filter((x) => x.t === 'q').map((q) => (
+                  <span key={q.text} className="np-q">{q.text}</span>
+                ))}
+              </p>
+            )
+          }
+          return <p className={i === bub ? `np-bub${right ? ' r' : ''}` : undefined}>{rich(b.text)}</p>
+        })()
+        return (
+          <Fragment key={i}>
+            {el}
+          </Fragment>
+        )
       })}
     </div>
   )
@@ -405,11 +411,11 @@ export default function NudgePage() {
           )
         } else if (n === 8) {
           inner = (
-            <div className="np-split devices">
-              <div>{text}</div>
-              <div className="np-media np-devices">
-                <img className="lap" src={nudgeLaptop} alt="Nudge desktop screen" />
+            <div style={{ maxWidth: 880, margin: '0 auto' }}>
+              {text}
+              <div className="np-devices">
                 <DeviceShot className="ph np-device" src={nmockup3} alt="Nudge mobile screen" iw={809} ih={1188} crop={[0.238, 0.197, 0.422, 0.581]} />
+                <img className="lap" src={nudgeLaptop} alt="Nudge desktop screen" />
               </div>
             </div>
           )

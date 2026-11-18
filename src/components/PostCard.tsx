@@ -31,6 +31,8 @@ const BackArt = () => (
 
 const PostCard = forwardRef<HTMLDivElement, { rot: number; open?: boolean; reopen?: number }>(function PostCard({ rot, open, reopen }, ref) {
   const [flipped, setFlipped] = useState(false)
+  // while it is open: true shows the picture side again (the back, with the links, is the default)
+  const [showFront, setShowFront] = useState(false)
   const wrapRef = useRef<HTMLDivElement | null>(null)
   const setRefs = useCallback((el: HTMLDivElement | null) => {
     wrapRef.current = el
@@ -53,13 +55,15 @@ const PostCard = forwardRef<HTMLDivElement, { rot: number; open?: boolean; reope
     card.style.setProperty('--pc-dx', `${(window.innerWidth / 2 - (r.left + r.width / 2)) / ps}px`)
     card.style.setProperty('--pc-dy', `${(window.innerHeight / 2 - (r.top + r.height / 2)) / ps}px`)
     card.style.setProperty('--pc-scale', scale.toFixed(3))
+    setShowFront(false)
     setFlipped(true)
   }, [rot])
 
   const toggle = useCallback((e: React.SyntheticEvent<HTMLDivElement>) => {
     e.stopPropagation()
-    // once open it stays open until a click outside it or Escape
+    // once open it stays open until a click outside it or Escape; clicking it then turns it between its two sides
     if (!flipped) openCard(e.currentTarget.parentElement!)
+    else setShowFront((v) => !v)
   }, [flipped, openCard])
 
   // `open` (the end of the page) turns it over by itself, and so does each new `reopen` while it is there (the nav's Contact me, in
@@ -105,7 +109,7 @@ const PostCard = forwardRef<HTMLDivElement, { rot: number; open?: boolean; reope
 
   return (
     <div ref={setRefs} className="pc-wrap" style={{ zIndex: flipped ? 30 : 3 }}>
-      <div className={`pc-card${flipped ? ' pc-card--flipped' : ''}`} style={{ ['--pc-rot' as string]: `${rot}rad` }}>
+      <div className={`pc-card${flipped ? ' pc-card--flipped' : ''}${flipped && showFront ? ' pc-card--front' : ''}`} style={{ ['--pc-rot' as string]: `${rot}rad` }}>
         <div
           role="button"
           tabIndex={0}
@@ -118,12 +122,22 @@ const PostCard = forwardRef<HTMLDivElement, { rot: number; open?: boolean; reope
           <span className="pc-face pc-front"><img src={front} alt="" draggable={false} /></span>
           <span className="pc-face pc-back"><BackArt /></span>
         </div>
-        <div className="pc-links" aria-hidden={!flipped}>
-          <a href={LINKEDIN_HREF} target="_blank" rel="noopener noreferrer" className="pc-link pc-link--a" tabIndex={flipped ? 0 : -1} onClick={(e) => e.stopPropagation()}>
+        <button
+          type="button"
+          className="pc-turn"
+          aria-label={showFront ? 'Show the back of the postcard' : 'Show the front of the postcard'}
+          tabIndex={flipped ? 0 : -1}
+          onClick={(e) => { e.stopPropagation(); setShowFront((v) => !v) }}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0115.5-6.2L21 8M21 3v5h-5M21 12a9 9 0 01-15.5 6.2L3 16M3 21v-5h5" /></svg>
+          {showFront ? 'Back' : 'Front'}
+        </button>
+        <div className="pc-links" aria-hidden={!flipped || showFront}>
+          <a href={LINKEDIN_HREF} target="_blank" rel="noopener noreferrer" className="pc-link pc-link--a" tabIndex={flipped && !showFront ? 0 : -1} onClick={(e) => e.stopPropagation()}>
             <LinkedInLogo />
             <span>{LINKEDIN_NAME}</span>
           </a>
-          <a href={`mailto:${EMAIL}`} className="pc-link pc-link--b" tabIndex={flipped ? 0 : -1} onClick={(e) => e.stopPropagation()}>
+          <a href={`mailto:${EMAIL}`} className="pc-link pc-link--b" tabIndex={flipped && !showFront ? 0 : -1} onClick={(e) => e.stopPropagation()}>
             <GmailLogo />
             <span>{EMAIL}</span>
           </a>

@@ -164,8 +164,8 @@ li:nth-child(4) > .site-nav__link { --tilt: 3deg; }
 .site-nav__link:focus-visible { outline: none; }
 /* phones: smaller and tighter so Home clears whatever sits at the left of the screen */
 @media (max-width: 600px) {
-  .site-nav__link { font-size: 10px; letter-spacing: 0.03em; padding: 6px 4px; }
-  .site-nav__link::before, .site-nav__link::after { width: 6px; height: 8px; }
+  .site-nav__link { font-size: 14px; letter-spacing: 0.03em; padding: 6px 5px; }
+  .site-nav__link::before, .site-nav__link::after { width: 7px; height: 9px; }
 }
 /* while the ID card hangs, its own close button is in this corner */
 body:has(.id-hang) .site-nav { opacity: 0; visibility: hidden; transition: none; }
@@ -361,6 +361,32 @@ body:has(.id-hang) .site-nav { opacity: 0; visibility: hidden; transition: none;
   transition: transform 0.9s cubic-bezier(0.22, 0.8, 0.25, 1);
 }
 .pc-card--flipped .pc-flip { transform: rotateY(180deg); }
+/* open, but turned back to its picture side */
+.pc-card--flipped.pc-card--front .pc-flip { transform: rotateY(0deg); }
+.pc-card--flipped.pc-card--front .pc-links { opacity: 0; transition: opacity 0.15s ease; }
+.pc-card--flipped.pc-card--front .pc-link { pointer-events: none; }
+/* the turn-over button under the open card (sized in the card's own units, so it scales with the lift) */
+.pc-turn {
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  margin-top: 4cqw;
+  transform: translateX(-50%);
+  display: none;
+  align-items: center;
+  gap: 1.6cqw;
+  padding: 1.6cqw 4cqw;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #2b2523;
+  font: 600 3.6cqw/1 system-ui, sans-serif;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: 0 1cqw 3cqw rgba(0, 0, 0, 0.25);
+}
+.pc-turn svg { width: 4.4cqw; height: 4.4cqw; }
+.pc-card--flipped .pc-turn { display: flex; }
 .pc-face {
   position: absolute;
   inset: 0;
