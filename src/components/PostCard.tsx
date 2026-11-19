@@ -7,7 +7,7 @@ import front from '../assets/meadow/postfront-pune-art.webp'
 import backArt from '../assets/meadow/postback-vadapav.webp'
 import { GmailLogo, LINKEDIN_HREF, LINKEDIN_NAME, LinkedInLogo } from './FlowerCard'
 
-const EMAIL = 'mariyahb2618@gmail.com'
+const EMAIL = 'hello@mariyab.com'
 
 // The back of the card, drawn as vector art (it was a 379px picture, which blurred when the card opens big). 376 x 269 units, like the card.
 const BackArt = () => (
