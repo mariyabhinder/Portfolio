@@ -5,7 +5,9 @@
 import { forwardRef, useCallback, useEffect, useRef, useState } from 'react'
 import front from '../assets/meadow/postfront-pune-art.webp'
 import backArt from '../assets/meadow/postback-vadapav.webp'
-import { EMAIL, GmailLogo, LINKEDIN_HREF, LINKEDIN_NAME, LinkedInLogo } from './FlowerCard'
+import { GmailLogo, LINKEDIN_HREF, LINKEDIN_NAME, LinkedInLogo } from './FlowerCard'
+
+const EMAIL = 'mariyahb2618@gmail.com'
 
 // The back of the card, drawn as vector art (it was a 379px picture, which blurred when the card opens big). 376 x 269 units, like the card.
 const BackArt = () => (
@@ -137,7 +139,7 @@ const PostCard = forwardRef<HTMLDivElement, { rot: number; open?: boolean; reope
             <LinkedInLogo />
             <span>{LINKEDIN_NAME}</span>
           </a>
-          <a href={`mailto:${EMAIL}`} className="pc-link pc-link--b" tabIndex={flipped && !showFront ? 0 : -1} onClick={(e) => e.stopPropagation()}>
+          <a href={`https://mail.google.com/mail/?view=cm&fs=1&to=${EMAIL}`} target="_blank" rel="noopener noreferrer" className="pc-link pc-link--b" tabIndex={flipped && !showFront ? 0 : -1} onClick={(e) => e.stopPropagation()}>
             <GmailLogo />
             <span>{EMAIL}</span>
           </a>
