@@ -9,7 +9,7 @@ import gmailImg from '../assets/gmail-sketch.png'
 export const LINKEDIN_NAME = 'mariyah-bhinderwala'
 export const LINKEDIN ='www.linkedin.com/in/mariyah-bhinderwala-4aa1872a0'
 export const LINKEDIN_HREF = `https://${LINKEDIN}`
-export const EMAIL = 'bhinderwalamariyah@gmail.com'
+export const EMAIL = 'mariyahb2618@gmail.com'
 
 // the same white as the small petals blowing about (meadow.ts drawPetals), with their soft green shadow
 const WHITE = '#fcfcf4'
@@ -87,7 +87,7 @@ export default function FlowerCard() {
                 <LinkedInLogo />
                 <span>{LINKEDIN_NAME}</span>
               </a>
-              <a href={`mailto:${EMAIL}`} className="fl-link">
+              <a href={`https://mail.google.com/mail/?view=cm&fs=1&to=${EMAIL}`} target="_blank" rel="noopener noreferrer" className="fl-link">
                 <GmailLogo />
                 <span>{EMAIL}</span>
               </a>
